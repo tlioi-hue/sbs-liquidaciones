@@ -1,0 +1,1659 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SBS Liquidaciones</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --bg:  #f5f5f7; --bg2: #ffffff; --bg3: #f0f0f2;
+  --border: #e0e0e4; --border2: #cacace;
+  --text: #111118; --text2: #5a5a6e; --text3: #9090a0;
+  --accent: #1a1a2e; --accent2: #16213e;
+  --green: #3b6d11; --green-bg: #eaf3de; --green-border: #c0dd97;
+  --orange: #854f0b; --orange-bg: #faeeda; --orange-border: #fac775;
+  --blue: #185fa5; --blue-bg: #e6f1fb; --blue-border: #a8c8f0;
+  --red: #a32d2d; --red-bg: #fcebeb;
+  --purple: #3c3489; --purple-bg: #eeedfe;
+  --radius: 8px; --radius-lg: 12px;
+  --shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 13px; }
+
+/* ── LOGIN ── */
+.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); }
+.login-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 36px 32px; width: 380px; box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+.login-logo { font-size: 18px; font-weight: 700; letter-spacing: -.3px; margin-bottom: 4px; }
+.login-sub  { font-size: 12px; color: var(--text2); margin-bottom: 28px; }
+.login-err  { background: var(--red-bg); color: var(--red); border: 1px solid #f0bcbc; border-radius: var(--radius); padding: 8px 11px; font-size: 12.5px; margin-bottom: 12px; display: none; }
+
+/* ── APP LAYOUT ── */
+.app { display: flex; height: 100vh; }
+.sb  { width: 224px; background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+.sb-logo { padding: 18px 16px 14px; border-bottom: 1px solid var(--border); }
+.sb-logo-t { font-size: 14px; font-weight: 700; letter-spacing: -.2px; }
+.sb-logo-s { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.sb-nav    { padding: 8px 4px; flex: 1; overflow-y: auto; }
+.sb-bottom { padding: 10px 8px; border-top: 1px solid var(--border); }
+.sb-user   { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: var(--radius); }
+.sb-user-name { font-size: 12px; font-weight: 500; }
+.sb-user-role { font-size: 11px; color: var(--text2); }
+.sb-sec  { padding: 10px 10px 3px; font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .8px; }
+.sb-item { display: flex; align-items: center; gap: 9px; padding: 7px 12px; border-radius: var(--radius); cursor: pointer; font-size: 13px; color: var(--text2); margin: 1px 2px; transition: background .1s, color .1s; }
+.sb-item:hover  { background: var(--bg3); color: var(--text); }
+.sb-item.active { background: var(--bg3); color: var(--text); font-weight: 500; }
+.sb-item i { font-size: 16px; width: 18px; flex-shrink: 0; }
+.sb-item.disabled { opacity: .4; pointer-events: none; }
+.main    { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.topbar  { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 0 22px; height: 54px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.topbar-t  { font-size: 15px; font-weight: 600; }
+.topbar-ac { display: flex; gap: 8px; }
+.content   { flex: 1; overflow-y: auto; padding: 22px; }
+
+/* ── Buttons ── */
+.btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 13px; border-radius: var(--radius); border: 1px solid var(--border2); background: var(--bg2); color: var(--text); font-size: 12.5px; cursor: pointer; font-family: inherit; font-weight: 400; transition: background .12s; white-space: nowrap; }
+.btn:hover { background: var(--bg3); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: var(--accent2); }
+.btn-success { background: var(--green); color: #fff; border-color: var(--green); }
+.btn-success:hover { background: #2a4f0c; }
+.btn-sm     { padding: 4px 9px; font-size: 11.5px; }
+.btn-danger { border-color: #f0bcbc; color: var(--red); }
+.btn-danger:hover { background: var(--red-bg); }
+
+/* ── Cards ── */
+.card    { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px; box-shadow: var(--shadow); }
+.grid2   { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.grid4   { display: grid; grid-template-columns: repeat(4,1fr); gap: 11px; }
+.metric  { background: var(--bg3); border-radius: var(--radius); padding: 13px 15px; border: 1px solid var(--border); }
+.metric-l { font-size: 11.5px; color: var(--text2); margin-bottom: 3px; }
+.metric-v { font-size: 22px; font-weight: 600; letter-spacing: -.5px; }
+.metric-s { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+/* ── Table ── */
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+th { text-align: left; padding: 7px 10px; font-size: 10.5px; font-weight: 600; color: var(--text2); border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: .5px; background: var(--bg3); }
+td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg3); }
+
+/* ── Badges ── */
+.badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+.bs { background: var(--green-bg); color: var(--green); }
+.bw { background: var(--orange-bg); color: var(--orange); }
+.bi { background: var(--blue-bg); color: var(--blue); }
+.bg { background: var(--bg3); color: var(--text2); }
+.bd { background: var(--red-bg); color: var(--red); }
+.bn { background: var(--purple-bg); color: var(--purple); }
+.chip { display: inline-flex; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+.chip-ext   { background: var(--blue-bg);   color: var(--blue); }
+.chip-arena { background: var(--green-bg);  color: var(--green); }
+.chip-fijos { background: var(--orange-bg); color: var(--orange); }
+
+/* ── Inputs ── */
+input, select, textarea { width: 100%; padding: 7px 10px; border: 1px solid var(--border2); border-radius: var(--radius); font-size: 12.5px; font-family: inherit; background: var(--bg2); color: var(--text); outline: none; transition: border-color .12s; }
+input:focus, select:focus { border-color: var(--accent); }
+input:disabled, select:disabled { opacity: .6; cursor: not-allowed; background: var(--bg3); }
+.fg { margin-bottom: 13px; }
+.fl { font-size: 11.5px; font-weight: 500; color: var(--text2); margin-bottom: 4px; display: block; }
+.fr  { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+
+/* ── Alerts ── */
+.alert { padding: 9px 13px; border-radius: var(--radius); font-size: 12.5px; margin-bottom: 14px; display: flex; align-items: flex-start; gap: 8px; }
+.alert-info { background: var(--blue-bg);   color: var(--blue);   border: 1px solid var(--blue-border); }
+.alert-warn { background: var(--orange-bg); color: var(--orange); border: 1px solid var(--orange-border); }
+.alert-ok   { background: var(--green-bg);  color: var(--green);  border: 1px solid var(--green-border); }
+
+/* ── Modal ── */
+.mo { position: fixed; inset: 0; background: rgba(0,0,0,.36); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+.modal    { background: var(--bg2); border-radius: var(--radius-lg); padding: 22px; width: 520px; max-width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,.18); }
+.modal-lg { width: 720px; }
+.modal-t  { font-size: 15px; font-weight: 600; margin-bottom: 3px; }
+.modal-s  { font-size: 11.5px; color: var(--text2); margin-bottom: 18px; }
+.modal-f  { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+
+/* ── Ev cards ── */
+.ev-card   { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow); }
+.fecha-row { display: flex; align-items: center; gap: 9px; padding: 7px 11px; border-radius: var(--radius); border: 1px solid var(--border); margin-bottom: 5px; font-size: 12.5px; background: var(--bg2); transition: background .1s; }
+.fecha-row:hover { background: var(--bg3); }
+.pill { background: var(--bg3); border-radius: 20px; padding: 2px 8px; font-size: 11px; color: var(--text2); white-space: nowrap; }
+.fb   { display: inline-flex; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+.fb-o { background: var(--blue-bg);   color: var(--blue); }
+.fb-p { background: var(--orange-bg); color: var(--orange); }
+.fb-c { background: var(--green-bg);  color: var(--green); }
+
+/* ── Quincena ── */
+.qrow   { border: 1px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 8px; overflow: hidden; }
+.qrow-h { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; cursor: pointer; background: var(--bg2); transition: background .1s; }
+.qrow-h:hover { background: var(--bg3); }
+.qrow-b { border-top: 1px solid var(--border); background: var(--bg3); }
+.qrow-line { display: flex; justify-content: space-between; padding: 5px 14px; font-size: 11.5px; border-bottom: 1px solid var(--border); color: var(--text2); gap: 8px; }
+.qrow-line:last-child { border-bottom: none; }
+.qrow-line span:last-child { font-weight: 500; color: var(--text); white-space: nowrap; }
+
+/* ── Verificacion ── */
+.ver-wrap  { overflow-x: auto; }
+.ver-table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 700px; }
+.ver-table th { text-align: left; padding: 6px 7px; font-size: 10px; font-weight: 600; color: var(--text2); border-bottom: 1px solid var(--border); text-transform: uppercase; white-space: nowrap; background: var(--bg3); }
+.ver-table td { padding: 3px 5px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.ver-table input { padding: 3px 6px; font-size: 11.5px; }
+.ver-table tr.ausente td:not(.tdc) { opacity: .38; }
+.ver-table tr.sel  { background: #eef4ff; }
+.ver-table tr.sel td:not(.tdc) { opacity: 1; }
+.ver-table tr:last-child td { border-bottom: none; }
+.sec-bar { background: var(--bg3); padding: 6px 11px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); font-size: 11.5px; }
+.toggle { width: 28px; height: 16px; border-radius: 8px; border: none; cursor: pointer; position: relative; flex-shrink: 0; padding: 0; transition: background .12s; }
+.toggle.on  { background: var(--green); }
+.toggle.off { background: var(--border2); }
+.toggle::after { content: ''; position: absolute; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: left .1s; }
+.toggle.on::after  { left: 14px; }
+.toggle.off::after { left: 2px; }
+.bulk-bar { position: sticky; top: 0; z-index: 10; background: var(--accent); color: #fff; padding: 9px 13px; display: flex; align-items: center; gap: 8px; border-radius: var(--radius); margin-bottom: 11px; font-size: 12.5px; flex-wrap: wrap; }
+.bulk-bar input { background: rgba(255,255,255,.14); color: #fff; border-color: rgba(255,255,255,.28); font-size: 12px; padding: 4px 7px; }
+.bulk-bar input::placeholder { color: rgba(255,255,255,.5); }
+.chk { width: 14px; height: 14px; cursor: pointer; accent-color: var(--accent); flex-shrink: 0; }
+.steps    { display: flex; align-items: center; margin-bottom: 20px; }
+.step     { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text2); }
+.step.active { color: var(--text); font-weight: 500; }
+.step.done   { color: var(--green); }
+.step-num { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 600; border: 1px solid var(--border2); flex-shrink: 0; }
+.step.active .step-num { background: var(--accent); color: #fff; border-color: var(--accent); }
+.step.done   .step-num { background: var(--green-bg); color: var(--green); border-color: var(--green-border); }
+.step-sep { width: 28px; height: 1px; background: var(--border); margin: 0 3px; }
+.drop-zone { border: 1.5px dashed var(--border2); border-radius: var(--radius-lg); padding: 28px; text-align: center; cursor: pointer; transition: all .14s; }
+.drop-zone:hover, .drop-zone.dov { border-color: var(--accent); background: var(--bg3); }
+.empty-state { text-align: center; padding: 44px 20px; color: var(--text2); }
+.empty-state i { font-size: 36px; display: block; margin-bottom: 10px; color: var(--text3); }
+
+/* ── Spinner ── */
+.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Toast ── */
+.toast { position: fixed; bottom: 20px; right: 20px; background: var(--accent); color: #fff; padding: 10px 16px; border-radius: var(--radius); font-size: 13px; z-index: 200; box-shadow: 0 4px 16px rgba(0,0,0,.2); animation: fadeIn .2s; }
+.toast.ok  { background: var(--green); }
+.toast.err { background: var(--red); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Loading overlay ── */
+.loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,.7); display: flex; align-items: center; justify-content: center; z-index: 300; }
+.loading-box { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px 32px; text-align: center; box-shadow: var(--shadow); }
+</style>
+</head>
+<body>
+
+<!-- ════════════════ LOGIN ════════════════ -->
+<div id="login-page" class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">SBS Liquidaciones</div>
+    <div class="login-sub">Show Business Solutions</div>
+    <div class="login-err" id="login-err"></div>
+    <div class="fg"><label class="fl">Email</label><input id="login-email" type="email" placeholder="tu@email.com" autocomplete="email"></div>
+    <div class="fg"><label class="fl">Contraseña</label><input id="login-pass" type="password" placeholder="••••••••" autocomplete="current-password"></div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="doLogin()" id="login-btn">
+      Iniciar sesión
+    </button>
+  </div>
+</div>
+
+<!-- ════════════════ APP ════════════════ -->
+<div id="app-page" style="display:none">
+  <div class="app" id="app">
+    <div class="sb">
+      <div class="sb-logo">
+        <div class="sb-logo-t">SBS Liquidaciones</div>
+        <div class="sb-logo-s">Show Business Solutions</div>
+      </div>
+      <div class="sb-nav" id="sb-nav">
+        <div class="sb-sec">Principal</div>
+        <div class="sb-item" onclick="go('db')"       id="n-db"><i class="ti ti-layout-dashboard"></i> Dashboard</div>
+        <div class="sb-sec" id="nav-sec-gestion">Gestión</div>
+        <div class="sb-item" onclick="go('personal')"  id="n-personal"><i class="ti ti-users"></i> Personal</div>
+        <div class="sb-item" onclick="go('tarifario')" id="n-tarifario"><i class="ti ti-list"></i> Tarifario</div>
+        <div class="sb-item" onclick="go('importar')"  id="n-importar"><i class="ti ti-file-upload"></i> Importar planilla</div>
+        <div class="sb-sec">Liquidaciones</div>
+        <div class="sb-item" onclick="go('externos')"  id="n-externos"><i class="ti ti-world"></i> Externos</div>
+        <div class="sb-item" onclick="go('arena')"     id="n-arena"><i class="ti ti-building"></i> Movistar Arena</div>
+      </div>
+      <div class="sb-bottom">
+        <div class="sb-user">
+          <i class="ti ti-user-circle" style="font-size:20px;color:var(--text2)"></i>
+          <div>
+            <div class="sb-user-name" id="user-email-label">—</div>
+            <div class="sb-user-role" id="user-role-label">—</div>
+          </div>
+          <button class="btn btn-sm" style="margin-left:auto" onclick="doLogout()" title="Cerrar sesión"><i class="ti ti-logout"></i></button>
+        </div>
+      </div>
+    </div>
+    <div class="main">
+      <div class="topbar">
+        <div class="topbar-t" id="topbar-t">Dashboard</div>
+        <div class="topbar-ac" id="topbar-ac"></div>
+      </div>
+      <div class="content" id="content"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════
+// CONFIG — reemplazar con tus valores de Supabase
+// ══════════════════════════════════════════════
+const SUPABASE_URL = window.ENV_SUPABASE_URL || 'https://tvggknkvrjsuhnfahtzl.supabase.co';
+const SUPABASE_ANON_KEY = window.ENV_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR2Z2drbmt2cmpzdWhuZmFodHpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MDg2MzMsImV4cCI6MjA5NzI4NDYzM30.GjZl4U-VDXzLw21-eMOT3FZUgIdAL_am25z4w_fW6oE';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ══════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════
+const APP = {
+  user: null,
+  rol: null,        // 'rrhh' | 'administracion'
+  page: 'db',
+  draft: null,
+  // cache local (se recarga desde Supabase al navegar)
+  personal: [],
+  tarifario: [],
+  eventos: [],
+  quincenas: [],
+  liquidaciones: [],
+};
+
+// ══════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  const btn   = document.getElementById('login-btn');
+  const err   = document.getElementById('login-err');
+  err.style.display = 'none';
+  btn.innerHTML = '<span class="spinner"></span> Ingresando...';
+  btn.disabled = true;
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) {
+    err.textContent = 'Email o contraseña incorrectos.';
+    err.style.display = 'block';
+    btn.innerHTML = 'Iniciar sesión';
+    btn.disabled = false;
+    return;
+  }
+  await initApp(data.user);
+}
+
+async function initApp(user) {
+  APP.user = user;
+  // Obtener rol
+  const { data: roleRow } = await sb.from('user_roles').select('rol').eq('user_id', user.id).single();
+  APP.rol = roleRow?.rol || null;
+
+  if (!APP.rol) {
+    await sb.auth.signOut();
+    showErr('Tu usuario no tiene rol asignado. Contactá al administrador.');
+    document.getElementById('login-btn').innerHTML = 'Iniciar sesión';
+    document.getElementById('login-btn').disabled = false;
+    return;
+  }
+
+  // Mostrar app
+  document.getElementById('login-page').style.display = 'none';
+  document.getElementById('app-page').style.display = 'block';
+  document.getElementById('user-email-label').textContent = user.email;
+  document.getElementById('user-role-label').textContent = APP.rol === 'rrhh' ? 'RRHH' : 'Administración';
+
+  // Ocultar secciones de gestión para administración
+  if (APP.rol === 'administracion') {
+    document.getElementById('nav-sec-gestion').style.display = 'none';
+    ['n-personal','n-tarifario','n-importar','n-externos','n-arena'].forEach(id => {
+      const el = document.getElementById(id);
+      if (id === 'n-externos' || id === 'n-arena') return; // los ve pero solo exporta
+      if (el) el.classList.add('disabled');
+    });
+    go('arena'); // Administración entra directo a liquidaciones Arena
+  } else {
+    go('db');
+  }
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  location.reload();
+}
+
+function showErr(msg) {
+  const err = document.getElementById('login-err');
+  err.textContent = msg;
+  err.style.display = 'block';
+}
+
+// Chequear sesión activa al cargar
+sb.auth.getSession().then(({ data: { session } }) => {
+  if (session) initApp(session.user);
+});
+
+// ══════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════
+function uid()  { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function fmt(n) { return new Intl.NumberFormat('es-AR', { style:'currency', currency:'ARS', maximumFractionDigits:0 }).format(n || 0); }
+function fd(d)  { if (!d) return '—'; const p = String(d).split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d; }
+function $v(id) { const e = document.getElementById(id); return e ? e.value.trim() : ''; }
+
+function toast(msg, type = '') {
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+
+function loading(show) {
+  let ov = document.getElementById('loading-ov');
+  if (show) {
+    if (!ov) {
+      ov = document.createElement('div'); ov.id = 'loading-ov'; ov.className = 'loading-overlay';
+      ov.innerHTML = '<div class="loading-box"><div class="spinner" style="border-color:rgba(0,0,0,.15);border-top-color:var(--accent);width:24px;height:24px;margin:0 auto 10px"></div><div style="font-size:13px;color:var(--text2)">Cargando...</div></div>';
+      document.body.appendChild(ov);
+    } else ov.style.display = 'flex';
+  } else { if (ov) ov.style.display = 'none'; }
+}
+
+const TITLES = { db:'Dashboard', personal:'Personal', tarifario:'Tarifario', importar:'Importar planilla', externos:'Externos', arena:'Movistar Arena' };
+
+async function go(page) {
+  APP.page = page;
+  document.querySelectorAll('.sb-item').forEach(e => e.classList.remove('active'));
+  const n = document.getElementById('n-' + page); if (n) n.classList.add('active');
+  document.getElementById('topbar-t').textContent = TITLES[page] || '';
+  document.getElementById('topbar-ac').innerHTML = '';
+  document.getElementById('content').innerHTML = '';
+  await render();
+}
+
+async function render() {
+  const el = document.getElementById('content');
+  const ac = document.getElementById('topbar-ac');
+  loading(true);
+  try {
+    await ({ db:pgDB, personal:pgPersonal, tarifario:pgTarifario, importar:pgImportar, externos:pgExternos, arena:pgArena })[APP.page]?.(el, ac);
+  } catch (e) {
+    el.innerHTML = `<div class="alert alert-warn"><i class="ti ti-alert-circle"></i> Error cargando: ${e.message}</div>`;
+    console.error(e);
+  }
+  loading(false);
+}
+
+// ══════════════════════════════════════════════
+// DATA LAYER — Supabase
+// ══════════════════════════════════════════════
+async function fetchAll() {
+  const [p, t, ev, q, liq] = await Promise.all([
+    sb.from('personal').select('*').order('apellido'),
+    sb.from('tarifario').select('*').order('posicion'),
+    sb.from('eventos').select('*, fechas(*, presentismo(*))').order('created_at'),
+    sb.from('quincenas').select('*').order('fecha_inicio'),
+    sb.from('liquidaciones').select('*').order('created_at', { ascending: false }),
+  ]);
+  APP.personal      = p.data  || [];
+  APP.tarifario     = t.data  || [];
+  APP.eventos       = ev.data || [];
+  APP.quincenas     = q.data  || [];
+  APP.liquidaciones = liq.data || [];
+}
+
+// ── helpers de acceso local (post-fetch) ──
+function getEvento(id)   { return APP.eventos.find(e => e.id === id); }
+function getPersona(id)  { return APP.personal.find(p => p.id === id); }
+function getTarifa(pos)  { return APP.tarifario.find(t => t.posicion === pos); }
+function liqsF(evId, fechaId) { return APP.liquidaciones.filter(l => l.evento_id === evId && l.fecha_id === fechaId); }
+
+function stF(ev, fechaId) {
+  const f = (ev.fechas||[]).find(f => f.id === fechaId);
+  const pres = f?.presentismo || [];
+  if (!pres.length) return 'o';
+  const l = liqsF(ev.id, fechaId);
+  if (!l.length) return 'o';
+  if (l.every(x => x.estado === 'pagado')) return 'c';
+  return 'p';
+}
+
+// ══════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════
+async function pgDB(el) {
+  await fetchAll();
+  const liqPend  = APP.liquidaciones.filter(l => l.estado === 'pendiente').length;
+  const liqTotal = APP.liquidaciones.reduce((s, l) => s + (l.total || 0), 0);
+  const extEvs   = APP.eventos.filter(e => e.area === 'Externos');
+
+  el.innerHTML = `
+  <div class="grid4" style="margin-bottom:20px">
+    <div class="metric"><div class="metric-l">Personal</div><div class="metric-v">${APP.personal.length}</div>
+      <div class="metric-s">${APP.personal.filter(p=>p.area==='Externos').length} ext · ${APP.personal.filter(p=>p.area==='Movistar Arena').length} arena</div></div>
+    <div class="metric"><div class="metric-l">Eventos Externos</div><div class="metric-v">${extEvs.length}</div>
+      <div class="metric-s">${extEvs.reduce((s,e)=>(e.fechas||[]).length+s,0)} fechas</div></div>
+    <div class="metric"><div class="metric-l">Quincenas Arena</div><div class="metric-v">${APP.quincenas.length}</div>
+      <div class="metric-s">${APP.eventos.filter(e=>e.area==='Movistar Arena').length} shows</div></div>
+    <div class="metric"><div class="metric-l">Liq. pendientes</div><div class="metric-v">${liqPend}</div>
+      <div class="metric-s">${fmt(liqTotal)} total histórico</div></div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div style="font-size:13px;font-weight:600;margin-bottom:13px">Últimas liquidaciones</div>
+      ${!APP.liquidaciones.length
+        ? '<div class="empty-state"><i class="ti ti-receipt-off"></i><p>Sin liquidaciones aún</p></div>'
+        : APP.liquidaciones.slice(0, 6).map(l => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+            <div>
+              <div style="font-size:12.5px;font-weight:500">${l.persona_nombre||'—'}</div>
+              <div style="font-size:11px;color:var(--text2)">${l.area} · ${l.quincena_nombre||l.periodo||''}</div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-size:12.5px;font-weight:600">${fmt(l.total)}</div>
+              <span class="badge ${l.estado==='pagado'?'bs':l.estado==='aprobado'?'bi':'bw'}">${l.estado}</span>
+            </div>
+          </div>`).join('')}
+    </div>
+    <div class="card">
+      <div style="font-size:13px;font-weight:600;margin-bottom:13px">Accesos rápidos</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        ${APP.rol==='rrhh'?`
+          <button class="btn" style="justify-content:flex-start" onclick="go('importar')"><i class="ti ti-file-upload"></i> Importar planilla de show</button>
+          <button class="btn" style="justify-content:flex-start" onclick="go('externos')"><i class="ti ti-world"></i> Gestionar Externos</button>
+          <button class="btn" style="justify-content:flex-start" onclick="go('arena')"><i class="ti ti-building"></i> Movistar Arena</button>
+          <button class="btn" style="justify-content:flex-start" onclick="go('personal')"><i class="ti ti-users"></i> Personal</button>
+          <button class="btn" style="justify-content:flex-start" onclick="go('tarifario')"><i class="ti ti-edit"></i> Tarifario</button>
+        `:`
+          <button class="btn" style="justify-content:flex-start" onclick="go('externos')"><i class="ti ti-world"></i> Liquidaciones Externos</button>
+          <button class="btn" style="justify-content:flex-start" onclick="go('arena')"><i class="ti ti-building"></i> Liquidaciones Arena</button>
+        `}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════
+// PERSONAL
+// ══════════════════════════════════════════════
+async function pgPersonal(el, ac) {
+  if (APP.rol !== 'rrhh') { el.innerHTML = '<div class="alert alert-warn"><i class="ti ti-lock"></i> Sin acceso</div>'; return; }
+  await fetchAll();
+  ac.innerHTML = `<button class="btn btn-primary" onclick="modalPersona()"><i class="ti ti-plus"></i> Agregar persona</button>`;
+  renderPersonalUI(el);
+}
+
+function renderPersonalUI(el) {
+  el.innerHTML = `
+    <div style="margin-bottom:13px;display:flex;gap:9px;align-items:center">
+      <input type="text" placeholder="Buscar nombre, CUIL, posición..." style="max-width:320px" oninput="filtrarP(this.value)">
+      <span style="font-size:12px;color:var(--text2)">${APP.personal.length} registros</span>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden" id="tabla-p"></div>`;
+  renderTablaP(APP.personal);
+}
+
+window.filtrarP = q => renderTablaP(APP.personal.filter(p =>
+  !q || (p.apellido+' '+p.nombre+(p.cuil||'')+(p.posicion||'')).toLowerCase().includes(q.toLowerCase())
+));
+
+function renderTablaP(lista) {
+  const el = document.getElementById('tabla-p'); if (!el) return;
+  if (!lista.length) { el.innerHTML = '<div class="empty-state"><i class="ti ti-user-off"></i><p>Sin resultados</p></div>'; return; }
+  el.innerHTML = `<table><thead><tr>
+    <th>Apellido y nombre</th><th>CUIL</th><th>Área</th><th>Posición habitual</th><th>CBU</th><th>Estado</th><th></th>
+  </tr></thead><tbody>${lista.map(p => `<tr>
+    <td><strong>${p.apellido}, ${p.nombre}</strong></td>
+    <td style="font-family:monospace;font-size:11.5px">${p.cuil||'—'}</td>
+    <td><span class="chip ${p.area==='Externos'?'chip-ext':p.area==='Movistar Arena'?'chip-arena':'chip-fijos'}">${p.area}</span></td>
+    <td>${p.posicion||'—'}</td>
+    <td style="font-family:monospace;font-size:11.5px">${p.cbu?p.cbu.slice(0,6)+'···'+p.cbu.slice(-4):'—'}</td>
+    <td><span class="badge ${p.activo!==false?'bs':'bg'}">${p.activo!==false?'activo':'inactivo'}</span></td>
+    <td style="display:flex;gap:4px">
+      <button class="btn btn-sm" onclick="modalPersona('${p.id}')"><i class="ti ti-edit"></i></button>
+      <button class="btn btn-sm btn-danger" onclick="delP('${p.id}')"><i class="ti ti-trash"></i></button>
+    </td>
+  </tr>`).join('')}</tbody></table>`;
+}
+
+window.modalPersona = function(id) {
+  const p  = id ? APP.personal.find(x => x.id === id) : null;
+  const po = APP.tarifario.map(t => `<option value="${t.posicion}" ${p?.posicion===t.posicion?'selected':''}>${t.posicion}</option>`).join('');
+  showModal(`<div class="modal">
+    <div class="modal-t">${p?'Editar persona':'Nueva persona'}</div><div class="modal-s"></div>
+    <div class="fr">
+      <div class="fg"><label class="fl">Nombre *</label><input id="pn" value="${p?.nombre||''}"></div>
+      <div class="fg"><label class="fl">Apellido *</label><input id="pa" value="${p?.apellido||''}"></div>
+    </div>
+    <div class="fr">
+      <div class="fg"><label class="fl">CUIL</label><input id="pc" value="${p?.cuil||''}" placeholder="20123456789"></div>
+      <div class="fg"><label class="fl">DNI</label><input id="pd" value="${p?.dni||''}"></div>
+    </div>
+    <div class="fg"><label class="fl">CBU (22 dígitos)</label><input id="pb" maxlength="22" value="${p?.cbu||''}"></div>
+    <div class="fg"><label class="fl">Alias CBU</label><input id="pal" value="${p?.alias||''}"></div>
+    <div class="fr">
+      <div class="fg"><label class="fl">Área</label>
+        <select id="par">
+          <option value="Externos"      ${p?.area==='Externos'?'selected':''}>Externos</option>
+          <option value="Movistar Arena" ${p?.area==='Movistar Arena'?'selected':''}>Movistar Arena</option>
+          <option value="Servicios Fijos" ${p?.area==='Servicios Fijos'?'selected':''}>Servicios Fijos</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Posición habitual</label>
+        <select id="ppos">${po||`<option value="${p?.posicion||''}">${p?.posicion||'— cargar tarifario primero —'}</option>`}</select>
+      </div>
+    </div>
+    <div class="fr">
+      <div class="fg"><label class="fl">Email</label><input id="pem" type="email" value="${p?.email||''}"></div>
+      <div class="fg"><label class="fl">Teléfono</label><input id="ptel" value="${p?.tel||''}"></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="savePersona('${p?.id||''}')">Guardar</button>
+    </div>
+  </div>`);
+};
+
+window.savePersona = async function(id) {
+  const v = { nombre:$v('pn'), apellido:$v('pa'), cuil:$v('pc'), dni:$v('pd'), cbu:$v('pb'), alias:$v('pal'), area:$v('par'), posicion:$v('ppos'), email:$v('pem'), tel:$v('ptel'), activo:true };
+  if (!v.nombre || !v.apellido) { alert('Nombre y apellido son obligatorios'); return; }
+  loading(true);
+  if (id) { await sb.from('personal').update(v).eq('id', id); }
+  else    { await sb.from('personal').insert(v); }
+  loading(false); closeModal(); toast('Persona guardada', 'ok'); await go('personal');
+};
+
+window.delP = async function(id) {
+  if (!confirm('¿Eliminar persona?')) return;
+  loading(true); await sb.from('personal').delete().eq('id', id); loading(false);
+  toast('Persona eliminada'); await go('personal');
+};
+
+// ══════════════════════════════════════════════
+// TARIFARIO
+// ══════════════════════════════════════════════
+async function pgTarifario(el, ac) {
+  if (APP.rol !== 'rrhh') { el.innerHTML = '<div class="alert alert-warn"><i class="ti ti-lock"></i> Sin acceso</div>'; return; }
+  await fetchAll();
+  ac.innerHTML = `<button class="btn btn-primary" onclick="modalTarifa()"><i class="ti ti-plus"></i> Agregar posición</button>`;
+  el.innerHTML = `
+    <div class="alert alert-info"><i class="ti ti-info-circle"></i>
+      El monto por jornada se aplica según la posición de cada fecha. Al actualizar un monto por convenio, las nuevas jornadas usan el nuevo valor; las liquidaciones ya generadas no se modifican.
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+    ${!APP.tarifario.length
+      ? '<div class="empty-state"><i class="ti ti-list-check"></i><p>Sin posiciones.</p></div>'
+      : `<table><thead><tr><th>Posición</th><th>Área</th><th>$/jornada</th><th>Actualizado</th><th></th></tr></thead>
+        <tbody>${APP.tarifario.map(t => `<tr>
+          <td><strong>${t.posicion}</strong></td>
+          <td><span class="chip ${t.area==='Externos'?'chip-ext':t.area==='Movistar Arena'?'chip-arena':'chip-fijos'}">${t.area}</span></td>
+          <td style="font-weight:600">${fmt(t.monto)}</td>
+          <td style="font-size:11.5px;color:var(--text2)">${t.updated_at ? new Date(t.updated_at).toLocaleDateString('es-AR') : '—'}</td>
+          <td style="display:flex;gap:4px">
+            <button class="btn btn-sm" onclick="modalTarifa('${t.id}')"><i class="ti ti-edit"></i></button>
+            <button class="btn btn-sm btn-danger" onclick="delTarifa('${t.id}')"><i class="ti ti-trash"></i></button>
+          </td>
+        </tr>`).join('')}</tbody></table>`}
+    </div>`;
+}
+
+window.modalTarifa = function(id) {
+  const t = id ? APP.tarifario.find(x => x.id === id) : null;
+  showModal(`<div class="modal">
+    <div class="modal-t">${t?'Editar posición':'Nueva posición'}</div><div class="modal-s"></div>
+    <div class="fg"><label class="fl">Nombre de la posición *</label>
+      <input id="tp" placeholder="Ej: ANILLO, BOWL, REPOSITOR, CAJERO" value="${t?.posicion||''}">
+    </div>
+    <div class="fg"><label class="fl">Área</label>
+      <select id="ta">
+        <option value="Externos"      ${t?.area==='Externos'?'selected':''}>Externos</option>
+        <option value="Movistar Arena" ${t?.area==='Movistar Arena'?'selected':''}>Movistar Arena</option>
+        <option value="General"        ${t?.area==='General'?'selected':''}>General (ambas áreas)</option>
+      </select>
+    </div>
+    <div class="fg"><label class="fl">Monto por jornada ($) *</label>
+      <input id="tm" type="number" min="0" step="1" value="${t?.monto||''}" placeholder="Ej: 15000">
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveTarifa('${t?.id||''}')">Guardar</button>
+    </div>
+  </div>`);
+};
+
+window.saveTarifa = async function(id) {
+  const pos = $v('tp'), area = $v('ta'), monto = parseFloat($v('tm'));
+  if (!pos || isNaN(monto)) { alert('Completá posición y monto'); return; }
+  loading(true);
+  if (id) { await sb.from('tarifario').update({ posicion:pos, area, monto }).eq('id', id); }
+  else    { await sb.from('tarifario').insert({ posicion:pos, area, monto }); }
+  loading(false); closeModal(); toast('Posición guardada', 'ok'); await go('tarifario');
+};
+
+window.delTarifa = async function(id) {
+  if (!confirm('¿Eliminar posición?')) return;
+  loading(true); await sb.from('tarifario').delete().eq('id', id); loading(false);
+  toast('Posición eliminada'); await go('tarifario');
+};
+
+// ══════════════════════════════════════════════
+// EXTERNOS
+// ══════════════════════════════════════════════
+async function pgExternos(el, ac) {
+  await fetchAll();
+  const evs    = APP.eventos.filter(e => e.area === 'Externos');
+  const liqExt = APP.liquidaciones.filter(l => l.area === 'Externos');
+  const isRRHH = APP.rol === 'rrhh';
+
+  if (isRRHH) ac.innerHTML = `<button class="btn btn-primary" onclick="modalNuevoEv()"><i class="ti ti-plus"></i> Nuevo evento</button>`;
+
+  el.innerHTML = `
+    <div class="grid4" style="margin-bottom:18px">
+      <div class="metric"><div class="metric-l">Eventos</div><div class="metric-v">${evs.length}</div></div>
+      <div class="metric"><div class="metric-l">Fechas totales</div><div class="metric-v">${evs.reduce((s,e)=>(e.fechas||[]).length+s,0)}</div></div>
+      <div class="metric"><div class="metric-l">Liq. pendientes</div><div class="metric-v">${liqExt.filter(l=>l.estado==='pendiente').length}</div></div>
+      <div class="metric"><div class="metric-l">Total liquidado</div><div class="metric-v" style="font-size:17px">${fmt(liqExt.reduce((s,l)=>s+(l.total||0),0))}</div></div>
+    </div>
+    ${!evs.length
+      ? '<div class="empty-state"><i class="ti ti-calendar-off"></i><p>Sin eventos.</p></div>'
+      : evs.map(ev => renderEvExt(ev, isRRHH)).join('')}`;
+}
+
+function renderEvExt(ev, isRRHH) {
+  const fechas = ev.fechas || [];
+  const liqs   = APP.liquidaciones.filter(l => l.evento_id === ev.id);
+  const pend   = fechas.filter(f => (f.presentismo||[]).length && !liqsF(ev.id, f.id).length).length;
+
+  return `<div class="ev-card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+      <div>
+        <div style="font-size:15px;font-weight:600">${ev.nombre}</div>
+        <div style="font-size:11.5px;color:var(--text2);margin-top:2px">${ev.lugar||''} · ${fd(ev.fecha_inicio)}${ev.fecha_fin?' — '+fd(ev.fecha_fin):''}</div>
+      </div>
+      <div style="display:flex;gap:7px;align-items:center">
+        ${pend && isRRHH ? `<span class="badge bw">${pend} fecha${pend>1?'s':''} sin liquidar</span>` : ''}
+        ${isRRHH ? `<button class="btn btn-sm btn-danger" onclick="delEv('${ev.id}')"><i class="ti ti-trash"></i></button>` : ''}
+      </div>
+    </div>
+    <div style="display:flex;gap:13px;font-size:11.5px;margin-bottom:12px;flex-wrap:wrap">
+      <span><strong>${fechas.length}</strong> fechas</span>
+      <span><strong>${fechas.reduce((s,f)=>(f.presentismo||[]).length+s,0)}</strong> jornadas</span>
+      <span style="color:var(--green)"><strong>${fmt(liqs.reduce((s,l)=>s+(l.total||0),0))}</strong> liquidado</span>
+    </div>
+    <div style="margin-bottom:11px">
+      ${!fechas.length
+        ? '<div style="text-align:center;padding:11px;color:var(--text2);font-size:12px;border:1px dashed var(--border);border-radius:var(--radius)">Sin fechas cargadas</div>'
+        : fechas.map(f => {
+            const pres = f.presentismo || [];
+            const fl   = liqsF(ev.id, f.id);
+            const st   = stF(ev, f.id);
+            return `<div class="fecha-row">
+              <div style="flex:1">
+                <span style="font-weight:500">${fd(f.fecha)}</span>
+                ${f.nombre ? `<span style="color:var(--text2);font-size:11px"> · ${f.nombre}</span>` : ''}
+              </div>
+              <span class="pill">${pres.length} pres.</span>
+              <span class="pill">${fmt(fl.reduce((s,l)=>s+(l.total||0),0))}</span>
+              <span class="fb ${st==='o'?'fb-o':st==='p'?'fb-p':'fb-c'}">${st==='o'?'sin liquidar':st==='p'?'parcial':'cerrada'}</span>
+              <div style="display:flex;gap:5px;flex-shrink:0">
+                ${pres.length ? `<button class="btn btn-sm" onclick="verFechaExt('${ev.id}','${f.id}')"><i class="ti ti-eye"></i></button>` : ''}
+                ${isRRHH ? `<button class="btn btn-sm" onclick="importarFechaCtx('${ev.id}','${f.id}','ext')" title="Subir planilla"><i class="ti ti-file-upload"></i></button>` : ''}
+                ${isRRHH && pres.length && st !== 'c' ? `<button class="btn btn-sm btn-success" onclick="liquidarFechaExt('${ev.id}','${f.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
+                ${fl.length ? `<button class="btn btn-sm" onclick="exportLiqsFecha('${ev.id}','${f.id}')"><i class="ti ti-file-spreadsheet"></i> Excel</button>` : ''}
+              </div>
+            </div>`;
+          }).join('')}
+    </div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      ${isRRHH ? `<button class="btn btn-sm" onclick="agregarFechaExt('${ev.id}')"><i class="ti ti-calendar-plus"></i> Agregar fecha</button>` : ''}
+      ${liqs.length ? `<button class="btn btn-sm" onclick="verLiqsEv('${ev.id}')"><i class="ti ti-list"></i> Liquidaciones (${liqs.length})</button>` : ''}
+      ${liqs.length ? `<button class="btn btn-sm" onclick="exportLiqsEvento('${ev.id}')"><i class="ti ti-file-spreadsheet"></i> Exportar todo</button>` : ''}
+    </div>
+  </div>`;
+}
+
+window.modalNuevoEv = function() {
+  showModal(`<div class="modal">
+    <div class="modal-t">Nuevo evento — Externos</div><div class="modal-s"></div>
+    <div class="fg"><label class="fl">Nombre del evento *</label><input id="en" placeholder="Ej: Coldplay · Campo Argentino de Polo"></div>
+    <div class="fg"><label class="fl">Lugar</label><input id="el"></div>
+    <div class="fr">
+      <div class="fg"><label class="fl">Fecha inicio</label><input id="ei" type="date"></div>
+      <div class="fg"><label class="fl">Fecha fin</label><input id="ef" type="date"></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveEv()">Crear evento</button>
+    </div>
+  </div>`);
+};
+
+window.saveEv = async function() {
+  const nombre = $v('en'); if (!nombre) { alert('Nombre obligatorio'); return; }
+  loading(true);
+  await sb.from('eventos').insert({ nombre, lugar:$v('el'), fecha_inicio:$v('ei')||null, fecha_fin:$v('ef')||null, area:'Externos' });
+  loading(false); closeModal(); toast('Evento creado', 'ok'); await go('externos');
+};
+
+window.delEv = async function(id) {
+  if (!confirm('¿Eliminar evento y todas sus liquidaciones?')) return;
+  loading(true); await sb.from('eventos').delete().eq('id', id); loading(false);
+  toast('Evento eliminado'); await go('externos');
+};
+
+window.agregarFechaExt = function(evId) {
+  showModal(`<div class="modal">
+    <div class="modal-t">Agregar fecha al evento</div><div class="modal-s"></div>
+    <div class="fr">
+      <div class="fg"><label class="fl">Fecha *</label><input id="fd" type="date"></div>
+      <div class="fg"><label class="fl">Descripción (opcional)</label><input id="fn" placeholder="Ej: Fecha 1"></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveFechaExt('${evId}')">Agregar</button>
+    </div>
+  </div>`);
+};
+
+window.saveFechaExt = async function(evId) {
+  const fecha = $v('fd'); if (!fecha) { alert('Seleccioná una fecha'); return; }
+  loading(true); await sb.from('fechas').insert({ evento_id:evId, fecha, nombre:$v('fn')||null }); loading(false);
+  closeModal(); toast('Fecha agregada', 'ok'); await go('externos');
+};
+
+window.verFechaExt = function(evId, fechaId) {
+  const ev   = getEvento(evId);
+  const f    = (ev?.fechas||[]).find(x => x.id === fechaId);
+  const pres = f?.presentismo || [];
+  const liqs = liqsF(evId, fechaId);
+  showModal(`<div class="modal modal-lg">
+    <div class="modal-t">${ev.nombre} — ${fd(f.fecha)}</div>
+    <div class="modal-s">${pres.length} presentes${f.nombre?' · '+f.nombre:''}</div>
+    <table><thead><tr><th>Apellido y nombre</th><th>CUIL</th><th>Posición</th><th>Liquidación</th></tr></thead>
+    <tbody>${pres.map(p => {
+      const per = APP.personal.find(x => x.id === p.persona_id);
+      const liq = liqs.find(l => l.persona_id === p.persona_id);
+      return `<tr>
+        <td><strong>${per?.apellido||'?'}, ${per?.nombre||'?'}</strong></td>
+        <td style="font-family:monospace;font-size:11px">${per?.cuil||'—'}</td>
+        <td>${p.posicion}</td>
+        <td>${liq ? `<span class="badge ${liq.estado==='pagado'?'bs':liq.estado==='aprobado'?'bi':'bw'}">${fmt(liq.total)} · ${liq.estado}</span>` : '<span class="badge bg">sin liquidar</span>'}</td>
+      </tr>`;
+    }).join('')}</tbody></table>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      ${APP.rol==='rrhh' && stF(ev,fechaId)!=='c' ? `<button class="btn btn-success" onclick="closeModal();liquidarFechaExt('${evId}','${fechaId}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
+      ${liqs.length ? `<button class="btn" onclick="exportLiqsFecha('${evId}','${fechaId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>` : ''}
+    </div>
+  </div>`);
+};
+
+window.liquidarFechaExt = async function(evId, fechaId) {
+  const ev     = getEvento(evId);
+  const f      = (ev?.fechas||[]).find(x => x.id === fechaId);
+  const pres   = f?.presentismo || [];
+  const yaLiq  = liqsF(evId, fechaId).map(l => l.persona_id);
+  const sinLiq = pres.filter(p => !yaLiq.includes(p.persona_id));
+  if (!sinLiq.length) { alert('Todos los presentes ya tienen liquidación.'); return; }
+
+  const rows = [], sinTarifa = [];
+  sinLiq.forEach(p => {
+    const per = APP.personal.find(x => x.id === p.persona_id);
+    const t   = getTarifa(p.posicion);
+    if (per && t) rows.push({
+      persona_id: per.id, persona_nombre:`${per.apellido}, ${per.nombre}`,
+      evento_id: evId, fecha_id: fechaId, area:'Externos', posicion: p.posicion,
+      periodo: fd(f.fecha), jornadas:1, valor_jornada:t.monto, total:t.monto, estado:'pendiente'
+    });
+    else if (per) sinTarifa.push(`${per.apellido} (${p.posicion})`);
+  });
+
+  showModal(`<div class="modal">
+    <div class="modal-t">Liquidar — ${fd(f.fecha)}</div><div class="modal-s">${ev.nombre}</div>
+    <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px">
+      ${rows.map(r => `<div style="display:flex;justify-content:space-between;padding:7px 11px;border-bottom:1px solid var(--border);font-size:12.5px">
+        <span>${r.persona_nombre}</span>
+        <span style="display:flex;gap:9px;align-items:center">
+          <span style="font-size:11px;color:var(--text2)">${r.posicion}</span>
+          <strong>${fmt(r.total)}</strong>
+        </span>
+      </div>`).join('')}
+    </div>
+    ${sinTarifa.length ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Sin tarifa: ${sinTarifa.join(', ')}</div>` : ''}
+    <div style="display:flex;justify-content:space-between;padding:10px 12px;background:var(--bg3);border-radius:var(--radius)">
+      <span style="font-weight:500">Total fecha</span>
+      <span style="font-size:18px;font-weight:600">${fmt(rows.reduce((s,r)=>s+r.total,0))}</span>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-success" onclick="confirmLiqsExt(${JSON.stringify(rows).replace(/"/g,'&quot;')})"><i class="ti ti-check"></i> Confirmar</button>
+    </div>
+  </div>`);
+};
+
+window.confirmLiqsExt = async function(rows) {
+  loading(true); await sb.from('liquidaciones').insert(rows); loading(false);
+  closeModal(); toast('Liquidaciones generadas', 'ok'); await go('externos');
+};
+
+window.verLiqsEv = function(evId) {
+  const ev   = getEvento(evId);
+  const liqs = APP.liquidaciones.filter(l => l.evento_id === evId);
+  showModal(`<div class="modal modal-lg">
+    <div class="modal-t">Liquidaciones — ${ev.nombre}</div>
+    <div class="modal-s">${fmt(liqs.reduce((s,l)=>s+(l.total||0),0))} total · ${liqs.length} liquidaciones</div>
+    <table><thead><tr><th>Fecha</th><th>Persona</th><th>Posición</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+    <tbody>${liqs.map(l => `<tr>
+      <td style="font-size:11.5px">${l.periodo}</td>
+      <td><strong>${l.persona_nombre}</strong></td>
+      <td style="font-size:11.5px">${l.posicion||'—'}</td>
+      <td style="font-weight:600">${fmt(l.total)}</td>
+      <td><span class="badge ${l.estado==='pagado'?'bs':l.estado==='aprobado'?'bi':'bw'}">${l.estado}</span></td>
+      <td style="display:flex;gap:4px">
+        ${APP.rol==='rrhh' && l.estado==='pendiente' ? `<button class="btn btn-sm" onclick="aprobar('${l.id}')"><i class="ti ti-check"></i></button>` : ''}
+        ${l.estado==='aprobado' ? `<button class="btn btn-sm" onclick="pagar('${l.id}')"><i class="ti ti-cash"></i></button>` : ''}
+        ${APP.rol==='rrhh' ? `<button class="btn btn-sm btn-danger" onclick="delLiq('${l.id}')"><i class="ti ti-trash"></i></button>` : ''}
+      </td>
+    </tr>`).join('')}</tbody></table>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn" onclick="exportLiqsEvento('${evId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
+    </div>
+  </div>`);
+};
+
+// ══════════════════════════════════════════════
+// ARENA — quincenas
+// ══════════════════════════════════════════════
+async function pgArena(el, ac) {
+  await fetchAll();
+  const isRRHH   = APP.rol === 'rrhh';
+  const liqArena = APP.liquidaciones.filter(l => l.area === 'Movistar Arena');
+
+  if (isRRHH) ac.innerHTML = `<button class="btn btn-primary" onclick="modalNuevaQ()"><i class="ti ti-plus"></i> Nueva quincena</button>`;
+
+  el.innerHTML = `
+    <div class="grid4" style="margin-bottom:18px">
+      <div class="metric"><div class="metric-l">Quincenas</div><div class="metric-v">${APP.quincenas.length}</div></div>
+      <div class="metric"><div class="metric-l">Shows Arena</div><div class="metric-v">${APP.eventos.filter(e=>e.area==='Movistar Arena').length}</div></div>
+      <div class="metric"><div class="metric-l">Liq. pendientes</div><div class="metric-v">${liqArena.filter(l=>l.estado==='pendiente').length}</div></div>
+      <div class="metric"><div class="metric-l">Total liquidado</div><div class="metric-v" style="font-size:17px">${fmt(liqArena.reduce((s,l)=>s+(l.total||0),0))}</div></div>
+    </div>
+    ${!APP.quincenas.length
+      ? '<div class="empty-state"><i class="ti ti-calendar-off"></i><p>Sin quincenas.</p></div>'
+      : APP.quincenas.map(q => renderQCard(q, isRRHH)).join('')}`;
+}
+
+function renderQCard(q, isRRHH) {
+  const shows = APP.eventos.filter(e => e.area === 'Movistar Arena' && e.quincena_id === q.id);
+  const totalJornadas = shows.reduce((s, ev) => (ev.fechas||[]).reduce((ss,f)=>(f.presentismo||[]).length+ss, 0)+s, 0);
+  const liqs  = APP.liquidaciones.filter(l => l.quincena_id === q.id);
+
+  return `<div class="ev-card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+      <div>
+        <div style="font-size:15px;font-weight:600">${q.nombre}</div>
+        <div style="font-size:11.5px;color:var(--text2);margin-top:2px">${fd(q.fecha_inicio)} — ${fd(q.fecha_fin)}</div>
+      </div>
+      <div style="display:flex;gap:7px;align-items:center">
+        <span class="badge ${q.cerrada?'bs':totalJornadas?'bw':'bg'}">${q.cerrada?'cerrada':totalJornadas?'con jornadas':'sin shows'}</span>
+        ${isRRHH ? `<button class="btn btn-sm btn-danger" onclick="delQ('${q.id}')"><i class="ti ti-trash"></i></button>` : ''}
+      </div>
+    </div>
+    <div style="display:flex;gap:13px;font-size:11.5px;margin-bottom:12px;flex-wrap:wrap">
+      <span><strong>${shows.length}</strong> shows</span>
+      <span><strong>${totalJornadas}</strong> jornadas</span>
+      ${liqs.length ? `<span style="color:var(--green)"><strong>${fmt(liqs.reduce((s,l)=>s+(l.total||0),0))}</strong> liquidado</span>` : ''}
+    </div>
+    <div style="margin-bottom:11px">
+      ${!shows.length
+        ? '<div style="text-align:center;padding:11px;color:var(--text2);font-size:12px;border:1px dashed var(--border);border-radius:var(--radius)">Sin shows agregados</div>'
+        : shows.map(ev => {
+            const fec = ev.fechas || [];
+            const jEv = fec.reduce((s,f) => (f.presentismo||[]).length+s, 0);
+            return `<div class="fecha-row">
+              <div style="flex:1">
+                <span style="font-weight:500">${ev.nombre}</span>
+                ${ev.fecha ? `<span style="color:var(--text2);font-size:11px"> · ${fd(ev.fecha)}</span>` : ''}
+              </div>
+              <span class="pill">${fec.length} fecha${fec.length!==1?'s':''}</span>
+              <span class="pill">${jEv} jornadas</span>
+              <div style="display:flex;gap:5px;flex-shrink:0">
+                ${isRRHH ? `<button class="btn btn-sm" onclick="agregarFechaArena('${ev.id}')"><i class="ti ti-calendar-plus"></i></button>` : ''}
+                <button class="btn btn-sm" onclick="verShowArena('${ev.id}')"><i class="ti ti-eye"></i></button>
+                ${isRRHH ? `<button class="btn btn-sm btn-danger" onclick="delShowArena('${ev.id}')"><i class="ti ti-trash"></i></button>` : ''}
+              </div>
+            </div>`;
+          }).join('')}
+    </div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      ${isRRHH ? `<button class="btn btn-sm" onclick="agregarShowQ('${q.id}')"><i class="ti ti-plus"></i> Agregar show</button>` : ''}
+      ${isRRHH && totalJornadas && !q.cerrada ? `<button class="btn btn-sm btn-success" onclick="previaCierre('${q.id}')"><i class="ti ti-receipt"></i> Cerrar y liquidar quincena</button>` : ''}
+      ${liqs.length ? `<button class="btn btn-sm" onclick="verLiqsQ('${q.id}')"><i class="ti ti-list"></i> Liquidaciones (${liqs.length})</button>` : ''}
+      ${liqs.length ? `<button class="btn btn-sm" onclick="exportLiqsQuincena('${q.id}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>` : ''}
+    </div>
+  </div>`;
+}
+
+window.modalNuevaQ = function() {
+  showModal(`<div class="modal">
+    <div class="modal-t">Nueva quincena — Movistar Arena</div>
+    <div class="modal-s">Agrupá los shows de la quincena. Al cerrarla se genera una liquidación consolidada por persona (agrupada por CUIL).</div>
+    <div class="fg"><label class="fl">Nombre *</label><input id="qn" placeholder="Ej: 1ra quincena junio 2025"></div>
+    <div class="fr">
+      <div class="fg"><label class="fl">Fecha inicio</label><input id="qi" type="date"></div>
+      <div class="fg"><label class="fl">Fecha fin</label><input id="qf" type="date"></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveQ()">Crear quincena</button>
+    </div>
+  </div>`);
+};
+
+window.saveQ = async function() {
+  const nombre = $v('qn'); if (!nombre) { alert('Nombre obligatorio'); return; }
+  loading(true);
+  await sb.from('quincenas').insert({ nombre, fecha_inicio:$v('qi')||null, fecha_fin:$v('qf')||null, cerrada:false });
+  loading(false); closeModal(); toast('Quincena creada', 'ok'); await go('arena');
+};
+
+window.delQ = async function(id) {
+  if (!confirm('¿Eliminar quincena, todos sus shows y liquidaciones?')) return;
+  loading(true); await sb.from('quincenas').delete().eq('id', id); loading(false);
+  toast('Quincena eliminada'); await go('arena');
+};
+
+window.agregarShowQ = function(qId) {
+  const q = APP.quincenas.find(x => x.id === qId);
+  showModal(`<div class="modal">
+    <div class="modal-t">Agregar show — ${q.nombre}</div><div class="modal-s"></div>
+    <div class="fg"><label class="fl">Nombre del show *</label><input id="sn" placeholder="Ej: Duki, Abel Pintos..."></div>
+    <div class="fg"><label class="fl">Fecha principal (opcional)</label><input id="sf" type="date"></div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveShowQ('${qId}')">Crear show</button>
+    </div>
+  </div>`);
+};
+
+window.saveShowQ = async function(qId) {
+  const nombre = $v('sn'); if (!nombre) { alert('Nombre obligatorio'); return; }
+  loading(true);
+  await sb.from('eventos').insert({ nombre, fecha:$v('sf')||null, area:'Movistar Arena', quincena_id:qId });
+  loading(false); closeModal(); toast('Show creado', 'ok'); await go('arena');
+};
+
+window.delShowArena = async function(id) {
+  if (!confirm('¿Eliminar show?')) return;
+  loading(true); await sb.from('eventos').delete().eq('id', id); loading(false);
+  toast('Show eliminado'); await go('arena');
+};
+
+window.agregarFechaArena = function(evId) {
+  const ev = getEvento(evId);
+  showModal(`<div class="modal">
+    <div class="modal-t">Agregar fecha — ${ev.nombre}</div><div class="modal-s"></div>
+    <div class="fr">
+      <div class="fg"><label class="fl">Fecha *</label><input id="fd" type="date"></div>
+      <div class="fg"><label class="fl">Descripción (opcional)</label><input id="fn" placeholder="Ej: Fecha 1"></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveFechaArena('${evId}')">Agregar</button>
+    </div>
+  </div>`);
+};
+
+window.saveFechaArena = async function(evId) {
+  const fecha = $v('fd'); if (!fecha) { alert('Seleccioná fecha'); return; }
+  loading(true); await sb.from('fechas').insert({ evento_id:evId, fecha, nombre:$v('fn')||null }); loading(false);
+  closeModal(); toast('Fecha agregada', 'ok'); await go('arena');
+};
+
+window.verShowArena = function(evId) {
+  const ev    = getEvento(evId);
+  const fechas = ev?.fechas || [];
+  showModal(`<div class="modal modal-lg">
+    <div class="modal-t">${ev.nombre}</div>
+    <div class="modal-s">${fechas.length} fecha${fechas.length!==1?'s':''} · ${fechas.reduce((s,f)=>(f.presentismo||[]).length+s,0)} jornadas</div>
+    ${!fechas.length
+      ? '<div class="empty-state"><i class="ti ti-calendar-off"></i><p>Sin fechas.</p></div>'
+      : fechas.map(f => {
+          const pres = f.presentismo || [];
+          return `<div style="margin-bottom:9px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 11px;background:var(--bg3)">
+              <strong>${fd(f.fecha)}${f.nombre?' · '+f.nombre:''}</strong>
+              <div style="display:flex;gap:5px;align-items:center">
+                <span class="pill">${pres.length} presentes</span>
+                ${APP.rol==='rrhh' ? `<button class="btn btn-sm" onclick="closeModal();importarFechaCtx('${evId}','${f.id}','arena')"><i class="ti ti-file-upload"></i> Subir planilla</button>` : ''}
+              </div>
+            </div>
+            ${pres.length
+              ? `<table style="font-size:11.5px"><thead><tr><th>Apellido y nombre</th><th>Posición ese día</th></tr></thead>
+                <tbody>${pres.map(p => { const per = APP.personal.find(x => x.id === p.persona_id); return `<tr><td>${per?.apellido||'?'}, ${per?.nombre||'?'}</td><td>${p.posicion}</td></tr>`; }).join('')}</tbody></table>`
+              : '<div style="padding:9px 11px;font-size:12px;color:var(--text2)">Sin presentismo cargado.</div>'}
+          </div>`;
+        }).join('')}
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      ${APP.rol==='rrhh' ? `<button class="btn btn-primary" onclick="closeModal();agregarFechaArena('${evId}')"><i class="ti ti-plus"></i> Agregar fecha</button>` : ''}
+    </div>
+  </div>`);
+};
+
+// ── CIERRE QUINCENAL ──
+window.previaCierre = function(qId) {
+  const q     = APP.quincenas.find(x => x.id === qId);
+  const shows = APP.eventos.filter(e => e.area === 'Movistar Arena' && e.quincena_id === qId);
+
+  const jornadas = [];
+  shows.forEach(ev => {
+    (ev.fechas||[]).forEach(f => {
+      (f.presentismo||[]).forEach(p => {
+        const t = getTarifa(p.posicion);
+        jornadas.push({ persona_id:p.persona_id, ev_nombre:ev.nombre, fecha:f.fecha, posicion:p.posicion, monto:t?.monto||0, sin_tarifa:!t });
+      });
+    });
+  });
+
+  const mapa = {};
+  jornadas.forEach(j => {
+    if (!mapa[j.persona_id]) mapa[j.persona_id] = { persona_id:j.persona_id, lineas:[], total:0, sin_tarifa:false };
+    mapa[j.persona_id].lineas.push(j);
+    mapa[j.persona_id].total += j.monto;
+    if (j.sin_tarifa) mapa[j.persona_id].sin_tarifa = true;
+  });
+
+  const cons   = Object.values(mapa);
+  const stN    = cons.filter(c => c.sin_tarifa).length;
+  const totalG = cons.reduce((s, c) => s + c.total, 0);
+
+  showModal(`<div class="modal modal-lg">
+    <div class="modal-t">Cierre de quincena — ${q.nombre}</div>
+    <div class="modal-s">${cons.length} personas · ${jornadas.length} jornadas · ${fmt(totalG)}</div>
+    ${stN ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> ${stN} persona${stN>1?'s tienen':' tiene'} jornadas sin tarifa.</div>` : ''}
+    <div class="alert alert-info"><i class="ti ti-info-circle"></i> Se genera <strong>una liquidación por persona</strong> con el detalle de todas sus jornadas de la quincena.</div>
+    <div style="max-height:360px;overflow-y:auto">
+      ${cons.map(c => {
+        const per = APP.personal.find(x => x.id === c.persona_id);
+        return `<div class="qrow">
+          <div class="qrow-h" onclick="const b=this.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none'">
+            <div>
+              <div style="font-size:13px;font-weight:500">${per?.apellido||'?'}, ${per?.nombre||'?'}</div>
+              <div style="font-size:11px;color:var(--text2)">CUIL ${per?.cuil||'—'} · ${c.lineas.length} jornada${c.lineas.length!==1?'s':''}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:9px">
+              ${c.sin_tarifa ? '<span class="badge bw" style="font-size:10px">tarifas faltantes</span>' : ''}
+              <span style="font-size:15px;font-weight:600">${fmt(c.total)}</span>
+              <i class="ti ti-chevron-down" style="font-size:12px;color:var(--text2)"></i>
+            </div>
+          </div>
+          <div class="qrow-b" style="display:none">
+            ${c.lineas.map(l => `<div class="qrow-line">
+              <span>${fd(l.fecha)} · ${l.ev_nombre}</span>
+              <span>${l.posicion}</span>
+              <span>${l.sin_tarifa ? '<span style="color:var(--orange)">sin tarifa</span>' : fmt(l.monto)}</span>
+            </div>`).join('')}
+            <div class="qrow-line" style="font-weight:600;color:var(--text)">
+              <span>Subtotal persona</span><span></span><span>${fmt(c.total)}</span>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-success" onclick="confirmarCierre('${qId}',${JSON.stringify(cons).replace(/"/g,'&quot;')})">
+        <i class="ti ti-check"></i> Confirmar — generar liquidaciones
+      </button>
+    </div>
+  </div>`);
+};
+
+window.confirmarCierre = async function(qId, cons) {
+  const q   = APP.quincenas.find(x => x.id === qId);
+  const rows = [];
+  cons.forEach(c => {
+    if (!c.total) return;
+    const per = APP.personal.find(x => x.id === c.persona_id); if (!per) return;
+    rows.push({
+      persona_id: per.id, persona_nombre:`${per.apellido}, ${per.nombre}`,
+      area:'Movistar Arena', quincena_id:qId, quincena_nombre:q.nombre, periodo:q.nombre,
+      jornadas:c.lineas.length, total:c.total,
+      detalle: c.lineas,  // se guarda como JSONB en Supabase
+      estado:'pendiente'
+    });
+  });
+  loading(true);
+  await sb.from('liquidaciones').insert(rows);
+  await sb.from('quincenas').update({ cerrada:true }).eq('id', qId);
+  loading(false);
+  closeModal(); toast('Quincena cerrada y liquidaciones generadas', 'ok'); await go('arena');
+};
+
+window.verLiqsQ = function(qId) {
+  const q    = APP.quincenas.find(x => x.id === qId);
+  const liqs = APP.liquidaciones.filter(l => l.quincena_id === qId);
+  showModal(`<div class="modal modal-lg">
+    <div class="modal-t">Liquidaciones — ${q.nombre}</div>
+    <div class="modal-s">${fmt(liqs.reduce((s,l)=>s+(l.total||0),0))} · ${liqs.length} personas</div>
+    <table><thead><tr><th>Persona</th><th>CUIL</th><th style="text-align:center">Jornadas</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+    <tbody>${liqs.map(l => {
+      const p = APP.personal.find(x => x.id === l.persona_id);
+      return `<tr>
+        <td><strong>${l.persona_nombre}</strong></td>
+        <td style="font-family:monospace;font-size:11.5px">${p?.cuil||'—'}</td>
+        <td style="text-align:center">${l.jornadas}</td>
+        <td style="font-weight:600">${fmt(l.total)}</td>
+        <td><span class="badge ${l.estado==='pagado'?'bs':l.estado==='aprobado'?'bi':'bw'}">${l.estado}</span></td>
+        <td style="display:flex;gap:4px">
+          ${APP.rol==='rrhh' && l.estado==='pendiente' ? `<button class="btn btn-sm" onclick="aprobar('${l.id}')"><i class="ti ti-check"></i></button>` : ''}
+          ${l.estado==='aprobado' ? `<button class="btn btn-sm" onclick="pagar('${l.id}')"><i class="ti ti-cash"></i></button>` : ''}
+          <button class="btn btn-sm" onclick="detalleLiqQ('${l.id}')"><i class="ti ti-eye"></i></button>
+          ${APP.rol==='rrhh' ? `<button class="btn btn-sm btn-danger" onclick="delLiq('${l.id}')"><i class="ti ti-trash"></i></button>` : ''}
+        </td>
+      </tr>`;
+    }).join('')}</tbody></table>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn" onclick="exportLiqsQuincena('${qId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
+    </div>
+  </div>`);
+};
+
+window.detalleLiqQ = function(id) {
+  const l = APP.liquidaciones.find(x => x.id === id); if (!l) return;
+  const p = APP.personal.find(x => x.id === l.persona_id);
+  showModal(`<div class="modal">
+    <div class="modal-t">${l.persona_nombre}</div>
+    <div class="modal-s">${l.quincena_nombre||l.periodo}</div>
+    <div style="background:var(--bg3);border-radius:var(--radius);padding:11px;margin-bottom:13px;font-size:12.5px">
+      <div>CUIL: <strong>${p?.cuil||'—'}</strong></div>
+      <div>CBU: <strong>${p?.cbu||'no registrado'}</strong></div>
+      ${p?.alias ? `<div>Alias: <strong>${p.alias}</strong></div>` : ''}
+    </div>
+    ${l.detalle && l.detalle.length ? `
+      <div style="font-size:10.5px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Detalle de jornadas</div>
+      ${l.detalle.map(d => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px">
+        <span style="color:var(--text2)">${fd(d.fecha)} · ${d.ev_nombre||d.evNombre||''}</span>
+        <span>${d.posicion}</span>
+        <span style="font-weight:500">${fmt(d.monto)}</span>
+      </div>`).join('')}` : ''}
+    <div style="display:flex;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);margin-top:4px">
+      <span style="font-weight:600">Total</span>
+      <span style="font-size:18px;font-weight:700">${fmt(l.total)}</span>
+    </div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cerrar</button></div>
+  </div>`);
+};
+
+// ══════════════════════════════════════════════
+// IMPORTAR PLANILLA
+// ══════════════════════════════════════════════
+async function pgImportar(el, ac) {
+  if (APP.rol !== 'rrhh') { el.innerHTML = '<div class="alert alert-warn"><i class="ti ti-lock"></i> Sin acceso</div>'; return; }
+  if (APP.draft) { pgVerificar(el, ac); return; }
+  await fetchAll();
+
+  el.innerHTML = `
+    <div class="steps">
+      <div class="step active"><div class="step-num">1</div><span>Subir planilla</span></div>
+      <div class="step-sep"></div>
+      <div class="step"><div class="step-num">2</div><span>Verificar y corregir</span></div>
+      <div class="step-sep"></div>
+      <div class="step"><div class="step-num">3</div><span>Confirmar</span></div>
+    </div>
+    <div class="alert alert-info"><i class="ti ti-info-circle"></i>
+      Para vincular directamente a un show o fecha, subí desde Externos o Arena. Este importador es de carga rápida.
+    </div>
+    <div class="card">
+      <div class="drop-zone" id="dz" onclick="document.getElementById('fi').click()">
+        <i class="ti ti-table-import" style="font-size:36px;color:var(--text2);display:block;margin-bottom:10px"></i>
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px">Arrastrá el archivo acá o hacé clic</div>
+        <div style="font-size:12px;color:var(--text2)">.xlsx · .xls · .csv — Columnas: Nº · Apellido · Nombre · CUIL · Teléfono · Presentes (P)</div>
+      </div>
+      <input type="file" id="fi" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFileCtx(this.files[0],null,null,'arena')">
+    </div>`;
+
+  const dz = document.getElementById('dz');
+  if (dz) {
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dov'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dov'));
+    dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dov'); handleFileCtx(e.dataTransfer.files[0], null, null, 'arena'); });
+  }
+}
+
+window.importarFechaCtx = async function(evId, fechaId, modo) {
+  await fetchAll();
+  const ev = getEvento(evId);
+  const f  = (ev?.fechas||[]).find(x => x.id === fechaId);
+  showModal(`<div class="modal">
+    <div class="modal-t">Importar planilla — ${ev.nombre}</div>
+    <div class="modal-s">Fecha: ${fd(f.fecha)}${f.nombre?' · '+f.nombre:''}</div>
+    <div class="drop-zone" id="dz-m" onclick="document.getElementById('fi-m').click()">
+      <i class="ti ti-table-import" style="font-size:30px;color:var(--text2);display:block;margin-bottom:7px"></i>
+      <div style="font-size:13px;font-weight:600;margin-bottom:3px">Arrastrá acá o hacé clic</div>
+      <div style="font-size:11.5px;color:var(--text2)">.xlsx · .xls · .csv</div>
+    </div>
+    <input type="file" id="fi-m" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFileCtx(this.files[0],'${evId}','${fechaId}','${modo}')">
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancelar</button></div>
+  </div>`);
+  setTimeout(() => {
+    const dz = document.getElementById('dz-m');
+    if (dz) {
+      dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dov'); });
+      dz.addEventListener('dragleave', () => dz.classList.remove('dov'));
+      dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dov'); handleFileCtx(e.dataTransfer.files[0], evId, fechaId, modo); });
+    }
+  }, 80);
+};
+
+window.handleFileCtx = async function(file, evId, fechaId, modo) {
+  if (!file) return;
+  if (APP.personal.length === 0) await fetchAll();
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type:'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const mo = document.getElementById('mo'); if (mo) mo.style.display = 'none';
+      parseDraft(XLSX.utils.sheet_to_json(ws, { header:1, defval:'' }), file.name, evId, fechaId, modo);
+    } catch (err) { alert('Error leyendo el archivo: ' + err.message); }
+  };
+  r.readAsBinaryString(file);
+};
+
+function parseDraft(rows, filename, evId, fechaId, modo) {
+  let hi=-1, cA=-1, cN=-1, cC=-1, cP=-1, cT=-1;
+  for (let i = 0; i < Math.min(rows.length, 6); i++) {
+    rows[i].forEach((v, j) => {
+      const u = String(v).trim().toUpperCase();
+      if (u === 'APELLIDO')                    { cA=j; hi=i; }
+      if (u === 'NOMBRE')                        cN=j;
+      if (u === 'CUIL')                          cC=j;
+      if (u === 'PRESENTES' || u === 'PRESENTE') cP=j;
+      if (u === 'TELEFONO'  || u === 'TELÉFONO') cT=j;
+    });
+    if (hi === i) break;
+  }
+  if (hi === -1) { alert('No encontré encabezados.\nVerificá: APELLIDO · NOMBRE · CUIL · PRESENTES'); return; }
+
+  const filas = []; let sec = 'SIN SECCIÓN';
+  for (let i = hi + 1; i < rows.length; i++) {
+    const row = rows[i];
+    const a0  = String(row[0]||'').trim();
+    if (isNaN(a0) && a0 !== '' && String(row[cA]||'').trim().toUpperCase() === 'APELLIDO') { sec = a0; continue; }
+    const num = parseInt(a0);
+    const ape = String(row[cA]||'').trim();
+    const nom = String(row[cN]||'').trim();
+    if (!isNaN(num) && num > 0 && (ape || nom)) {
+      const cuil = String(row[cC]||'').replace(/\D/g, '');
+      const ex   = APP.personal.find(p => p.cuil && p.cuil === cuil)
+                || (ape ? APP.personal.find(p => p.apellido.toLowerCase() === ape.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
+      filas.push({ _id:uid(), posicion:sec, apellido:ape, nombre:nom, cuil, tel:String(row[cT]||'').trim(),
+        presente: String(row[cP]||'').trim().toUpperCase() === 'P',
+        existeId: ex?.id||null, esNuevo:!ex, cbuEdit:ex?.cbu||'', sel:false });
+    }
+  }
+  if (!filas.length) { alert('No encontré filas de personal.'); return; }
+
+  const ev = evId ? getEvento(evId) : null;
+  const f  = fechaId && ev ? (ev.fechas||[]).find(x => x.id === fechaId) : null;
+  APP.draft = { filas, nombre:ev?.nombre||filename.replace(/\.[^/.]+$/,''), fecha:f?.fecha||'', area:modo==='ext'?'Externos':'Movistar Arena', evId, fechaId, modo };
+  go('importar');
+}
+
+function pgVerificar(el, ac) {
+  const d    = APP.draft;
+  const filas = d.filas;
+  const secs  = [...new Set(filas.map(f => f.posicion))];
+
+  ac.innerHTML = `
+    <button class="btn" onclick="cancelarDraft()"><i class="ti ti-x"></i> Cancelar</button>
+    <button class="btn btn-success" onclick="confirmarImport()"><i class="ti ti-check"></i> Confirmar e importar</button>`;
+
+  el.innerHTML = `
+    <div class="steps">
+      <div class="step done"><div class="step-num"><i class="ti ti-check" style="font-size:9px"></i></div><span>Subir planilla</span></div>
+      <div class="step-sep"></div>
+      <div class="step active"><div class="step-num">2</div><span>Verificar y corregir</span></div>
+      <div class="step-sep"></div>
+      <div class="step"><div class="step-num">3</div><span>Confirmar</span></div>
+    </div>
+    <div class="card" style="margin-bottom:13px">
+      <div style="display:flex;gap:13px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
+        <div style="flex:1;min-width:160px"><label class="fl">Show / evento</label><input id="dn" value="${d.nombre}" oninput="APP.draft.nombre=this.value"></div>
+        <div style="width:150px"><label class="fl">Fecha</label><input id="df" type="date" value="${d.fecha}" oninput="APP.draft.fecha=this.value"></div>
+        <div style="width:150px"><label class="fl">Área</label><input value="${d.area}" disabled></div>
+      </div>
+      <div style="display:flex;gap:13px;font-size:12.5px;flex-wrap:wrap">
+        <span><strong>${filas.length}</strong> en planilla</span>
+        <span style="color:var(--green)"><strong>${filas.filter(f=>f.presente).length}</strong> presentes</span>
+        <span style="color:var(--purple)"><strong>${filas.filter(f=>f.esNuevo&&f.presente).length}</strong> nuevas al sistema</span>
+        <span style="color:var(--text2)">${filas.filter(f=>!f.presente).length} ausentes</span>
+      </div>
+    </div>
+    <div id="bulk-bar"></div>
+    ${filas.filter(f => f.esNuevo && f.presente).length ? `
+      <div class="alert alert-warn"><i class="ti ti-user-plus"></i>
+        Las personas marcadas <strong>nuevo</strong> se agregarán al sistema al confirmar.
+      </div>` : ''}
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:8px 13px;background:var(--bg3);border-bottom:1px solid var(--border);font-size:12px;color:var(--text2)">
+        <i class="ti ti-pencil" style="font-size:12px"></i>
+        Editá cualquier celda directamente ·
+        Checkboxes para <strong>selección múltiple</strong> y cambio de posición en bloque
+      </div>
+      ${secs.map(sec => {
+        const sf  = filas.filter(f => f.posicion === sec);
+        const tar = APP.tarifario.find(t => t.posicion === sec);
+        return `<div>
+          <div class="sec-bar">
+            <span style="display:flex;align-items:center;gap:7px">
+              <input type="checkbox" class="chk" onchange="selSec('${sec}',this.checked)">
+              <strong>${sec}</strong>
+              <span style="font-weight:400;color:var(--text2)">${sf.filter(f=>f.presente).length}/${sf.length} presentes</span>
+            </span>
+            <span>${tar
+              ? `<span style="color:var(--green);font-size:11px;font-weight:500">${fmt(tar.monto)}/jornada</span>`
+              : `<span style="color:var(--orange);font-size:11px"><i class="ti ti-alert-triangle"></i> Sin tarifa</span>`}
+            </span>
+          </div>
+          <div class="ver-wrap">
+            <table class="ver-table">
+              <thead><tr>
+                <th style="width:30px"></th>
+                <th style="width:34px;text-align:center">Pres.</th>
+                <th>Apellido</th><th>Nombre</th><th>CUIL</th><th>Posición</th><th>CBU</th>
+                <th style="width:78px">Estado</th>
+              </tr></thead>
+              <tbody>
+                ${sf.map(f => `<tr id="fr-${f._id}" class="${f.sel?'sel':f.presente?'':'ausente'}">
+                  <td class="tdc" style="text-align:center">
+                    <input type="checkbox" class="chk" ${f.sel?'checked':''} onchange="selFila('${f._id}',this.checked)">
+                  </td>
+                  <td style="text-align:center">
+                    <button class="toggle ${f.presente?'on':'off'}" id="tg-${f._id}" onclick="togPres('${f._id}')"></button>
+                  </td>
+                  <td><input value="${f.apellido}" onchange="editF('${f._id}','apellido',this.value)"></td>
+                  <td><input value="${f.nombre}"   onchange="editF('${f._id}','nombre',this.value)"></td>
+                  <td><input value="${f.cuil}"     onchange="editF('${f._id}','cuil',this.value)" style="font-family:monospace"></td>
+                  <td><input id="pos-${f._id}" value="${f.posicion}" onchange="editF('${f._id}','posicion',this.value)"></td>
+                  <td><input value="${f.cbuEdit||''}" onchange="editF('${f._id}','cbuEdit',this.value)" placeholder="Opcional" style="font-family:monospace"></td>
+                  <td>${f.esNuevo ? '<span class="badge bn" style="font-size:10px">nuevo</span>' : '<span class="badge bs" style="font-size:10px">registrado</span>'}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:13px">
+      <button class="btn" onclick="cancelarDraft()">Cancelar</button>
+      <button class="btn btn-success" onclick="confirmarImport()"><i class="ti ti-check"></i> Confirmar e importar</button>
+    </div>`;
+}
+
+window.selFila = function(fid, val) {
+  const f = APP.draft.filas.find(x => x._id === fid); if (!f) return;
+  f.sel = val;
+  const row = document.getElementById('fr-' + fid);
+  if (row) row.className = val ? 'sel' : f.presente ? '' : 'ausente';
+  refreshBulk();
+};
+
+window.selSec = function(sec, val) {
+  APP.draft.filas.filter(f => f.posicion === sec).forEach(f => {
+    f.sel = val;
+    const row = document.getElementById('fr-' + f._id);
+    if (row) { row.className = val ? 'sel' : f.presente ? '' : 'ausente'; const c = row.querySelector('.chk'); if (c) c.checked = val; }
+  });
+  refreshBulk();
+};
+
+function refreshBulk() {
+  const n   = APP.draft.filas.filter(f => f.sel).length;
+  const bar = document.getElementById('bulk-bar'); if (!bar) return;
+  const secs = [...new Set(APP.draft.filas.map(f => f.posicion))];
+  if (n) {
+    bar.className = 'bulk-bar';
+    bar.innerHTML = `
+      <i class="ti ti-users" style="font-size:15px"></i>
+      <span style="white-space:nowrap"><strong>${n}</strong> seleccionadas</span>
+      <span style="opacity:.4;font-size:11px">·</span>
+      <span style="font-size:12px;opacity:.85">Cambiar posición:</span>
+      <input id="bp" placeholder="Nueva posición" style="width:145px" list="bpl">
+      <datalist id="bpl">
+        ${APP.tarifario.map(t => `<option value="${t.posicion}">`).join('')}
+        ${secs.map(s => `<option value="${s}">`).join('')}
+      </datalist>
+      <button class="btn btn-sm" style="background:rgba(255,255,255,.16);color:#fff;border-color:rgba(255,255,255,.3)" onclick="applyBulkPos()">
+        <i class="ti ti-check"></i> Aplicar
+      </button>
+      <span style="opacity:.4;font-size:11px">·</span>
+      <button class="btn btn-sm" style="background:rgba(255,255,255,.16);color:#fff;border-color:rgba(255,255,255,.3)" onclick="bulkToggle(true)">
+        <i class="ti ti-toggle-right"></i> Activar
+      </button>
+      <button class="btn btn-sm" style="background:rgba(255,255,255,.16);color:#fff;border-color:rgba(255,255,255,.3)" onclick="bulkToggle(false)">
+        <i class="ti ti-toggle-left"></i> Desactivar
+      </button>
+      <button class="btn btn-sm" style="margin-left:auto;background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.2)" onclick="deselAll()">
+        <i class="ti ti-x"></i>
+      </button>`;
+  } else { bar.className = ''; bar.innerHTML = ''; }
+}
+
+window.applyBulkPos = function() {
+  const n = $v('bp'); if (!n) { alert('Escribí la nueva posición'); return; }
+  APP.draft.filas.filter(f => f.sel).forEach(f => {
+    f.posicion = n;
+    const inp = document.getElementById('pos-' + f._id); if (inp) inp.value = n;
+  });
+  const bar = document.getElementById('bulk-bar');
+  if (bar) { const ok = document.createElement('span'); ok.textContent = '✓ Posición actualizada'; ok.style.cssText = 'color:#9fe1cb;font-size:12px;'; bar.appendChild(ok); setTimeout(() => ok.remove(), 2200); }
+};
+
+window.bulkToggle = function(val) {
+  APP.draft.filas.filter(f => f.sel).forEach(f => {
+    f.presente = val;
+    const row = document.getElementById('fr-' + f._id); if (row) row.className = f.sel ? 'sel' : val ? '' : 'ausente';
+    const btn = document.getElementById('tg-' + f._id); if (btn) btn.className = 'toggle ' + (val ? 'on' : 'off');
+  });
+};
+
+window.deselAll = () => { APP.draft.filas.forEach(f => f.sel = false); pgVerificar(document.getElementById('content'), document.getElementById('topbar-ac')); };
+window.togPres  = function(fid) {
+  const f = APP.draft.filas.find(x => x._id === fid); if (!f) return;
+  f.presente = !f.presente;
+  const row = document.getElementById('fr-' + fid);
+  const btn = document.getElementById('tg-' + fid);
+  if (row) row.className = f.sel ? 'sel' : f.presente ? '' : 'ausente';
+  if (btn) btn.className = 'toggle ' + (f.presente ? 'on' : 'off');
+};
+window.editF    = (fid, campo, val) => { const f = APP.draft.filas.find(x => x._id === fid); if (f) f[campo] = val; };
+window.cancelarDraft = () => { APP.draft = null; go('importar'); };
+
+window.confirmarImport = async function() {
+  const d        = APP.draft;
+  const presentes = d.filas.filter(f => f.presente);
+  loading(true);
+
+  // 1. Agregar personas nuevas / actualizar CBU
+  for (const f of d.filas) {
+    if (f.existeId) {
+      if (f.cbuEdit) { await sb.from('personal').update({ cbu:f.cbuEdit }).eq('id', f.existeId).is('cbu', null); }
+    } else if (f.esNuevo && f.presente) {
+      const { data: np } = await sb.from('personal').insert({
+        nombre:f.nombre, apellido:f.apellido, cuil:f.cuil, tel:f.tel,
+        area:d.area, posicion:f.posicion, cbu:f.cbuEdit||null, activo:true
+      }).select().single();
+      f.existeId = np?.id;
+    }
+  }
+
+  if (d.evId && d.fechaId) {
+    // 2. Guardar presentismo en Supabase
+    // Primero borrar el presentismo anterior de esta fecha (re-importación)
+    await sb.from('presentismo').delete().eq('fecha_id', d.fechaId);
+    // Recargar personal para tener IDs de los nuevos
+    await fetchAll();
+
+    const presRows = presentes.map(fp => {
+      const p = fp.existeId
+        ? APP.personal.find(x => x.id === fp.existeId)
+        : APP.personal.find(x => x.cuil === fp.cuil || (x.apellido.toLowerCase() === fp.apellido.toLowerCase() && x.nombre.toLowerCase() === fp.nombre.toLowerCase()));
+      return p ? { fecha_id:d.fechaId, persona_id:p.id, posicion:fp.posicion } : null;
+    }).filter(Boolean);
+
+    if (presRows.length) await sb.from('presentismo').insert(presRows);
+  }
+
+  loading(false); APP.draft = null;
+  const dest = d.area === 'Externos' ? 'externos' : 'arena';
+  toast('Planilla importada correctamente', 'ok');
+  await go(dest);
+};
+
+// ══════════════════════════════════════════════
+// EXPORT EXCEL
+// ══════════════════════════════════════════════
+
+// Helper: construir filas de liquidación para export
+function buildExportRows(liqs) {
+  return liqs.map(l => {
+    const p = APP.personal.find(x => x.id === l.persona_id);
+    return {
+      'Apellido y nombre': l.persona_nombre || '',
+      'CUIL':  p?.cuil  || '',
+      'CBU':   p?.cbu   || '',
+      'Alias': p?.alias || '',
+      'Área':  l.area   || '',
+      'Evento / Quincena': l.quincena_nombre || l.evento_nombre || l.periodo || '',
+      'Período': l.periodo || l.quincena_nombre || '',
+      'Posición': l.posicion || '(múltiple)',
+      'Jornadas': l.jornadas,
+      'Valor jornada': l.valor_jornada || '',
+      'Total ($)': l.total,
+      'Estado': l.estado,
+      'Fecha creación': l.created_at ? new Date(l.created_at).toLocaleDateString('es-AR') : '',
+    };
+  });
+}
+
+function exportXLSX(rows, filename) {
+  const ws = XLSX.utils.json_to_sheet(rows);
+  // Ancho de columnas
+  ws['!cols'] = [22,16,26,22,14,28,18,14,10,14,14,12,14].map(w => ({ wch:w }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Liquidaciones');
+  XLSX.writeFile(wb, filename);
+  toast('Excel exportado', 'ok');
+}
+
+window.exportLiqsFecha = function(evId, fechaId) {
+  const ev   = getEvento(evId);
+  const liqs = liqsF(evId, fechaId);
+  if (!liqs.length) { alert('Sin liquidaciones para exportar'); return; }
+  const rows = buildExportRows(liqs);
+  exportXLSX(rows, `liquidaciones_${ev.nombre.replace(/\s+/g,'_')}_${fechaId.slice(0,8)}.xlsx`);
+};
+
+window.exportLiqsEvento = function(evId) {
+  const ev   = getEvento(evId);
+  const liqs = APP.liquidaciones.filter(l => l.evento_id === evId);
+  if (!liqs.length) { alert('Sin liquidaciones para exportar'); return; }
+  exportXLSX(buildExportRows(liqs), `liquidaciones_${ev.nombre.replace(/\s+/g,'_')}.xlsx`);
+};
+
+window.exportLiqsQuincena = function(qId) {
+  const q    = APP.quincenas.find(x => x.id === qId);
+  const liqs = APP.liquidaciones.filter(l => l.quincena_id === qId);
+  if (!liqs.length) { alert('Sin liquidaciones para exportar'); return; }
+  // Para quincenas, incluir detalle de jornadas en filas separadas
+  const rows = [];
+  liqs.forEach(l => {
+    const p = APP.personal.find(x => x.id === l.persona_id);
+    // Fila resumen
+    rows.push({
+      'Apellido y nombre': l.persona_nombre || '',
+      'CUIL':  p?.cuil  || '',
+      'CBU':   p?.cbu   || '',
+      'Alias': p?.alias || '',
+      'Área': 'Movistar Arena',
+      'Quincena': l.quincena_nombre || '',
+      'Jornadas totales': l.jornadas,
+      'Total ($)': l.total,
+      'Estado': l.estado,
+      // Columnas de detalle en blanco para fila resumen
+      'Fecha jornada': '',
+      'Show': '',
+      'Posición jornada': '',
+      'Monto jornada ($)': '',
+    });
+    // Filas de detalle
+    if (l.detalle && l.detalle.length) {
+      l.detalle.forEach(d => {
+        rows.push({
+          'Apellido y nombre': '',
+          'CUIL': '',
+          'CBU': '',
+          'Alias': '',
+          'Área': '',
+          'Quincena': '',
+          'Jornadas totales': '',
+          'Total ($)': '',
+          'Estado': '',
+          'Fecha jornada': fd(d.fecha),
+          'Show': d.ev_nombre || d.evNombre || '',
+          'Posición jornada': d.posicion,
+          'Monto jornada ($)': d.monto,
+        });
+      });
+    }
+  });
+  exportXLSX(rows, `liquidaciones_${q.nombre.replace(/\s+/g,'_')}.xlsx`);
+};
+
+// ══════════════════════════════════════════════
+// UTILS LIQUIDACIONES
+// ══════════════════════════════════════════════
+window.aprobar = async function(id) {
+  loading(true); await sb.from('liquidaciones').update({ estado:'aprobado' }).eq('id', id); loading(false);
+  toast('Aprobada', 'ok'); await render();
+};
+window.pagar = async function(id) {
+  loading(true); await sb.from('liquidaciones').update({ estado:'pagado' }).eq('id', id); loading(false);
+  toast('Marcada como pagada', 'ok'); await render();
+};
+window.delLiq = async function(id) {
+  if (!confirm('¿Eliminar esta liquidación?')) return;
+  loading(true); await sb.from('liquidaciones').delete().eq('id', id); loading(false);
+  toast('Liquidación eliminada'); await render();
+};
+
+// ══════════════════════════════════════════════
+// MODAL
+// ══════════════════════════════════════════════
+function showModal(html) {
+  let o = document.getElementById('mo');
+  if (!o) { o = document.createElement('div'); o.id = 'mo'; o.className = 'mo'; document.body.appendChild(o); }
+  o.innerHTML = html; o.style.display = 'flex';
+  o.onclick = e => { if (e.target === o) closeModal(); };
+}
+window.closeModal = () => { const o = document.getElementById('mo'); if (o) o.style.display = 'none'; };
+
+// Enter en login
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('login-page').style.display !== 'none') doLogin();
+});
+</script>
+</body>
+</html>
