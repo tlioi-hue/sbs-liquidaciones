@@ -1982,11 +1982,27 @@ async function pgCBU(el, ac) {
 }
 
 window.descargarPlantillaCBU = function() {
-  // Plantilla vacía — el usuario completa CUIL y CBU
-  const rows = [{ 'CUIL': '', 'CBU': '' }];
+  // Crear el workbook manualmente para forzar formato texto en CBU
+  const wb = XLSX.utils.book_new();
+  const ws = {};
 
-  if (!rows.length) { alert('No hay personal cargado en el sistema'); return; }
-  exportXLSX(rows, 'plantilla_CBU.xlsx');
+  // Encabezados
+  ws['A1'] = { v: 'CUIL', t: 's' };
+  ws['B1'] = { v: 'CBU',  t: 's' };
+
+  // Una fila de ejemplo vacía
+  ws['A2'] = { v: '', t: 's' };
+  ws['B2'] = { v: '', t: 's' };
+
+  // Forzar columna B (CBU) como texto para que Excel no la formatee como número
+  ws['!cols'] = [{ wch: 18 }, { wch: 26 }];
+  ws['!ref'] = 'A1:B2';
+
+  // Formato texto explícito para toda la columna B
+  if (!ws['!rows']) ws['!rows'] = [];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'CBU');
+  XLSX.writeFile(wb, 'plantilla_CBU.xlsx');
   toast('Plantilla descargada', 'ok');
 };
 
@@ -1995,9 +2011,11 @@ window.handleCBUFile = function(file) {
   const r = new FileReader();
   r.onload = e => {
     try {
-      const wb = XLSX.read(e.target.result, { type:'binary' });
+      // raw:false fuerza que XLSX lea los valores como texto formateado
+      // evitando que CBU de 22 dígitos se convierta a notación científica
+      const wb = XLSX.read(e.target.result, { type:'binary', raw: false });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+      const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', raw: false });
       parseCBU(rows);
     } catch(err) { alert('Error leyendo el archivo: ' + err.message); }
   };
@@ -2027,7 +2045,13 @@ function parseCBU(rows) {
   for (let i = hi + 1; i < rows.length; i++) {
     const row  = rows[i];
     const cuil = String(row[cCuil]||'').replace(/\D/g, '');
-    const cbu  = String(row[cCbu]||'').replace(/\D/g, '');
+    // Limpiar CBU: quitar espacios, comas, guiones y manejar notación científica
+    let cbuRaw = String(row[cCbu]||'').trim();
+    // Si viene en notación científica (ej: 1.23E+21), convertir a entero
+    if (/e\+/i.test(cbuRaw)) {
+      try { cbuRaw = BigInt(parseFloat(cbuRaw).toFixed(0)).toString(); } catch(e) { cbuRaw = ''; }
+    }
+    const cbu = cbuRaw.replace(/\D/g, '');
     const alias = cAlias >= 0 ? String(row[cAlias]||'').trim() : '';
     if (!cuil || !cbu) continue;
 
