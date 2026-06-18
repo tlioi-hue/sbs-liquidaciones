@@ -1394,9 +1394,43 @@ function pgVerificar(el, ac) {
       <div style="display:flex;gap:13px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
         <div style="flex:1;min-width:160px"><label class="fl">Show / evento</label><input id="dn" value="${d.nombre}" oninput="APP.draft.nombre=this.value"></div>
         <div style="width:150px"><label class="fl">Fecha</label><input id="df" type="date" value="${d.fecha}" oninput="APP.draft.fecha=this.value"></div>
-        <div style="width:150px"><label class="fl">Área</label><input value="${d.area}" disabled></div>
+        <div style="width:150px"><label class="fl">Área</label>
+          <select id="draft-area" onchange="APP.draft.area=this.value;actualizarSelectores()">
+            <option value="Movistar Arena" ${d.area==='Movistar Arena'?'selected':''}>Movistar Arena</option>
+            <option value="Externos" ${d.area==='Externos'?'selected':''}>Externos</option>
+          </select>
+        </div>
       </div>
-      <div style="display:flex;gap:13px;font-size:12.5px;flex-wrap:wrap">
+      ${!d.evId ? `
+      <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+        <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:8px">
+          <i class="ti ti-link" style="font-size:13px"></i> Vincular a quincena / show / fecha <span style="color:var(--orange);font-size:11px">(recomendado para liquidar correctamente)</span>
+        </div>
+        <div style="display:flex;gap:11px;flex-wrap:wrap">
+          <div style="flex:1;min-width:160px">
+            <label class="fl">Quincena (Arena)</label>
+            <select id="sel-quincena" onchange="actualizarShows()">
+              <option value="">— sin vincular —</option>
+              ${APP.quincenas.filter(q=>!q.cerrada).map(q=>`<option value="${q.id}">${q.nombre}</option>`).join('')}
+            </select>
+          </div>
+          <div style="flex:1;min-width:160px">
+            <label class="fl">Show</label>
+            <select id="sel-show" onchange="actualizarFechas()">
+              <option value="">— elegir quincena primero —</option>
+            </select>
+          </div>
+          <div style="flex:1;min-width:140px">
+            <label class="fl">Fecha del show</label>
+            <select id="sel-fecha">
+              <option value="">— elegir show primero —</option>
+            </select>
+          </div>
+        </div>
+      </div>` : `<div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;font-size:12px;color:var(--green)">
+        <i class="ti ti-link"></i> Vinculado a: <strong>${d.nombre}</strong> · ${d.fecha ? d.fecha : 'sin fecha'}
+      </div>`}
+      <div style="display:flex;gap:13px;font-size:12.5px;flex-wrap:wrap;margin-top:12px">
         <span><strong>${filas.length}</strong> en planilla</span>
         <span style="color:var(--green)"><strong>${filas.filter(f=>f.presente).length}</strong> presentes</span>
         <span style="color:var(--purple)"><strong>${filas.filter(f=>f.esNuevo&&f.presente).length}</strong> nuevas al sistema</span>
@@ -1474,8 +1508,39 @@ function pgVerificar(el, ac) {
     </div>`;
 }
 
+window.actualizarSelectores = function() {
+  // Resetear shows y fechas al cambiar área
+  const selShow = document.getElementById('sel-show');
+  const selFecha = document.getElementById('sel-fecha');
+  if (selShow) { selShow.innerHTML = '<option value="">— elegir quincena primero —</option>'; }
+  if (selFecha) { selFecha.innerHTML = '<option value="">— elegir show primero —</option>'; }
+};
+
+window.actualizarShows = function() {
+  const qId = document.getElementById('sel-quincena')?.value;
+  const selShow = document.getElementById('sel-show');
+  const selFecha = document.getElementById('sel-fecha');
+  if (!selShow) return;
+  if (!qId) { selShow.innerHTML = '<option value="">— elegir quincena primero —</option>'; return; }
+  const shows = APP.eventos.filter(e => e.quincena_id === qId && e.area === 'Movistar Arena');
+  selShow.innerHTML = `<option value="">— elegir show —</option>` +
+    shows.map(s => `<option value="${s.id}">${s.nombre}${s.fecha?' · '+s.fecha:''}</option>`).join('');
+  if (selFecha) selFecha.innerHTML = '<option value="">— elegir show primero —</option>';
+};
+
+window.actualizarFechas = function() {
+  const evId = document.getElementById('sel-show')?.value;
+  const selFecha = document.getElementById('sel-fecha');
+  if (!selFecha) return;
+  if (!evId) { selFecha.innerHTML = '<option value="">— elegir show primero —</option>'; return; }
+  const ev = APP.eventos.find(e => e.id === evId);
+  const fechas = ev?.fechas || [];
+  selFecha.innerHTML = `<option value="">— elegir fecha —</option>` +
+    fechas.map(f => `<option value="${f.id}">${f.fecha}${f.nombre?' · '+f.nombre:''}</option>`).join('') +
+    `<option value="__nueva__">+ Crear nueva fecha</option>`;
+};
+
 window.selFila = function(fid, val) {
-  const f = APP.draft.filas.find(x => x._id === fid); if (!f) return;
   f.sel = val;
   const row = document.getElementById('fr-' + fid);
   if (row) row.className = val ? 'sel' : f.presente ? '' : 'ausente';
@@ -1574,33 +1639,63 @@ window.cancelarDraft = () => { APP.draft = null; go('importar'); };
 window.confirmarImport = async function() {
   const d        = APP.draft;
   const presentes = d.filas.filter(f => f.presente);
+
+  // Resolver evId y fechaId — pueden venir pre-asignados (desde Arena/Externos)
+  // o elegidos en los selectores de la pantalla de verificación
+  let evId    = d.evId;
+  let fechaId = d.fechaId;
+
+  if (!evId) {
+    // Leer de los selectores
+    const selFechaEl = document.getElementById('sel-fecha');
+    const selShowEl  = document.getElementById('sel-show');
+    const selFechaVal = selFechaEl?.value;
+    const selShowVal  = selShowEl?.value;
+
+    if (selShowVal && selFechaVal && selFechaVal !== '__nueva__') {
+      evId    = selShowVal;
+      fechaId = selFechaVal;
+    } else if (selShowVal && selFechaVal === '__nueva__') {
+      // Crear nueva fecha en el show seleccionado
+      const fechaDate = d.fecha || new Date().toISOString().slice(0,10);
+      loading(true);
+      const { data: nf } = await sb.from('fechas').insert({
+        evento_id: selShowVal, fecha: fechaDate, nombre: d.nombre || null
+      }).select().single();
+      evId    = selShowVal;
+      fechaId = nf?.id;
+    } else if (!selShowVal) {
+      // Sin vincular — igual se guardan las personas nuevas pero sin presentismo
+      const continuar = confirm('No seleccionaste ningún show/fecha.\n¿Querés confirmar igual?\n(Se agregarán las personas nuevas pero el presentismo no quedará vinculado a ninguna quincena)');
+      if (!continuar) { loading(false); return; }
+    }
+  }
+
   loading(true);
 
-  // 1. Agregar personas nuevas / actualizar CBU
+  // 1. Agregar personas nuevas
   for (const f of d.filas) {
     if (f.existeId) {
-      if (f.cbuEdit) { await sb.from('personal').update({ cbu:f.cbuEdit }).eq('id', f.existeId).is('cbu', null); }
+      // sin cambios de CBU en importación
     } else if (f.esNuevo && f.presente) {
       const { data: np } = await sb.from('personal').insert({
         nombre:f.nombre, apellido:f.apellido, cuil:f.cuil, tel:f.tel,
-        area:d.area, posicion:f.posicion, cbu:f.cbuEdit||null, activo:true
+        area:d.area, posicion:f.posicion, activo:true
       }).select().single();
       f.existeId = np?.id;
     }
   }
 
-  if (d.evId && d.fechaId) {
-    // 2. Guardar presentismo en Supabase
-    // Primero borrar el presentismo anterior de esta fecha (re-importación)
-    await sb.from('presentismo').delete().eq('fecha_id', d.fechaId);
-    // Recargar personal para tener IDs de los nuevos
+  if (evId && fechaId) {
+    // 2. Guardar presentismo — borrar el anterior de esta fecha (re-importación limpia)
+    await sb.from('presentismo').delete().eq('fecha_id', fechaId);
     await fetchAll();
 
     const presRows = presentes.map(fp => {
       const p = fp.existeId
         ? APP.personal.find(x => x.id === fp.existeId)
         : APP.personal.find(x => x.cuil === fp.cuil || (x.apellido.toLowerCase() === fp.apellido.toLowerCase() && x.nombre.toLowerCase() === fp.nombre.toLowerCase()));
-      return p ? { fecha_id:d.fechaId, persona_id:p.id, posicion:fp.posicion } : null;
+      return p ? { fecha_id:fechaId, persona_id:p.id, posicion:fp.posicion } : null;
     }).filter(Boolean);
 
     if (presRows.length) await sb.from('presentismo').insert(presRows);
