@@ -1954,20 +1954,17 @@ async function pgCBU(el, ac) {
   if (APP.rol !== 'rrhh') { el.innerHTML = '<div class="alert alert-warn"><i class="ti ti-lock"></i> Sin acceso</div>'; return; }
   await fetchAll();
 
-  ac.innerHTML = `<button class="btn" onclick="descargarPlantillaCBU()"><i class="ti ti-download"></i> Descargar plantilla</button>`;
-
   el.innerHTML = `
     <div class="alert alert-info" style="padding:8px 12px;font-size:12px"><i class="ti ti-info-circle" style="flex-shrink:0"></i>
-      Descargá la plantilla con los CUILs ya cargados, completá la columna CBU y volvé a subir el archivo.
+      Subí un Excel o CSV con columnas <strong>CUIL</strong> y <strong>CBU</strong>. Se actualiza el CBU en Personal según el CUIL.
     </div>
     <div class="card" style="margin-bottom:16px">
       <div class="drop-zone" id="dz-cbu" onclick="document.getElementById('fi-cbu').click()">
         <i class="ti ti-credit-card" style="font-size:34px;color:var(--text2);display:block;margin-bottom:9px"></i>
-        <div style="font-size:14px;font-weight:600;margin-bottom:4px">Arrastrá el Excel acá o hacé clic</div>
-        <div style="font-size:12px;color:var(--text2)">Columnas requeridas: CUIL · CBU · (Alias, opcional)</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px">Arrastrá el archivo acá o hacé clic</div>
+        <div style="font-size:12px;color:var(--text2)">Columnas requeridas: CUIL · CBU</div>
       </div>
       <input type="file" id="fi-cbu" accept=".xlsx,.xls,.csv,.txt" style="display:none" onchange="handleCBUFile(this.files[0])">
-      <div style="font-size:12px;color:var(--text2);margin-top:8px;text-align:center">Formatos: .txt · .csv (recomendado) · .xlsx</div>
       <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12.5px;cursor:pointer">
         <input type="checkbox" id="forzar-cbu" style="width:auto" checked> Sobreescribir CBU aunque ya esté cargado
       </label>
