@@ -1273,7 +1273,7 @@ window.handleFileCtx = async function(file, evId, fechaId, modo) {
 };
 
 // Mapea una sección/puesto de la planilla a la posición más cercana del tarifario
-function mapToTarifario(secPlanilla, secPadre) {
+function mapToTarifario(secPlanilla) {
   if (!APP.tarifario.length) return secPlanilla;
 
   // Función que normaliza texto para comparar (sin tildes, minúsculas, sin plurales simples)
@@ -1333,7 +1333,11 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
     // Formato 1: col A es número (fila normal de orientadores/staff)
     const num = parseFloat(a0);
     if (!isNaN(num) && num > 0) {
-      const posicion = mapToTarifario(sec);
+      // SIN SECCIÓN: esas filas están antes del primer encabezado en la planilla.
+      // Intentar mapear igual; si no hay match usar la primera posición del tarifario.
+      const posicion = sec === 'SIN SECCIÓN' && APP.tarifario.length
+        ? (mapToTarifario(sec) !== 'SIN SECCIÓN' ? mapToTarifario(sec) : APP.tarifario[0].posicion)
+        : mapToTarifario(sec);
       const ex = APP.personal.find(p => p.cuil && p.cuil === cuil)
               || (b0 ? APP.personal.find(p => p.apellido.toLowerCase() === b0.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
       filas.push({ _id:uid(), posicion, posicionOriginal:sec, apellido:b0, nombre:nom, cuil, tel,
@@ -1543,7 +1547,19 @@ window.bulkToggle = function(val) {
   });
 };
 
-window.deselAll = () => { APP.draft.filas.forEach(f => f.sel = false); pgVerificar(document.getElementById('content'), document.getElementById('topbar-ac')); };
+window.deselAll = () => {
+  APP.draft.filas.forEach(f => {
+    f.sel = false;
+    const row = document.getElementById('fr-' + f._id);
+    if (row) {
+      row.className = f.presente ? '' : 'ausente';
+      const c = row.querySelector('.chk'); if (c) c.checked = false;
+    }
+  });
+  // También desmarcar checkboxes de sección
+  document.querySelectorAll('.sec-bar .chk').forEach(c => c.checked = false);
+  refreshBulk();
+};
 window.togPres  = function(fid) {
   const f = APP.draft.filas.find(x => x._id === fid); if (!f) return;
   f.presente = !f.presente;
