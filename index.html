@@ -1986,11 +1986,8 @@ window.descargarPlantillaCBU = function() {
     .filter(p => p.activo !== false)
     .sort((a, b) => a.apellido.localeCompare(b.apellido))
     .map(p => ({
-      'Apellido y nombre': `${p.apellido}, ${p.nombre}`,
       'CUIL': p.cuil || '',
-      'CBU':  p.cbu  || '',
-      'Alias': p.alias || '',
-      'Área': p.area || '',
+      'CBU':  '',
     }));
   if (!rows.length) { alert('No hay personal cargado en el sistema'); return; }
   exportXLSX(rows, 'plantilla_CBU.xlsx');
