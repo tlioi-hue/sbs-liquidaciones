@@ -1982,7 +1982,6 @@ async function pgCBU(el, ac) {
 }
 
 window.descargarPlantillaCBU = function() {
-  // Crear el workbook manualmente para forzar formato texto en CBU
   const wb = XLSX.utils.book_new();
   const ws = {};
 
@@ -1990,20 +1989,22 @@ window.descargarPlantillaCBU = function() {
   ws['A1'] = { v: 'CUIL', t: 's' };
   ws['B1'] = { v: 'CBU',  t: 's' };
 
-  // Una fila de ejemplo vacía
-  ws['A2'] = { v: '', t: 's' };
-  ws['B2'] = { v: '', t: 's' };
+  // 50 filas vacías con formato texto explícito en ambas columnas
+  for (let i = 2; i <= 51; i++) {
+    ws[`A${i}`] = { v: '', t: 's', z: '@' };
+    ws[`B${i}`] = { v: '', t: 's', z: '@' };
+  }
 
-  // Forzar columna B (CBU) como texto para que Excel no la formatee como número
+  ws['!ref'] = 'A1:B51';
   ws['!cols'] = [{ wch: 18 }, { wch: 26 }];
-  ws['!ref'] = 'A1:B2';
 
-  // Formato texto explícito para toda la columna B
-  if (!ws['!rows']) ws['!rows'] = [];
-
+  // Forzar formato texto en toda la columna (para que Excel no convierta los CBU)
+  if (!wb.Strings) wb.Strings = [];
   XLSX.utils.book_append_sheet(wb, ws, 'CBU');
-  XLSX.writeFile(wb, 'plantilla_CBU.xlsx');
-  toast('Plantilla descargada', 'ok');
+
+  // Escribir como XLSX con cellStyles
+  XLSX.writeFile(wb, 'plantilla_CBU.xlsx', { bookType:'xlsx', type:'binary', cellStyles: true });
+  toast('Plantilla descargada — abrí el archivo y pegá los CBU en la columna B', 'ok');
 };
 
 window.handleCBUFile = function(file) {
