@@ -2002,14 +2002,12 @@ window.descargarPlantillaCBU = function() {
 window.handleCBUFile = function(file) {
   if (!file) return;
   const isCsv = file.name.endsWith('.csv') || file.name.endsWith('.txt');
-
   if (isCsv) {
     const r = new FileReader();
     r.onload = e => {
-      const text = e.target.result.replace(/\uFEFF/g, ''); // quitar BOM
+      const text = e.target.result.replace(/\uFEFF/g, '');
       const lines = text.split('\n').filter(l => l.trim());
       const rows = lines.map(l => {
-        // detectar separador: punto y coma o coma
         const sep = l.includes(';') ? ';' : ',';
         return l.split(sep).map(v => v.trim().replace(/\r/, '').replace(/^'/, ''));
       });
@@ -2017,13 +2015,12 @@ window.handleCBUFile = function(file) {
     };
     r.readAsText(file, 'UTF-8');
   } else {
-    // Excel — usar XLSX con raw:false
     const r = new FileReader();
     r.onload = e => {
       try {
-        const wb = XLSX.read(e.target.result, { type:'binary', raw: false });
+        const wb = XLSX.read(e.target.result, { type:'binary', cellText:true, cellDates:false });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', raw: false });
+        const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', raw:false });
         parseCBU(rows);
       } catch(err) { alert('Error leyendo el archivo: ' + err.message); }
     };
@@ -2032,19 +2029,20 @@ window.handleCBUFile = function(file) {
 };
 
 function parseCBU(rows) {
-  // Detectar columnas
-  let hi=-1, cCuil=-1, cCbu=-1, cAlias=-1;
+  let hi=-1, cCuil=-1, cCbu=-1;
+
+  // Detectar encabezados buscando palabras clave — funciona con cualquier nombre de columna
   for (let i = 0; i < Math.min(rows.length, 4); i++) {
     rows[i].forEach((v, j) => {
-      const u = String(v).trim().toUpperCase();
-      if (u === 'CUIL')  { cCuil=j; hi=i; }
-      if (u === 'CBU')   cCbu=j;
-      if (u === 'ALIAS') cAlias=j;
+      const u = String(v||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      if (u.includes('CUIL'))  { cCuil=j; hi=i; }
+      if (u.includes('CBU'))   cCbu=j;
     });
     if (hi === i) break;
   }
+
   if (hi === -1 || cCuil === -1 || cCbu === -1) {
-    alert('No encontré las columnas CUIL y CBU.\nVerificá que la primera fila tenga esos encabezados.');
+    alert('No encontré columnas CUIL y CBU.\nVerificá que el encabezado contenga esas palabras.');
     return;
   }
 
@@ -2052,28 +2050,33 @@ function parseCBU(rows) {
   const resultados = [];
 
   for (let i = hi + 1; i < rows.length; i++) {
-    const row  = rows[i];
-    const cuil = String(row[cCuil]||'').replace(/\D/g, '');
-    // Limpiar CBU: quitar espacios, comas, guiones y manejar notación científica
-    let cbuRaw = String(row[cCbu]||'').trim();
-    // Si viene en notación científica (ej: 1.23E+21), convertir a entero
-    if (/e\+/i.test(cbuRaw)) {
-      try { cbuRaw = BigInt(parseFloat(cbuRaw).toFixed(0)).toString(); } catch(e) { cbuRaw = ''; }
+    const row = rows[i];
+    // CUIL: limpiar — puede venir como número float (20461047921.0)
+    let cuilRaw = String(row[cCuil]||'').trim();
+    if (/e\+/i.test(cuilRaw)) {
+      try { cuilRaw = BigInt(Math.round(parseFloat(cuilRaw))).toString(); } catch(e) { cuilRaw=''; }
     }
-    const cbu = cbuRaw.replace(/\D/g, '');
-    const alias = cAlias >= 0 ? String(row[cAlias]||'').trim() : '';
-    if (!cuil || !cbu) continue;
+    const cuil = cuilRaw.replace(/\D/g,'').replace(/\.0$/, '');
 
-    const persona = APP.personal.find(p => p.cuil === cuil);
+    // CBU: limpiar espacios y guiones pero preservar dígitos
+    let cbuRaw = String(row[cCbu]||'').trim();
+    if (/e\+/i.test(cbuRaw)) {
+      try { cbuRaw = BigInt(Math.round(parseFloat(cbuRaw))).toString(); } catch(e) { cbuRaw=''; }
+    }
+    const cbu = cbuRaw.replace(/[^0-9]/g,'');
+
+    if (!cuil || cuil.length < 10 || !cbu || cbu.length < 20) continue;
+
+    const persona = APP.personal.find(p => p.cuil && p.cuil.replace(/\D/g,'') === cuil);
     if (!persona) {
-      resultados.push({ cuil, cbu, alias, estado:'no_encontrado', nombre:'—' });
+      resultados.push({ cuil, cbu, estado:'no_encontrado', nombre:'—' });
       continue;
     }
     if (persona.cbu && !forzar) {
-      resultados.push({ cuil, cbu, alias, estado:'ya_tiene', nombre:`${persona.apellido}, ${persona.nombre}`, id:persona.id });
+      resultados.push({ cuil, cbu, estado:'ya_tiene', nombre:`${persona.apellido}, ${persona.nombre}`, id:persona.id });
       continue;
     }
-    resultados.push({ cuil, cbu, alias, estado:'actualizar', nombre:`${persona.apellido}, ${persona.nombre}`, id:persona.id });
+    resultados.push({ cuil, cbu, estado:'actualizar', nombre:`${persona.apellido}, ${persona.nombre}`, id:persona.id });
   }
 
   const aActualizar = resultados.filter(r => r.estado === 'actualizar');
