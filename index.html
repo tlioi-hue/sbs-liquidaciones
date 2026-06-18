@@ -1966,8 +1966,8 @@ async function pgCBU(el, ac) {
         <div style="font-size:14px;font-weight:600;margin-bottom:4px">Arrastrá el Excel acá o hacé clic</div>
         <div style="font-size:12px;color:var(--text2)">Columnas requeridas: CUIL · CBU · (Alias, opcional)</div>
       </div>
-      <input type="file" id="fi-cbu" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleCBUFile(this.files[0])">
-      <div style="font-size:12px;color:var(--text2);margin-top:8px;text-align:center">Formatos: .csv (recomendado) · .xlsx · .xls</div>
+      <input type="file" id="fi-cbu" accept=".xlsx,.xls,.csv,.txt" style="display:none" onchange="handleCBUFile(this.files[0])">
+      <div style="font-size:12px;color:var(--text2);margin-top:8px;text-align:center">Formatos: .txt · .csv (recomendado) · .xlsx</div>
       <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12.5px;cursor:pointer">
         <input type="checkbox" id="forzar-cbu" style="width:auto" checked> Sobreescribir CBU aunque ya esté cargado
       </label>
@@ -1983,32 +1983,46 @@ async function pgCBU(el, ac) {
 }
 
 window.descargarPlantillaCBU = function() {
-  // CSV en vez de Excel — evita que Excel convierta CBU de 22 dígitos a notación científica
-  const csv = 'CUIL,CBU\n';
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  // TSV (tab separado) — Excel lo abre con columnas separadas y trata todo como texto
+  const tsv = 'CUIL\tCBU\n';
+  const blob = new Blob([tsv], { type: 'text/tab-separated-values;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = 'plantilla_CBU.csv';
+  a.download = 'plantilla_CBU.txt';
   a.click();
   URL.revokeObjectURL(url);
-  toast('Plantilla CSV descargada — completá y volvé a subir este archivo', 'ok');
+  toast('Plantilla descargada — abrí con Excel, completá y volvé a subir', 'ok');
 };
 
 window.handleCBUFile = function(file) {
   if (!file) return;
-  const r = new FileReader();
-  r.onload = e => {
-    try {
-      // raw:false fuerza que XLSX lea los valores como texto formateado
-      // evitando que CBU de 22 dígitos se convierta a notación científica
-      const wb = XLSX.read(e.target.result, { type:'binary', raw: false });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', raw: false });
+  const isTxt = file.name.endsWith('.txt') || file.name.endsWith('.tsv');
+  const isCsv = file.name.endsWith('.csv');
+
+  if (isTxt || isCsv) {
+    // Leer como texto plano — preserva los 22 dígitos exactamente
+    const r = new FileReader();
+    r.onload = e => {
+      const sep = isTxt ? '\t' : ',';
+      const lines = e.target.result.split('\n').filter(l => l.trim());
+      const rows = lines.map(l => l.split(sep).map(v => v.trim().replace(/\r/,'')));
       parseCBU(rows);
-    } catch(err) { alert('Error leyendo el archivo: ' + err.message); }
-  };
-  r.readAsBinaryString(file);
+    };
+    r.readAsText(file, 'UTF-8');
+  } else {
+    // Excel — usar XLSX con raw:false
+    const r = new FileReader();
+    r.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, { type:'binary', raw: false });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', raw: false });
+        parseCBU(rows);
+      } catch(err) { alert('Error leyendo el archivo: ' + err.message); }
+    };
+    r.readAsBinaryString(file);
+  }
 };
 
 function parseCBU(rows) {
