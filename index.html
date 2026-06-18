@@ -924,10 +924,9 @@ function renderQCard(q, isRRHH) {
                 <span style="font-weight:500">${ev.nombre}</span>
                 ${ev.fecha ? `<span style="color:var(--text2);font-size:11px"> · ${fd(ev.fecha)}</span>` : ''}
               </div>
-              <span class="pill">${fec.length} fecha${fec.length!==1?'s':''}</span>
               <span class="pill">${jEv} jornadas</span>
               <div style="display:flex;gap:5px;flex-shrink:0">
-                ${isRRHH ? `<button class="btn btn-sm" onclick="agregarFechaArena('${ev.id}')"><i class="ti ti-calendar-plus"></i></button>` : ''}
+                ${isRRHH ? `<button class="btn btn-sm btn-primary" onclick="importarShowArena('${ev.id}')"><i class="ti ti-file-upload"></i> Importar planilla</button>` : ''}
                 <button class="btn btn-sm" onclick="verShowArena('${ev.id}')"><i class="ti ti-eye"></i></button>
                 ${isRRHH ? `<button class="btn btn-sm btn-danger" onclick="delShowArena('${ev.id}')"><i class="ti ti-trash"></i></button>` : ''}
               </div>
@@ -996,6 +995,29 @@ window.delShowArena = async function(id) {
   if (!confirm('¿Eliminar show?')) return;
   loading(true); await sb.from('eventos').delete().eq('id', id); loading(false);
   toast('Show eliminado'); await go('arena');
+};
+
+window.importarShowArena = async function(evId) {
+  const ev = APP.eventos.find(e => e.id === evId);
+  if (!ev) return;
+  loading(true);
+  // Buscar fecha existente o crear una nueva con la fecha del show
+  let fechaId = null;
+  if (ev.fechas && ev.fechas.length > 0) {
+    // Usar la primera fecha existente
+    fechaId = ev.fechas[0].id;
+  } else {
+    // Crear fecha automáticamente con la fecha principal del show
+    const fechaDate = ev.fecha || new Date().toISOString().slice(0, 10);
+    const { data: nf } = await sb.from('fechas').insert({
+      evento_id: evId, fecha: fechaDate, nombre: null
+    }).select().single();
+    fechaId = nf?.id;
+    await fetchAll(); // recargar para tener la fecha nueva
+  }
+  loading(false);
+  // Lanzar el importador vinculado a este show y fecha
+  importarFechaCtx(evId, fechaId, 'arena');
 };
 
 window.agregarFechaArena = function(evId) {
@@ -1391,44 +1413,34 @@ function pgVerificar(el, ac) {
       <div class="step"><div class="step-num">3</div><span>Confirmar</span></div>
     </div>
     <div class="card" style="margin-bottom:13px">
-      <div style="display:flex;gap:13px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
-        <div style="flex:1;min-width:160px"><label class="fl">Show / evento</label><input id="dn" value="${d.nombre}" oninput="APP.draft.nombre=this.value"></div>
-        <div style="width:150px"><label class="fl">Fecha</label><input id="df" type="date" value="${d.fecha}" oninput="APP.draft.fecha=this.value"></div>
-        <div style="width:150px"><label class="fl">Área</label>
-          <select id="draft-area" onchange="APP.draft.area=this.value;actualizarSelectores()">
-            <option value="Movistar Arena" ${d.area==='Movistar Arena'?'selected':''}>Movistar Arena</option>
-            <option value="Externos" ${d.area==='Externos'?'selected':''}>Externos</option>
-          </select>
-        </div>
+      <div style="display:flex;gap:13px;font-size:12.5px;flex-wrap:wrap;margin-bottom:12px">
+        <span><strong>${filas.length}</strong> en planilla</span>
+        <span style="color:var(--green)"><strong>${filas.filter(f=>f.presente).length}</strong> presentes</span>
+        <span style="color:var(--purple)"><strong>${filas.filter(f=>f.esNuevo&&f.presente).length}</strong> nuevas al sistema</span>
+        <span style="color:var(--text2)">${filas.filter(f=>!f.presente).length} ausentes</span>
       </div>
       ${!d.evId ? `
       <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
         <div style="font-size:12px;font-weight:500;color:var(--text2);margin-bottom:8px">
-          <i class="ti ti-link" style="font-size:13px"></i> Vincular a quincena / show / fecha <span style="color:var(--orange);font-size:11px">(recomendado para liquidar correctamente)</span>
+          <i class="ti ti-link" style="font-size:13px"></i> ¿A qué quincena y show pertenece esta planilla?
         </div>
         <div style="display:flex;gap:11px;flex-wrap:wrap">
-          <div style="flex:1;min-width:160px">
-            <label class="fl">Quincena (Arena)</label>
+          <div style="flex:1;min-width:200px">
+            <label class="fl">Quincena</label>
             <select id="sel-quincena" onchange="actualizarShows()">
-              <option value="">— sin vincular —</option>
+              <option value="">— seleccionar —</option>
               ${APP.quincenas.filter(q=>!q.cerrada).map(q=>`<option value="${q.id}">${q.nombre}</option>`).join('')}
             </select>
           </div>
-          <div style="flex:1;min-width:160px">
+          <div style="flex:1;min-width:200px">
             <label class="fl">Show</label>
-            <select id="sel-show" onchange="actualizarFechas()">
+            <select id="sel-show">
               <option value="">— elegir quincena primero —</option>
-            </select>
-          </div>
-          <div style="flex:1;min-width:140px">
-            <label class="fl">Fecha del show</label>
-            <select id="sel-fecha">
-              <option value="">— elegir show primero —</option>
             </select>
           </div>
         </div>
       </div>` : `<div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px;font-size:12px;color:var(--green)">
-        <i class="ti ti-link"></i> Vinculado a: <strong>${d.nombre}</strong> · ${d.fecha ? d.fecha : 'sin fecha'}
+        <i class="ti ti-link"></i> Vinculado a: <strong>${d.nombre}</strong>${d.fecha ? ' · ' + fd(d.fecha) : ''}
       </div>`}
       <div style="display:flex;gap:13px;font-size:12.5px;flex-wrap:wrap;margin-top:12px">
         <span><strong>${filas.length}</strong> en planilla</span>
@@ -1646,27 +1658,19 @@ window.confirmarImport = async function() {
   let fechaId = d.fechaId;
 
   if (!evId) {
-    // Leer de los selectores
-    const selFechaEl = document.getElementById('sel-fecha');
-    const selShowEl  = document.getElementById('sel-show');
-    const selFechaVal = selFechaEl?.value;
-    const selShowVal  = selShowEl?.value;
+    const selShowVal = document.getElementById('sel-show')?.value;
 
-    if (selShowVal && selFechaVal && selFechaVal !== '__nueva__') {
-      evId    = selShowVal;
-      fechaId = selFechaVal;
-    } else if (selShowVal && selFechaVal === '__nueva__') {
-      // Crear nueva fecha en el show seleccionado
-      const fechaDate = d.fecha || new Date().toISOString().slice(0,10);
+    if (selShowVal) {
+      // Crear fecha automáticamente con la fecha del draft
+      const fechaDate = d.fecha || new Date().toISOString().slice(0, 10);
       loading(true);
       const { data: nf } = await sb.from('fechas').insert({
         evento_id: selShowVal, fecha: fechaDate, nombre: d.nombre || null
       }).select().single();
       evId    = selShowVal;
       fechaId = nf?.id;
-    } else if (!selShowVal) {
-      // Sin vincular — igual se guardan las personas nuevas pero sin presentismo
-      const continuar = confirm('No seleccionaste ningún show/fecha.\n¿Querés confirmar igual?\n(Se agregarán las personas nuevas pero el presentismo no quedará vinculado a ninguna quincena)');
+    } else {
+      const continuar = confirm('No seleccionaste ningún show.\n¿Querés confirmar igual?\n(Se agregarán las personas nuevas pero sin vincular a ninguna quincena)');
       if (!continuar) { loading(false); return; }
     }
   }
