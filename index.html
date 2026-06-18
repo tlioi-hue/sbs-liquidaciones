@@ -1048,39 +1048,38 @@ window.verShowArena = function(evId) {
   const ev    = getEvento(evId);
   const fechas = ev?.fechas || [];
 
-  // Consolidar todos los presentes con su monto
   const presentes = [];
   fechas.forEach(f => {
     (f.presentismo||[]).forEach(p => {
       const per = APP.personal.find(x => x.id === p.persona_id);
       const tar = getTarifa(p.posicion);
-      presentes.push({ per, posicion:p.posicion, monto:tar?.monto||0, sinTarifa:!tar });
+      presentes.push({ fechaId:f.id, per, posicion:p.posicion, monto:tar?.monto||0, sinTarifa:!tar });
     });
   });
 
-  const totalMonto  = presentes.reduce((s,p) => s+p.monto, 0);
-  const sinTarifaN  = presentes.filter(p => p.sinTarifa).length;
   presentes.sort((a,b) => a.monto - b.monto);
+  const totalMonto = presentes.reduce((s,p) => s+p.monto, 0);
+  const sinTarifaN = presentes.filter(p => p.sinTarifa).length;
 
   showModal(`<div class="modal modal-lg">
     <div class="modal-t">${ev.nombre}${ev.fecha?' · '+fd(ev.fecha):''}</div>
-    <div class="modal-s">${presentes.length} presentes · <strong>${fmt(totalMonto)}</strong> total estimado a liquidar</div>
-    ${sinTarifaN ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> ${sinTarifaN} persona${sinTarifaN>1?'s':''} sin tarifa configurada — no suman al total.</div>` : ''}
+    <div class="modal-s">${presentes.length} presentes · <strong id="total-show-lbl">${fmt(totalMonto)}</strong> total estimado</div>
+    ${sinTarifaN ? `<div class="alert alert-warn" style="padding:8px 12px"><i class="ti ti-alert-triangle"></i> ${sinTarifaN} persona${sinTarifaN>1?'s':''} sin tarifa.</div>` : ''}
+    <div class="alert alert-info" style="padding:8px 12px"><i class="ti ti-edit" style="font-size:13px"></i> Podés cambiar la posición — el monto se actualiza automáticamente.</div>
     <table><thead><tr>
-      <th>Apellido y nombre</th>
-      <th>CUIL</th>
-      <th>Posición</th>
-      <th style="text-align:right">Monto a liquidar</th>
+      <th>Apellido y nombre</th><th>CUIL</th><th>Posición</th><th style="text-align:right">Monto</th>
     </tr></thead>
     <tbody>${presentes.map(p => `<tr>
       <td><strong>${p.per?.apellido||'?'}, ${p.per?.nombre||'?'}</strong></td>
       <td style="font-family:monospace;font-size:11.5px">${p.per?.cuil||'—'}</td>
-      <td>${p.posicion}</td>
-      <td style="text-align:right;font-weight:500">${p.sinTarifa ? '<span style="color:var(--orange)">sin tarifa</span>' : fmt(p.monto)}</td>
+      <td><select style="font-size:12px;padding:3px 6px" onchange="updatePresentismo('${p.fechaId}','${p.per?.id}',this.value)">
+        ${APP.tarifario.map(t => `<option value="${t.posicion}" ${t.posicion===p.posicion?'selected':''}>${t.posicion}</option>`).join('')}
+      </select></td>
+      <td style="text-align:right;font-weight:500" id="monto-cell-${p.fechaId}-${p.per?.id}">${p.sinTarifa?'<span style="color:var(--orange)">sin tarifa</span>':fmt(p.monto)}</td>
     </tr>`).join('')}</tbody>
     <tfoot><tr>
       <td colspan="3" style="font-weight:600;padding:10px 10px;border-top:2px solid var(--border)">Total</td>
-      <td style="text-align:right;font-weight:700;font-size:15px;padding:10px 10px;border-top:2px solid var(--border)">${fmt(totalMonto)}</td>
+      <td style="text-align:right;font-weight:700;font-size:15px;padding:10px 10px;border-top:2px solid var(--border)" id="total-show-footer">${fmt(totalMonto)}</td>
     </tr></tfoot>
     </table>
     <div class="modal-f">
@@ -1090,6 +1089,33 @@ window.verShowArena = function(evId) {
   </div>`);
 };
 
+window.updatePresentismo = async function(fechaId, personaId, nuevaPosicion) {
+  await sb.from('presentismo').update({ posicion: nuevaPosicion }).eq('fecha_id', fechaId).eq('persona_id', personaId);
+  // Actualizar cache local
+  APP.eventos.forEach(ev => {
+    (ev.fechas||[]).forEach(f => {
+      if (f.id === fechaId) {
+        const p = (f.presentismo||[]).find(x => x.persona_id === personaId);
+        if (p) p.posicion = nuevaPosicion;
+      }
+    });
+  });
+  // Actualizar celda de monto
+  const tar = getTarifa(nuevaPosicion);
+  const cell = document.getElementById(`monto-cell-${fechaId}-${personaId}`);
+  if (cell) cell.innerHTML = tar ? fmt(tar.monto) : '<span style="color:var(--orange)">sin tarifa</span>';
+  // Recalcular total
+  let total = 0;
+  document.querySelectorAll('[id^="monto-cell-"]').forEach(c => {
+    const n = parseInt(c.textContent.replace(/[^0-9]/g,''));
+    if (!isNaN(n)) total += n;
+  });
+  const lbl = document.getElementById('total-show-lbl');
+  const foot = document.getElementById('total-show-footer');
+  if (lbl) lbl.textContent = fmt(total);
+  if (foot) foot.textContent = fmt(total);
+  toast('Posición actualizada', 'ok');
+};
 window.exportShowArenaPreview = function(evId) {
   const ev    = getEvento(evId);
   const fechas = ev?.fechas || [];
