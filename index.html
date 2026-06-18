@@ -1954,11 +1954,11 @@ async function pgCBU(el, ac) {
   if (APP.rol !== 'rrhh') { el.innerHTML = '<div class="alert alert-warn"><i class="ti ti-lock"></i> Sin acceso</div>'; return; }
   await fetchAll();
 
+  ac.innerHTML = `<button class="btn" onclick="descargarPlantillaCBU()"><i class="ti ti-download"></i> Descargar plantilla</button>`;
+
   el.innerHTML = `
-    <div class="alert alert-info"><i class="ti ti-info-circle"></i>
-      Subí un Excel con dos columnas: <strong>CUIL</strong> y <strong>CBU</strong>.
-      La app busca cada CUIL en el sistema y actualiza el CBU si aún no tiene uno cargado.
-      Si ya tiene CBU, no lo pisa — podés forzar la actualización tildando la opción abajo.
+    <div class="alert alert-info" style="padding:8px 12px;font-size:12px"><i class="ti ti-info-circle" style="flex-shrink:0"></i>
+      Descargá la plantilla con los CUILs ya cargados, completá la columna CBU y volvé a subir el archivo.
     </div>
     <div class="card" style="margin-bottom:16px">
       <div class="drop-zone" id="dz-cbu" onclick="document.getElementById('fi-cbu').click()">
@@ -1968,7 +1968,7 @@ async function pgCBU(el, ac) {
       </div>
       <input type="file" id="fi-cbu" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleCBUFile(this.files[0])">
       <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12.5px;cursor:pointer">
-        <input type="checkbox" id="forzar-cbu" style="width:auto"> Sobreescribir CBU aunque ya esté cargado
+        <input type="checkbox" id="forzar-cbu" style="width:auto" checked> Sobreescribir CBU aunque ya esté cargado
       </label>
     </div>
     <div id="cbu-preview"></div>`;
@@ -1980,6 +1980,22 @@ async function pgCBU(el, ac) {
     dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dov'); handleCBUFile(e.dataTransfer.files[0]); });
   }
 }
+
+window.descargarPlantillaCBU = function() {
+  const rows = APP.personal
+    .filter(p => p.activo !== false)
+    .sort((a, b) => a.apellido.localeCompare(b.apellido))
+    .map(p => ({
+      'Apellido y nombre': `${p.apellido}, ${p.nombre}`,
+      'CUIL': p.cuil || '',
+      'CBU':  p.cbu  || '',
+      'Alias': p.alias || '',
+      'Área': p.area || '',
+    }));
+  if (!rows.length) { alert('No hay personal cargado en el sistema'); return; }
+  exportXLSX(rows, 'plantilla_CBU.xlsx');
+  toast('Plantilla descargada', 'ok');
+};
 
 window.handleCBUFile = function(file) {
   if (!file) return;
