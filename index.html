@@ -431,20 +431,23 @@ function stF(ev, fechaId) {
 // ══════════════════════════════════════════════
 async function pgDB(el) {
   await fetchAll();
-  const liqPend  = APP.liquidaciones.filter(l => l.estado === 'pendiente').length;
-  const liqTotal = APP.liquidaciones.reduce((s, l) => s + (l.total || 0), 0);
-  const extEvs   = APP.eventos.filter(e => e.area === 'Externos');
+  const liqPend    = APP.liquidaciones.filter(l => l.estado === 'pendiente').length;
+  const liqTotal   = APP.liquidaciones.reduce((s, l) => s + (l.total || 0), 0);
+  const extEvs     = APP.eventos.filter(e => e.area === 'Externos');
+  const arenaShows = APP.eventos.filter(e => e.area === 'Movistar Arena');
+  const liqExt     = APP.liquidaciones.filter(l => l.area === 'Externos');
+  const liqArena   = APP.liquidaciones.filter(l => l.area === 'Movistar Arena');
 
   el.innerHTML = `
   <div class="grid4" style="margin-bottom:20px">
     <div class="metric"><div class="metric-l">Personal</div><div class="metric-v">${APP.personal.length}</div>
       <div class="metric-s">${APP.personal.filter(p=>p.area==='Externos').length} ext · ${APP.personal.filter(p=>p.area==='Movistar Arena').length} arena</div></div>
-    <div class="metric"><div class="metric-l">Eventos Externos</div><div class="metric-v">${extEvs.length}</div>
-      <div class="metric-s">${extEvs.reduce((s,e)=>(e.fechas||[]).length+s,0)} fechas</div></div>
-    <div class="metric"><div class="metric-l">Quincenas Arena</div><div class="metric-v">${APP.quincenas.length}</div>
-      <div class="metric-s">${APP.eventos.filter(e=>e.area==='Movistar Arena').length} shows</div></div>
-    <div class="metric"><div class="metric-l">Liq. pendientes</div><div class="metric-v">${liqPend}</div>
-      <div class="metric-s">${fmt(liqTotal)} total histórico</div></div>
+    <div class="metric"><div class="metric-l">Externos</div><div class="metric-v">${extEvs.length}</div>
+      <div class="metric-s">${extEvs.length ? fmt(liqExt.reduce((s,l)=>s+(l.total||0),0)) + ' liquidado' : 'sin eventos'}</div></div>
+    <div class="metric"><div class="metric-l">Movistar Arena</div><div class="metric-v">${arenaShows.length}</div>
+      <div class="metric-s">${arenaShows.length ? fmt(liqArena.reduce((s,l)=>s+(l.total||0),0)) + ' liquidado' : 'sin shows'}</div></div>
+    <div class="metric"><div class="metric-l">Total histórico</div><div class="metric-v" style="font-size:17px">${fmt(liqTotal)}</div>
+      <div class="metric-s">${APP.liquidaciones.length} liquidaciones</div></div>
   </div>
   <div class="grid2">
     <div class="card">
