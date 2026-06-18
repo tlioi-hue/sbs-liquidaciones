@@ -1983,30 +1983,39 @@ async function pgCBU(el, ac) {
 }
 
 window.descargarPlantillaCBU = function() {
-  // TSV (tab separado) — Excel lo abre con columnas separadas y trata todo como texto
-  const tsv = 'CUIL\tCBU\n';
-  const blob = new Blob([tsv], { type: 'text/tab-separated-values;charset=utf-8;' });
+  // El apóstrofe adelante le dice a Excel que trate la celda como texto
+  // así los 22 dígitos del CBU no se convierten a notación científica
+  const csvContent = 'CUIL;CBU\n\';CBU_ACÁ\n';
+  // Plantilla vacía con instrucción — el usuario borra la fila de ejemplo y completa
+  const lineas = ['CUIL;CBU'];
+  // 30 filas vacías con apóstrofe en columna CBU para forzar texto
+  for (let i = 0; i < 30; i++) {
+    lineas.push(";'");
+  }
+  const blob = new Blob(['\uFEFF' + lineas.join('\n')], { type: 'text/csv;charset=utf-8;' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = 'plantilla_CBU.txt';
+  a.download = 'plantilla_CBU.csv';
   a.click();
   URL.revokeObjectURL(url);
-  toast('Plantilla descargada — abrí con Excel, completá y volvé a subir', 'ok');
+  toast('Plantilla descargada — completá CUIL y CBU en cada fila y volvé a subir', 'ok');
 };
 
 window.handleCBUFile = function(file) {
   if (!file) return;
-  const isTxt = file.name.endsWith('.txt') || file.name.endsWith('.tsv');
-  const isCsv = file.name.endsWith('.csv');
+  const isCsv = file.name.endsWith('.csv') || file.name.endsWith('.txt');
 
-  if (isTxt || isCsv) {
-    // Leer como texto plano — preserva los 22 dígitos exactamente
+  if (isCsv) {
     const r = new FileReader();
     r.onload = e => {
-      const sep = isTxt ? '\t' : ',';
-      const lines = e.target.result.split('\n').filter(l => l.trim());
-      const rows = lines.map(l => l.split(sep).map(v => v.trim().replace(/\r/,'')));
+      const text = e.target.result.replace(/\uFEFF/g, ''); // quitar BOM
+      const lines = text.split('\n').filter(l => l.trim());
+      const rows = lines.map(l => {
+        // detectar separador: punto y coma o coma
+        const sep = l.includes(';') ? ';' : ',';
+        return l.split(sep).map(v => v.trim().replace(/\r/, '').replace(/^'/, ''));
+      });
       parseCBU(rows);
     };
     r.readAsText(file, 'UTF-8');
