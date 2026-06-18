@@ -1357,7 +1357,7 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
       // 2. Si no hay match exacto, usar la sección padre para mapear (ej: SUPERVISORES → Supervisor)
       const posicion = matchExacto
         ? matchExacto.posicion
-        : mapToTarifario(sec, null);
+        : mapToTarifario(sec);
       const ex = APP.personal.find(p => p.cuil && p.cuil === cuil)
               || (b0 ? APP.personal.find(p => p.apellido.toLowerCase() === b0.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
       filas.push({ _id:uid(), posicion, posicionOriginal:secCombinada, apellido:b0, nombre:nom, cuil, tel,
