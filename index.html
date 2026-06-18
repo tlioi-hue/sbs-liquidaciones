@@ -216,6 +216,7 @@ input:disabled, select:disabled { opacity: .6; cursor: not-allowed; background: 
         <div class="sb-item" onclick="go('personal')"  id="n-personal"><i class="ti ti-users"></i> Personal</div>
         <div class="sb-item" onclick="go('tarifario')" id="n-tarifario"><i class="ti ti-list"></i> Tarifario</div>
         <div class="sb-item" onclick="go('importar')"  id="n-importar"><i class="ti ti-file-upload"></i> Importar planilla</div>
+      <div class="sb-item" onclick="go('cbu')"       id="n-cbu"><i class="ti ti-credit-card"></i> Importar CBU</div>
         <div class="sb-sec">Liquidaciones</div>
         <div class="sb-item" onclick="go('externos')"  id="n-externos"><i class="ti ti-world"></i> Externos</div>
         <div class="sb-item" onclick="go('arena')"     id="n-arena"><i class="ti ti-building"></i> Movistar Arena</div>
@@ -312,7 +313,7 @@ async function initApp(user) {
   // Ocultar secciones de gestión para administración
   if (APP.rol === 'administracion') {
     document.getElementById('nav-sec-gestion').style.display = 'none';
-    ['n-personal','n-tarifario','n-importar','n-externos','n-arena'].forEach(id => {
+    ['n-personal','n-tarifario','n-importar','n-cbu','n-externos','n-arena'].forEach(id => {
       const el = document.getElementById(id);
       if (id === 'n-externos' || id === 'n-arena') return; // los ve pero solo exporta
       if (el) el.classList.add('disabled');
@@ -366,7 +367,7 @@ function loading(show) {
   } else { if (ov) ov.style.display = 'none'; }
 }
 
-const TITLES = { db:'Dashboard', personal:'Personal', tarifario:'Tarifario', importar:'Importar planilla', externos:'Externos', arena:'Movistar Arena' };
+const TITLES = { db:'Dashboard', personal:'Personal', tarifario:'Tarifario', importar:'Importar planilla', cbu:'Importar CBU', externos:'Externos', arena:'Movistar Arena' };
 
 async function go(page) {
   APP.page = page;
@@ -383,7 +384,7 @@ async function render() {
   const ac = document.getElementById('topbar-ac');
   loading(true);
   try {
-    await ({ db:pgDB, personal:pgPersonal, tarifario:pgTarifario, importar:pgImportar, externos:pgExternos, arena:pgArena })[APP.page]?.(el, ac);
+    await ({ db:pgDB, personal:pgPersonal, tarifario:pgTarifario, importar:pgImportar, cbu:pgCBU, externos:pgExternos, arena:pgArena })[APP.page]?.(el, ac);
   } catch (e) {
     el.innerHTML = `<div class="alert alert-warn"><i class="ti ti-alert-circle"></i> Error cargando: ${e.message}</div>`;
     console.error(e);
@@ -1290,17 +1291,38 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
   for (let i = hi + 1; i < rows.length; i++) {
     const row = rows[i];
     const a0  = String(row[0]||'').trim();
-    if (isNaN(a0) && a0 !== '' && String(row[cA]||'').trim().toUpperCase() === 'APELLIDO') { sec = a0; continue; }
-    const num = parseInt(a0);
-    const ape = String(row[cA]||'').trim();
-    const nom = String(row[cN]||'').trim();
-    if (!isNaN(num) && num > 0 && (ape || nom)) {
-      const cuil = String(row[cC]||'').replace(/\D/g, '');
-      const ex   = APP.personal.find(p => p.cuil && p.cuil === cuil)
-                || (ape ? APP.personal.find(p => p.apellido.toLowerCase() === ape.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
-      filas.push({ _id:uid(), posicion:sec, apellido:ape, nombre:nom, cuil, tel:String(row[cT]||'').trim(),
-        presente: String(row[cP]||'').trim().toUpperCase() === 'P',
-        existeId: ex?.id||null, esNuevo:!ex, cbuEdit:ex?.cbu||'', sel:false });
+    const b0  = String(row[cA]||'').trim();
+    const b0u = b0.toUpperCase();
+
+    // Fila de encabezado de sección: col A texto, col B = 'APELLIDO'
+    if (a0 && b0u === 'APELLIDO') { sec = a0; continue; }
+
+    // Saltar filas vacías o sin apellido
+    if (!b0 || b0u === 'APELLIDO') continue;
+
+    const nom  = String(row[cN]||'').trim();
+    const cuil = String(row[cC]||'').replace(/\D/g, '');
+    const pres = String(row[cP]||'').trim().toUpperCase() === 'P';
+    const tel  = String(row[cT]||'').trim();
+
+    // Formato 1: col A es número (fila normal de orientadores/staff)
+    const num = parseFloat(a0);
+    if (!isNaN(num) && num > 0) {
+      const ex = APP.personal.find(p => p.cuil && p.cuil === cuil)
+              || (b0 ? APP.personal.find(p => p.apellido.toLowerCase() === b0.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
+      filas.push({ _id:uid(), posicion:sec, apellido:b0, nombre:nom, cuil, tel,
+        presente:pres, existeId:ex?.id||null, esNuevo:!ex, sel:false });
+      continue;
+    }
+
+    // Formato 2: col A es texto (supervisores con puesto en col A)
+    // Ej: fila ['CALLE', 'Ramirez', 'Paloma', cuil, tel, 'P', ...]
+    if (a0 && a0.toUpperCase() !== 'APELLIDO' && b0 && cuil.length >= 8) {
+      const posicion = sec + ' - ' + a0;
+      const ex = APP.personal.find(p => p.cuil && p.cuil === cuil)
+              || (b0 ? APP.personal.find(p => p.apellido.toLowerCase() === b0.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
+      filas.push({ _id:uid(), posicion, apellido:b0, nombre:nom, cuil, tel,
+        presente:pres, existeId:ex?.id||null, esNuevo:!ex, sel:false });
     }
   }
   if (!filas.length) { alert('No encontré filas de personal.'); return; }
@@ -1372,11 +1394,18 @@ function pgVerificar(el, ac) {
               <thead><tr>
                 <th style="width:30px"></th>
                 <th style="width:34px;text-align:center">Pres.</th>
-                <th>Apellido</th><th>Nombre</th><th>CUIL</th><th>Posición</th><th>CBU</th>
+                <th>Apellido</th><th>Nombre</th><th>CUIL</th><th>Posición</th>
                 <th style="width:78px">Estado</th>
               </tr></thead>
               <tbody>
-                ${sf.map(f => `<tr id="fr-${f._id}" class="${f.sel?'sel':f.presente?'':'ausente'}">
+                ${sf.map(f => {
+                  const posOpts = APP.tarifario.map(t =>
+                    `<option value="${t.posicion}" ${f.posicion===t.posicion?'selected':''}>${t.posicion}</option>`
+                  ).join('');
+                  // Si la posición detectada no está en el tarifario, agregar como opción extra
+                  const enTarifario = APP.tarifario.some(t => t.posicion === f.posicion);
+                  const extraOpt = !enTarifario ? `<option value="${f.posicion}" selected>${f.posicion}</option>` : '';
+                  return `<tr id="fr-${f._id}" class="${f.sel?'sel':f.presente?'':'ausente'}">
                   <td class="tdc" style="text-align:center">
                     <input type="checkbox" class="chk" ${f.sel?'checked':''} onchange="selFila('${f._id}',this.checked)">
                   </td>
@@ -1386,10 +1415,9 @@ function pgVerificar(el, ac) {
                   <td><input value="${f.apellido}" onchange="editF('${f._id}','apellido',this.value)"></td>
                   <td><input value="${f.nombre}"   onchange="editF('${f._id}','nombre',this.value)"></td>
                   <td><input value="${f.cuil}"     onchange="editF('${f._id}','cuil',this.value)" style="font-family:monospace"></td>
-                  <td><input id="pos-${f._id}" value="${f.posicion}" onchange="editF('${f._id}','posicion',this.value)"></td>
-                  <td><input value="${f.cbuEdit||''}" onchange="editF('${f._id}','cbuEdit',this.value)" placeholder="Opcional" style="font-family:monospace"></td>
+                  <td><select id="pos-${f._id}" onchange="editF('${f._id}','posicion',this.value)">${extraOpt}${posOpts}</select></td>
                   <td>${f.esNuevo ? '<span class="badge bn" style="font-size:10px">nuevo</span>' : '<span class="badge bs" style="font-size:10px">registrado</span>'}</td>
-                </tr>`).join('')}
+                </tr>`;}).join('')}
               </tbody>
             </table>
           </div>
@@ -1430,11 +1458,10 @@ function refreshBulk() {
       <span style="white-space:nowrap"><strong>${n}</strong> seleccionadas</span>
       <span style="opacity:.4;font-size:11px">·</span>
       <span style="font-size:12px;opacity:.85">Cambiar posición:</span>
-      <input id="bp" placeholder="Nueva posición" style="width:145px" list="bpl">
-      <datalist id="bpl">
-        ${APP.tarifario.map(t => `<option value="${t.posicion}">`).join('')}
-        ${secs.map(s => `<option value="${s}">`).join('')}
-      </datalist>
+      <select id="bp" style="width:160px;background:rgba(255,255,255,.14);color:#fff;border-color:rgba(255,255,255,.28);font-size:12px;padding:4px 7px">
+        <option value="" style="background:#1a1a2e">— elegir —</option>
+        ${APP.tarifario.map(t => `<option value="${t.posicion}" style="background:#1a1a2e">${t.posicion}</option>`).join('')}
+      </select>
       <button class="btn btn-sm" style="background:rgba(255,255,255,.16);color:#fff;border-color:rgba(255,255,255,.3)" onclick="applyBulkPos()">
         <i class="ti ti-check"></i> Aplicar
       </button>
@@ -1452,7 +1479,9 @@ function refreshBulk() {
 }
 
 window.applyBulkPos = function() {
-  const n = $v('bp'); if (!n) { alert('Escribí la nueva posición'); return; }
+  const sel = document.getElementById('bp');
+  const n = sel ? sel.value : '';
+  if (!n) { alert('Elegí una posición del listado'); return; }
   APP.draft.filas.filter(f => f.sel).forEach(f => {
     f.posicion = n;
     const inp = document.getElementById('pos-' + f._id); if (inp) inp.value = n;
@@ -1640,8 +1669,140 @@ window.delLiq = async function(id) {
 };
 
 // ══════════════════════════════════════════════
-// MODAL
+// IMPORTAR CBU — Excel con CUIL + CBU
 // ══════════════════════════════════════════════
+async function pgCBU(el, ac) {
+  if (APP.rol !== 'rrhh') { el.innerHTML = '<div class="alert alert-warn"><i class="ti ti-lock"></i> Sin acceso</div>'; return; }
+  await fetchAll();
+
+  el.innerHTML = `
+    <div class="alert alert-info"><i class="ti ti-info-circle"></i>
+      Subí un Excel con dos columnas: <strong>CUIL</strong> y <strong>CBU</strong>.
+      La app busca cada CUIL en el sistema y actualiza el CBU si aún no tiene uno cargado.
+      Si ya tiene CBU, no lo pisa — podés forzar la actualización tildando la opción abajo.
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="drop-zone" id="dz-cbu" onclick="document.getElementById('fi-cbu').click()">
+        <i class="ti ti-credit-card" style="font-size:34px;color:var(--text2);display:block;margin-bottom:9px"></i>
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px">Arrastrá el Excel acá o hacé clic</div>
+        <div style="font-size:12px;color:var(--text2)">Columnas requeridas: CUIL · CBU · (Alias, opcional)</div>
+      </div>
+      <input type="file" id="fi-cbu" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleCBUFile(this.files[0])">
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12.5px;cursor:pointer">
+        <input type="checkbox" id="forzar-cbu" style="width:auto"> Sobreescribir CBU aunque ya esté cargado
+      </label>
+    </div>
+    <div id="cbu-preview"></div>`;
+
+  const dz = document.getElementById('dz-cbu');
+  if (dz) {
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dov'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dov'));
+    dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dov'); handleCBUFile(e.dataTransfer.files[0]); });
+  }
+}
+
+window.handleCBUFile = function(file) {
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type:'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+      parseCBU(rows);
+    } catch(err) { alert('Error leyendo el archivo: ' + err.message); }
+  };
+  r.readAsBinaryString(file);
+};
+
+function parseCBU(rows) {
+  // Detectar columnas
+  let hi=-1, cCuil=-1, cCbu=-1, cAlias=-1;
+  for (let i = 0; i < Math.min(rows.length, 4); i++) {
+    rows[i].forEach((v, j) => {
+      const u = String(v).trim().toUpperCase();
+      if (u === 'CUIL')  { cCuil=j; hi=i; }
+      if (u === 'CBU')   cCbu=j;
+      if (u === 'ALIAS') cAlias=j;
+    });
+    if (hi === i) break;
+  }
+  if (hi === -1 || cCuil === -1 || cCbu === -1) {
+    alert('No encontré las columnas CUIL y CBU.\nVerificá que la primera fila tenga esos encabezados.');
+    return;
+  }
+
+  const forzar = document.getElementById('forzar-cbu')?.checked;
+  const resultados = [];
+
+  for (let i = hi + 1; i < rows.length; i++) {
+    const row  = rows[i];
+    const cuil = String(row[cCuil]||'').replace(/\D/g, '');
+    const cbu  = String(row[cCbu]||'').replace(/\D/g, '');
+    const alias = cAlias >= 0 ? String(row[cAlias]||'').trim() : '';
+    if (!cuil || !cbu) continue;
+
+    const persona = APP.personal.find(p => p.cuil === cuil);
+    if (!persona) {
+      resultados.push({ cuil, cbu, alias, estado:'no_encontrado', nombre:'—' });
+      continue;
+    }
+    if (persona.cbu && !forzar) {
+      resultados.push({ cuil, cbu, alias, estado:'ya_tiene', nombre:`${persona.apellido}, ${persona.nombre}`, id:persona.id });
+      continue;
+    }
+    resultados.push({ cuil, cbu, alias, estado:'actualizar', nombre:`${persona.apellido}, ${persona.nombre}`, id:persona.id });
+  }
+
+  const aActualizar = resultados.filter(r => r.estado === 'actualizar');
+  const yaTiene     = resultados.filter(r => r.estado === 'ya_tiene');
+  const noEncontrado = resultados.filter(r => r.estado === 'no_encontrado');
+
+  const preview = document.getElementById('cbu-preview');
+  if (!preview) return;
+
+  preview.innerHTML = `
+    <div class="card">
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px">Resultado del análisis</div>
+      <div style="display:flex;gap:14px;margin-bottom:16px;flex-wrap:wrap;font-size:12.5px">
+        <span style="color:var(--green)"><strong>${aActualizar.length}</strong> a actualizar</span>
+        <span style="color:var(--text2)"><strong>${yaTiene.length}</strong> ya tienen CBU</span>
+        ${noEncontrado.length ? `<span style="color:var(--orange)"><strong>${noEncontrado.length}</strong> CUIL no encontrado</span>` : ''}
+      </div>
+      ${aActualizar.length ? `
+        <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px">
+          <table><thead><tr><th>Persona</th><th>CUIL</th><th>CBU nuevo</th><th>Alias</th></tr></thead>
+          <tbody>${aActualizar.map(r => `<tr>
+            <td><strong>${r.nombre}</strong></td>
+            <td style="font-family:monospace;font-size:11.5px">${r.cuil}</td>
+            <td style="font-family:monospace;font-size:11.5px">${r.cbu}</td>
+            <td style="font-size:11.5px">${r.alias||'—'}</td>
+          </tr>`).join('')}</tbody></table>
+        </div>
+        <button class="btn btn-success" onclick="confirmarCBU(${JSON.stringify(aActualizar).replace(/"/g,'&quot;')})">
+          <i class="ti ti-check"></i> Confirmar — actualizar ${aActualizar.length} CBU
+        </button>` : '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> No hay CBU para actualizar.</div>'}
+      ${noEncontrado.length ? `
+        <div style="margin-top:12px;font-size:12px;color:var(--orange)">
+          <strong>CUIL no encontrados en el sistema:</strong> ${noEncontrado.map(r=>r.cuil).join(', ')}
+        </div>` : ''}
+    </div>`;
+}
+
+window.confirmarCBU = async function(rows) {
+  loading(true);
+  for (const r of rows) {
+    const upd = { cbu: r.cbu };
+    if (r.alias) upd.alias = r.alias;
+    await sb.from('personal').update(upd).eq('id', r.id);
+  }
+  loading(false);
+  toast(`${rows.length} CBU actualizados`, 'ok');
+  document.getElementById('cbu-preview').innerHTML = `
+    <div class="alert alert-ok"><i class="ti ti-check-circle"></i> ${rows.length} CBU actualizados correctamente.</div>`;
+  await fetchAll();
+};
 function showModal(html) {
   let o = document.getElementById('mo');
   if (!o) { o = document.createElement('div'); o.id = 'mo'; o.className = 'mo'; document.body.appendChild(o); }
