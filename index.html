@@ -1967,6 +1967,7 @@ async function pgCBU(el, ac) {
         <div style="font-size:12px;color:var(--text2)">Columnas requeridas: CUIL · CBU · (Alias, opcional)</div>
       </div>
       <input type="file" id="fi-cbu" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleCBUFile(this.files[0])">
+      <div style="font-size:12px;color:var(--text2);margin-top:8px;text-align:center">Formatos: .csv (recomendado) · .xlsx · .xls</div>
       <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12.5px;cursor:pointer">
         <input type="checkbox" id="forzar-cbu" style="width:auto" checked> Sobreescribir CBU aunque ya esté cargado
       </label>
@@ -1982,29 +1983,16 @@ async function pgCBU(el, ac) {
 }
 
 window.descargarPlantillaCBU = function() {
-  const wb = XLSX.utils.book_new();
-  const ws = {};
-
-  // Encabezados
-  ws['A1'] = { v: 'CUIL', t: 's' };
-  ws['B1'] = { v: 'CBU',  t: 's' };
-
-  // 50 filas vacías con formato texto explícito en ambas columnas
-  for (let i = 2; i <= 51; i++) {
-    ws[`A${i}`] = { v: '', t: 's', z: '@' };
-    ws[`B${i}`] = { v: '', t: 's', z: '@' };
-  }
-
-  ws['!ref'] = 'A1:B51';
-  ws['!cols'] = [{ wch: 18 }, { wch: 26 }];
-
-  // Forzar formato texto en toda la columna (para que Excel no convierta los CBU)
-  if (!wb.Strings) wb.Strings = [];
-  XLSX.utils.book_append_sheet(wb, ws, 'CBU');
-
-  // Escribir como XLSX con cellStyles
-  XLSX.writeFile(wb, 'plantilla_CBU.xlsx', { bookType:'xlsx', type:'binary', cellStyles: true });
-  toast('Plantilla descargada — abrí el archivo y pegá los CBU en la columna B', 'ok');
+  // CSV en vez de Excel — evita que Excel convierta CBU de 22 dígitos a notación científica
+  const csv = 'CUIL,CBU\n';
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'plantilla_CBU.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Plantilla CSV descargada — completá y volvé a subir este archivo', 'ok');
 };
 
 window.handleCBUFile = function(file) {
