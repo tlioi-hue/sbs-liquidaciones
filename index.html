@@ -1982,13 +1982,9 @@ async function pgCBU(el, ac) {
 }
 
 window.descargarPlantillaCBU = function() {
-  const rows = APP.personal
-    .filter(p => p.activo !== false)
-    .sort((a, b) => a.apellido.localeCompare(b.apellido))
-    .map(p => ({
-      'CUIL': p.cuil || '',
-      'CBU':  '',
-    }));
+  // Plantilla vacía — el usuario completa CUIL y CBU
+  const rows = [{ 'CUIL': '', 'CBU': '' }];
+
   if (!rows.length) { alert('No hay personal cargado en el sistema'); return; }
   exportXLSX(rows, 'plantilla_CBU.xlsx');
   toast('Plantilla descargada', 'ok');
