@@ -1272,24 +1272,29 @@ window.handleFileCtx = async function(file, evId, fechaId, modo) {
   r.readAsBinaryString(file);
 };
 
-// Mapea una sección de la planilla a la posición más cercana del tarifario
-// Ej: "ORIENTADORES" → "Orientador 6hs" (primera coincidencia)
-// Devuelve la posición del tarifario si hay match, o la original si no hay
-function mapToTarifario(secPlanilla) {
+// Mapea una sección/puesto de la planilla a la posición más cercana del tarifario
+function mapToTarifario(secPlanilla, secPadre) {
   if (!APP.tarifario.length) return secPlanilla;
-  const needle = secPlanilla.toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // quitar tildes
-  // Buscar coincidencia: el nombre del tarifario contiene la palabra clave o viceversa
+
+  // Función que normaliza texto para comparar (sin tildes, minúsculas, sin plurales simples)
+  const norm = s => s.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/es$/, '').replace(/s$/, '').trim(); // quitar plurales simples
+
+  // Buscar primero por sección padre si existe (para formato 2: supervisores)
+  const candidato = secPadre || secPlanilla;
+  const needleNorm = norm(candidato);
+
   const matches = APP.tarifario.filter(t => {
-    const hay = t.posicion.toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    // coincidencia si uno contiene al otro (ej: "orientador" está en "orientadores" y viceversa)
-    const words = needle.split(/[\s\-]+/).filter(w => w.length > 3);
-    return words.some(w => hay.includes(w)) || hay.split(/[\s\-]+/).some(w => w.length > 3 && needle.includes(w));
+    const hayNorm = norm(t.posicion);
+    // coincide si alguna palabra clave de uno está en el otro
+    const wordsNeedle = needleNorm.split(/[\s\-]+/).filter(w => w.length > 2);
+    const wordsHay    = hayNorm.split(/[\s\-]+/).filter(w => w.length > 2);
+    return wordsNeedle.some(w => hayNorm.includes(w)) || wordsHay.some(w => needleNorm.includes(w));
   });
-  if (matches.length === 1) return matches[0].posicion; // match único → asignar directo
-  if (matches.length > 1)  return matches[0].posicion;  // múltiples → preseleccionar el primero, editable en verificación
-  return secPlanilla; // sin match → dejar el original para que elijan a mano
+
+  if (matches.length >= 1) return matches[0].posicion;
+  return secPlanilla; // sin match → dejar original
 }
 
 function parseDraft(rows, filename, evId, fechaId, modo) {
@@ -1338,8 +1343,14 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
 
     // Formato 2: col A es texto (supervisores con puesto en col A)
     if (a0 && a0.toUpperCase() !== 'APELLIDO' && b0 && cuil.length >= 8) {
-      const secCombinada = sec + ' - ' + a0;
-      const posicion = mapToTarifario(a0); // intentar mapear primero por el puesto específico
+      const subPuesto = a0; // ej: CALLE, VIP, BOWL, Coordinador
+      const secCombinada = sec + ' - ' + subPuesto;
+      // Intentar mapear primero el sub-puesto exacto (ej: "Coordinador" → "Coordinador")
+      // Si no hay match, usar la sección padre (ej: "SUPERVISORES" → "Supervisor")
+      const posicionPorSubPuesto = mapToTarifario(subPuesto, null);
+      const posicion = posicionPorSubPuesto !== subPuesto
+        ? posicionPorSubPuesto                    // encontró match por sub-puesto (ej: Coordinador)
+        : mapToTarifario(sec, null);              // usar sección padre (ej: SUPERVISORES → Supervisor)
       const ex = APP.personal.find(p => p.cuil && p.cuil === cuil)
               || (b0 ? APP.personal.find(p => p.apellido.toLowerCase() === b0.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
       filas.push({ _id:uid(), posicion, posicionOriginal:secCombinada, apellido:b0, nombre:nom, cuil, tel,
