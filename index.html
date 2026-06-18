@@ -1345,12 +1345,15 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
     if (a0 && a0.toUpperCase() !== 'APELLIDO' && b0 && cuil.length >= 8) {
       const subPuesto = a0; // ej: CALLE, VIP, BOWL, Coordinador
       const secCombinada = sec + ' - ' + subPuesto;
-      // Intentar mapear primero el sub-puesto exacto (ej: "Coordinador" → "Coordinador")
-      // Si no hay match, usar la sección padre (ej: "SUPERVISORES" → "Supervisor")
-      const posicionPorSubPuesto = mapToTarifario(subPuesto, null);
-      const posicion = posicionPorSubPuesto !== subPuesto
-        ? posicionPorSubPuesto                    // encontró match por sub-puesto (ej: Coordinador)
-        : mapToTarifario(sec, null);              // usar sección padre (ej: SUPERVISORES → Supervisor)
+      // 1. Intentar match exacto del sub-puesto en el tarifario (ej: "Coordinador")
+      const matchExacto = APP.tarifario.find(t =>
+        t.posicion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim() ===
+        subPuesto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim()
+      );
+      // 2. Si no hay match exacto, usar la sección padre para mapear (ej: SUPERVISORES → Supervisor)
+      const posicion = matchExacto
+        ? matchExacto.posicion
+        : mapToTarifario(sec, null);
       const ex = APP.personal.find(p => p.cuil && p.cuil === cuil)
               || (b0 ? APP.personal.find(p => p.apellido.toLowerCase() === b0.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
       filas.push({ _id:uid(), posicion, posicionOriginal:secCombinada, apellido:b0, nombre:nom, cuil, tel,
