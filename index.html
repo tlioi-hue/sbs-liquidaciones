@@ -926,7 +926,6 @@ function renderQCard(q, isRRHH) {
               </div>
               <span class="pill">${jEv} jornadas</span>
               <div style="display:flex;gap:5px;flex-shrink:0">
-                ${isRRHH ? `<button class="btn btn-sm btn-primary" onclick="importarShowArena('${ev.id}')"><i class="ti ti-file-upload"></i> Importar planilla</button>` : ''}
                 <button class="btn btn-sm" onclick="verShowArena('${ev.id}')"><i class="ti ti-eye"></i></button>
                 ${isRRHH ? `<button class="btn btn-sm btn-danger" onclick="delShowArena('${ev.id}')"><i class="ti ti-trash"></i></button>` : ''}
               </div>
@@ -935,7 +934,11 @@ function renderQCard(q, isRRHH) {
     </div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       ${isRRHH ? `<button class="btn btn-sm" onclick="agregarShowQ('${q.id}')"><i class="ti ti-plus"></i> Agregar show</button>` : ''}
-      ${isRRHH && totalJornadas && !q.cerrada ? `<button class="btn btn-sm btn-success" onclick="previaCierre('${q.id}')"><i class="ti ti-receipt"></i> Cerrar y liquidar quincena</button>` : ''}
+      ${isRRHH && totalJornadas && !q.cerrada ? `
+        <button class="btn btn-sm" onclick="previaCierre('${q.id}', false)"><i class="ti ti-eye"></i> Vista previa liquidación</button>
+        <button class="btn btn-sm btn-success" onclick="previaCierre('${q.id}', true)"><i class="ti ti-lock"></i> Cerrar quincena definitivamente</button>
+      ` : ''}
+      ${q.cerrada ? `<span class="badge bs"><i class="ti ti-lock" style="font-size:11px"></i> Quincena cerrada</span>` : ''}
       ${liqs.length ? `<button class="btn btn-sm" onclick="verLiqsQ('${q.id}')"><i class="ti ti-list"></i> Liquidaciones (${liqs.length})</button>` : ''}
       ${liqs.length ? `<button class="btn btn-sm" onclick="exportLiqsQuincena('${q.id}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>` : ''}
     </div>
@@ -1044,36 +1047,74 @@ window.saveFechaArena = async function(evId) {
 window.verShowArena = function(evId) {
   const ev    = getEvento(evId);
   const fechas = ev?.fechas || [];
+
+  // Consolidar todos los presentes con su monto
+  const presentes = [];
+  fechas.forEach(f => {
+    (f.presentismo||[]).forEach(p => {
+      const per = APP.personal.find(x => x.id === p.persona_id);
+      const tar = getTarifa(p.posicion);
+      presentes.push({ per, posicion:p.posicion, monto:tar?.monto||0, sinTarifa:!tar });
+    });
+  });
+
+  const totalMonto  = presentes.reduce((s,p) => s+p.monto, 0);
+  const sinTarifaN  = presentes.filter(p => p.sinTarifa).length;
+
   showModal(`<div class="modal modal-lg">
-    <div class="modal-t">${ev.nombre}</div>
-    <div class="modal-s">${fechas.length} fecha${fechas.length!==1?'s':''} · ${fechas.reduce((s,f)=>(f.presentismo||[]).length+s,0)} jornadas</div>
-    ${!fechas.length
-      ? '<div class="empty-state"><i class="ti ti-calendar-off"></i><p>Sin fechas.</p></div>'
-      : fechas.map(f => {
-          const pres = f.presentismo || [];
-          return `<div style="margin-bottom:9px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 11px;background:var(--bg3)">
-              <strong>${fd(f.fecha)}${f.nombre?' · '+f.nombre:''}</strong>
-              <div style="display:flex;gap:5px;align-items:center">
-                <span class="pill">${pres.length} presentes</span>
-                ${APP.rol==='rrhh' ? `<button class="btn btn-sm" onclick="closeModal();importarFechaCtx('${evId}','${f.id}','arena')"><i class="ti ti-file-upload"></i> Subir planilla</button>` : ''}
-              </div>
-            </div>
-            ${pres.length
-              ? `<table style="font-size:11.5px"><thead><tr><th>Apellido y nombre</th><th>Posición ese día</th></tr></thead>
-                <tbody>${pres.map(p => { const per = APP.personal.find(x => x.id === p.persona_id); return `<tr><td>${per?.apellido||'?'}, ${per?.nombre||'?'}</td><td>${p.posicion}</td></tr>`; }).join('')}</tbody></table>`
-              : '<div style="padding:9px 11px;font-size:12px;color:var(--text2)">Sin presentismo cargado.</div>'}
-          </div>`;
-        }).join('')}
+    <div class="modal-t">${ev.nombre}${ev.fecha?' · '+fd(ev.fecha):''}</div>
+    <div class="modal-s">${presentes.length} presentes · <strong>${fmt(totalMonto)}</strong> total estimado a liquidar</div>
+    ${sinTarifaN ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> ${sinTarifaN} persona${sinTarifaN>1?'s':''} sin tarifa configurada — no suman al total.</div>` : ''}
+    <table><thead><tr>
+      <th>Apellido y nombre</th>
+      <th>CUIL</th>
+      <th>Posición</th>
+      <th style="text-align:right">Monto a liquidar</th>
+    </tr></thead>
+    <tbody>${presentes.map(p => `<tr>
+      <td><strong>${p.per?.apellido||'?'}, ${p.per?.nombre||'?'}</strong></td>
+      <td style="font-family:monospace;font-size:11.5px">${p.per?.cuil||'—'}</td>
+      <td>${p.posicion}</td>
+      <td style="text-align:right;font-weight:500">${p.sinTarifa ? '<span style="color:var(--orange)">sin tarifa</span>' : fmt(p.monto)}</td>
+    </tr>`).join('')}</tbody>
+    <tfoot><tr>
+      <td colspan="3" style="font-weight:600;padding:10px 10px;border-top:2px solid var(--border)">Total</td>
+      <td style="text-align:right;font-weight:700;font-size:15px;padding:10px 10px;border-top:2px solid var(--border)">${fmt(totalMonto)}</td>
+    </tr></tfoot>
+    </table>
     <div class="modal-f">
       <button class="btn" onclick="closeModal()">Cerrar</button>
-      ${APP.rol==='rrhh' ? `<button class="btn btn-primary" onclick="closeModal();agregarFechaArena('${evId}')"><i class="ti ti-plus"></i> Agregar fecha</button>` : ''}
+      <button class="btn" onclick="exportShowArenaPreview('${evId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
     </div>
   </div>`);
 };
 
+window.exportShowArenaPreview = function(evId) {
+  const ev    = getEvento(evId);
+  const fechas = ev?.fechas || [];
+  const rows  = [];
+  fechas.forEach(f => {
+    (f.presentismo||[]).forEach(p => {
+      const per = APP.personal.find(x => x.id === p.persona_id);
+      const tar = getTarifa(p.posicion);
+      rows.push({
+        'Apellido y nombre': per ? `${per.apellido}, ${per.nombre}` : '—',
+        'CUIL':     per?.cuil  || '—',
+        'CBU':      per?.cbu   || '—',
+        'Alias':    per?.alias || '—',
+        'Show':     ev.nombre,
+        'Fecha':    fd(f.fecha),
+        'Posición': p.posicion,
+        'Monto a liquidar ($)': tar?.monto || 0,
+      });
+    });
+  });
+  if (!rows.length) { alert('Sin datos para exportar'); return; }
+  exportXLSX(rows, `presentismo_${ev.nombre.replace(/\s+/g,'_')}.xlsx`);
+};
+
 // ── CIERRE QUINCENAL ──
-window.previaCierre = function(qId) {
+window.previaCierre = function(qId, definitivo) {
   const q     = APP.quincenas.find(x => x.id === qId);
   const shows = APP.eventos.filter(e => e.area === 'Movistar Arena' && e.quincena_id === qId);
 
@@ -1099,11 +1140,19 @@ window.previaCierre = function(qId) {
   const stN    = cons.filter(c => c.sin_tarifa).length;
   const totalG = cons.reduce((s, c) => s + c.total, 0);
 
+  const titulo = definitivo
+    ? `Cerrar quincena definitivamente — ${q.nombre}`
+    : `Vista previa de liquidación — ${q.nombre}`;
+
+  const alertaInfo = definitivo
+    ? `<div class="alert alert-warn"><i class="ti ti-lock"></i> Esta acción es <strong>definitiva</strong>. La quincena quedará cerrada y no podrás agregar más shows ni modificar el presentismo.</div>`
+    : `<div class="alert alert-info"><i class="ti ti-eye"></i> Esta es una <strong>vista previa</strong>. Podés exportar el Excel y seguir agregando shows. No cierra nada.</div>`;
+
   showModal(`<div class="modal modal-lg">
-    <div class="modal-t">Cierre de quincena — ${q.nombre}</div>
-    <div class="modal-s">${cons.length} personas · ${jornadas.length} jornadas · ${fmt(totalG)}</div>
+    <div class="modal-t">${titulo}</div>
+    <div class="modal-s">${cons.length} personas · ${jornadas.length} jornadas · ${fmt(totalG)} total</div>
     ${stN ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> ${stN} persona${stN>1?'s tienen':' tiene'} jornadas sin tarifa.</div>` : ''}
-    <div class="alert alert-info"><i class="ti ti-info-circle"></i> Se genera <strong>una liquidación por persona</strong> con el detalle de todas sus jornadas de la quincena.</div>
+    ${alertaInfo}
     <div style="max-height:360px;overflow-y:auto">
       ${cons.map(c => {
         const per = APP.personal.find(x => x.id === c.persona_id);
@@ -1133,12 +1182,54 @@ window.previaCierre = function(qId) {
       }).join('')}
     </div>
     <div class="modal-f">
-      <button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-success" onclick="confirmarCierre('${qId}',${JSON.stringify(cons).replace(/"/g,'&quot;')})">
-        <i class="ti ti-check"></i> Confirmar — generar liquidaciones
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn" onclick="exportPreviewQuincena(${JSON.stringify(cons).replace(/"/g,'&quot;')}, '${q.nombre}')">
+        <i class="ti ti-file-spreadsheet"></i> Exportar Excel
       </button>
+      ${definitivo
+        ? `<button class="btn btn-success" onclick="confirmarCierre('${qId}',${JSON.stringify(cons).replace(/"/g,'&quot;')})">
+            <i class="ti ti-lock"></i> Confirmar cierre definitivo
+           </button>`
+        : `<button class="btn btn-primary" onclick="closeModal()">
+            <i class="ti ti-check"></i> Listo, seguir trabajando
+           </button>`
+      }
     </div>
   </div>`);
+};
+
+window.exportPreviewQuincena = function(cons, nombreQ) {
+  const rows = [];
+  cons.forEach(c => {
+    const per = APP.personal.find(x => x.id === c.persona_id);
+    // Fila resumen
+    rows.push({
+      'Apellido y nombre': per ? `${per.apellido}, ${per.nombre}` : '—',
+      'CUIL':     per?.cuil  || '—',
+      'CBU':      per?.cbu   || '—',
+      'Alias':    per?.alias || '—',
+      'Quincena': nombreQ,
+      'Jornadas': c.lineas.length,
+      'Total ($)': c.total,
+      'Fecha jornada': '',
+      'Show': '',
+      'Posición': '',
+      'Monto jornada ($)': '',
+    });
+    // Detalle de jornadas
+    c.lineas.forEach(l => {
+      rows.push({
+        'Apellido y nombre': '',
+        'CUIL': '', 'CBU': '', 'Alias': '', 'Quincena': '',
+        'Jornadas': '', 'Total ($)': '',
+        'Fecha jornada': fd(l.fecha),
+        'Show': l.ev_nombre,
+        'Posición': l.posicion,
+        'Monto jornada ($)': l.monto,
+      });
+    });
+  });
+  exportXLSX(rows, `preview_${nombreQ.replace(/\s+/g,'_')}.xlsx`);
 };
 
 window.confirmarCierre = async function(qId, cons) {
