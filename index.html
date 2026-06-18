@@ -1282,7 +1282,7 @@ function mapToTarifario(secPlanilla) {
     .replace(/es$/, '').replace(/s$/, '').trim(); // quitar plurales simples
 
   // Buscar primero por sección padre si existe (para formato 2: supervisores)
-  const candidato = secPadre || secPlanilla;
+  const candidato = secPlanilla;
   const needleNorm = norm(candidato);
 
   const matches = APP.tarifario.filter(t => {
