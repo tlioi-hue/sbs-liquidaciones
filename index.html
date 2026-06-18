@@ -1060,6 +1060,7 @@ window.verShowArena = function(evId) {
 
   const totalMonto  = presentes.reduce((s,p) => s+p.monto, 0);
   const sinTarifaN  = presentes.filter(p => p.sinTarifa).length;
+  presentes.sort((a,b) => a.monto - b.monto);
 
   showModal(`<div class="modal modal-lg">
     <div class="modal-t">${ev.nombre}${ev.fecha?' · '+fd(ev.fecha):''}</div>
@@ -1136,7 +1137,7 @@ window.previaCierre = function(qId, definitivo) {
     if (j.sin_tarifa) mapa[j.persona_id].sin_tarifa = true;
   });
 
-  const cons   = Object.values(mapa);
+  const cons   = Object.values(mapa).sort((a,b) => a.total - b.total);
   const stN    = cons.filter(c => c.sin_tarifa).length;
   const totalG = cons.reduce((s, c) => s + c.total, 0);
 
@@ -1145,8 +1146,8 @@ window.previaCierre = function(qId, definitivo) {
     : `Vista previa de liquidación — ${q.nombre}`;
 
   const alertaInfo = definitivo
-    ? `<div class="alert alert-warn"><i class="ti ti-lock"></i> Esta acción es <strong>definitiva</strong>. La quincena quedará cerrada y no podrás agregar más shows ni modificar el presentismo.</div>`
-    : `<div class="alert alert-info"><i class="ti ti-eye"></i> Esta es una <strong>vista previa</strong>. Podés exportar el Excel y seguir agregando shows. No cierra nada.</div>`;
+    ? `<div class="alert alert-warn" style="padding:8px 12px"><i class="ti ti-lock"></i> Esta acción es <strong>definitiva</strong>. La quincena quedará cerrada y no podrás agregar más shows.</div>`
+    : `<div class="alert alert-info" style="padding:8px 12px"><i class="ti ti-eye"></i> <strong>Vista previa</strong> — podés exportar el Excel y seguir agregando shows. No cierra nada.</div>`;
 
   showModal(`<div class="modal modal-lg">
     <div class="modal-t">${titulo}</div>
