@@ -1355,11 +1355,11 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
     // Formato 1: col A es número (fila normal de orientadores/staff)
     const num = parseFloat(a0);
     if (!isNaN(num) && num > 0) {
-      // SIN SECCIÓN: esas filas están antes del primer encabezado en la planilla.
-      // Intentar mapear igual; si no hay match usar la primera posición del tarifario.
-      const posicion = sec === 'SIN SECCIÓN' && APP.tarifario.length
-        ? (mapToTarifario(sec) !== 'SIN SECCIÓN' ? mapToTarifario(sec) : APP.tarifario[0].posicion)
-        : mapToTarifario(sec);
+      // SIN SECCIÓN: filas antes del primer encabezado. Intentar mapear igual.
+      const posSinSec = mapToTarifario(sec);
+      const posicion = (sec === 'SIN SECCIÓN' && posSinSec === 'SIN SECCIÓN' && APP.tarifario.length)
+        ? (APP.tarifario.find(t => t.posicion.toLowerCase().includes('orientador'))?.posicion || APP.tarifario[0].posicion)
+        : posSinSec;
       const ex = APP.personal.find(p => p.cuil && p.cuil === cuil)
               || (b0 ? APP.personal.find(p => p.apellido.toLowerCase() === b0.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
       filas.push({ _id:uid(), posicion, posicionOriginal:sec, apellido:b0, nombre:nom, cuil, tel,
@@ -1610,7 +1610,8 @@ window.applyBulkPos = function() {
   if (!n) { alert('Elegí una posición del listado'); return; }
   APP.draft.filas.filter(f => f.sel).forEach(f => {
     f.posicion = n;
-    const inp = document.getElementById('pos-' + f._id); if (inp) inp.value = n;
+    const el = document.getElementById('pos-' + f._id);
+    if (el) el.value = n; // funciona tanto para input como select
   });
   const bar = document.getElementById('bulk-bar');
   if (bar) { const ok = document.createElement('span'); ok.textContent = '✓ Posición actualizada'; ok.style.cssText = 'color:#9fe1cb;font-size:12px;'; bar.appendChild(ok); setTimeout(() => ok.remove(), 2200); }
