@@ -918,7 +918,7 @@ function renderQCard(q, isRRHH) {
     </div>
     <div style="display:flex;gap:13px;font-size:11.5px;margin-bottom:12px;flex-wrap:wrap">
       <span><strong>${shows.length}</strong> shows</span>
-      <span><strong>${totalJornadas}</strong> jornadas</span>
+      <span><strong>${totalJornadas}</strong> colaboradores</span>
       ${liqs.length ? `<span style="color:var(--green)"><strong>${fmt(liqs.reduce((s,l)=>s+(l.total||0),0))}</strong> liquidado</span>` : ''}
     </div>
     <div style="margin-bottom:11px">
@@ -932,7 +932,7 @@ function renderQCard(q, isRRHH) {
                 <span style="font-weight:500">${ev.nombre}</span>
                 ${ev.fecha ? `<span style="color:var(--text2);font-size:11px"> · ${fd(ev.fecha)}</span>` : ''}
               </div>
-              <span class="pill">${jEv} jornadas</span>
+              <span class="pill">${jEv} colaboradores</span>
               <div style="display:flex;gap:5px;flex-shrink:0">
                 <button class="btn btn-sm" onclick="verShowArena('${ev.id}')"><i class="ti ti-eye"></i></button>
                 ${isRRHH ? `<button class="btn btn-sm btn-danger" onclick="delShowArena('${ev.id}')"><i class="ti ti-trash"></i></button>` : ''}
@@ -2146,6 +2146,24 @@ window.closeModal = () => { const o = document.getElementById('mo'); if (o) o.st
 // Enter en login
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter' && document.getElementById('login-page').style.display !== 'none') doLogin();
+});
+
+// ══════════════════════════════════════════════
+// INACTIVIDAD — cerrar sesión a los 5 minutos sin uso
+// ══════════════════════════════════════════════
+let inactivityTimer;
+const INACTIVITY_MS = 5 * 60 * 1000; // 5 minutos
+
+function resetInactivityTimer() {
+  clearTimeout(inactivityTimer);
+  inactivityTimer = setTimeout(async () => {
+    await sb.auth.signOut();
+    location.reload();
+  }, INACTIVITY_MS);
+}
+
+['click','keydown','mousemove','touchstart','scroll'].forEach(ev => {
+  document.addEventListener(ev, resetInactivityTimer, { passive: true });
 });
 </script>
 </body>
