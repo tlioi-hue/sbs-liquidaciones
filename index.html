@@ -1424,25 +1424,41 @@ window.handleFileCtx = async function(file, evId, fechaId, modo) {
 function mapToTarifario(secPlanilla) {
   if (!APP.tarifario.length) return secPlanilla;
 
-  // Función que normaliza texto para comparar (sin tildes, minúsculas, sin plurales simples)
   const norm = s => s.toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/es$/, '').replace(/s$/, '').trim(); // quitar plurales simples
+    .replace(/es$/, '').replace(/s$/, '').trim();
 
-  // Buscar primero por sección padre si existe (para formato 2: supervisores)
-  const candidato = secPlanilla;
-  const needleNorm = norm(candidato);
+  const needle = norm(secPlanilla);
 
+  // Buscar match directo en el tarifario
   const matches = APP.tarifario.filter(t => {
-    const hayNorm = norm(t.posicion);
-    // coincide si alguna palabra clave de uno está en el otro
-    const wordsNeedle = needleNorm.split(/[\s\-]+/).filter(w => w.length > 2);
-    const wordsHay    = hayNorm.split(/[\s\-]+/).filter(w => w.length > 2);
-    return wordsNeedle.some(w => hayNorm.includes(w)) || wordsHay.some(w => needleNorm.includes(w));
+    const hay = norm(t.posicion);
+    const wordsNeedle = needle.split(/[\s\-]+/).filter(w => w.length > 2);
+    const wordsHay    = hay.split(/[\s\-]+/).filter(w => w.length > 2);
+    return wordsNeedle.some(w => hay.includes(w)) || wordsHay.some(w => needle.includes(w));
   });
 
   if (matches.length >= 1) return matches[0].posicion;
-  return secPlanilla; // sin match → dejar original
+
+  // Si es una ubicación física → mapear a Orientador
+  const ubicaciones = ['anillo','bowl','platea','calle','vip','corta','ticket','back','punto','point','ingreso','puerta','acceso','pasillo'];
+  if (ubicaciones.some(u => needle.includes(u))) {
+    // P.POINT / PUNTO DE POINT → Recepcion
+    if (needle.includes('point') || needle.includes('punto')) {
+      const recepcion = APP.tarifario.find(t => norm(t.posicion).includes('recepcion') || norm(t.posicion).includes('recepción'));
+      if (recepcion) return recepcion.posicion;
+    }
+    // BACKS → Orientador
+    if (needle.includes('back')) {
+      const orientador = APP.tarifario.find(t => norm(t.posicion).includes('orientador'));
+      if (orientador) return orientador.posicion;
+    }
+    // Resto de ubicaciones físicas → Orientador
+    const orientador = APP.tarifario.find(t => norm(t.posicion).includes('orientador'));
+    if (orientador) return orientador.posicion;
+  }
+
+  return secPlanilla;
 }
 
 function parseDraft(rows, filename, evId, fechaId, modo) {
@@ -1580,6 +1596,11 @@ function pgVerificar(el, ac) {
       <div class="alert alert-warn"><i class="ti ti-user-plus"></i>
         Las personas marcadas <strong>nuevo</strong> se agregarán al sistema al confirmar.
       </div>` : ''}
+    ${filas.filter(f => f.cuil.length !== 11 && f.presente).length ? `
+      <div class="alert alert-warn"><i class="ti ti-alert-triangle"></i>
+        <div><strong>${filas.filter(f=>f.cuil.length!==11&&f.presente).length} CUIL inválido${filas.filter(f=>f.cuil.length!==11&&f.presente).length>1?'s':''}.</strong>
+        Un CUIL tiene exactamente 11 dígitos. Corregílos antes de confirmar — están marcados en rojo en la tabla.</div>
+      </div>` : ''}
     <div class="card" style="padding:0;overflow:hidden">
       <div style="padding:8px 13px;background:var(--bg3);border-bottom:1px solid var(--border);font-size:12px;color:var(--text2)">
         <i class="ti ti-pencil" style="font-size:12px"></i>
@@ -1632,7 +1653,7 @@ function pgVerificar(el, ac) {
                   <td><input value="${f.nombre}"   onchange="editF('${f._id}','nombre',this.value)"></td>
                   <td><input value="${f.cuil}"     onchange="editF('${f._id}','cuil',this.value)" style="font-family:monospace"></td>
                   <td><select id="pos-${f._id}" onchange="editF('${f._id}','posicion',this.value)">${extraOpt}${posOpts}</select></td>
-                  <td>${f.esNuevo ? '<span class="badge bn" style="font-size:10px">nuevo</span>' : '<span class="badge bs" style="font-size:10px">registrado</span>'}</td>
+                  <td>${f.cuil.length !== 11 ? '<span class="badge bd" style="font-size:10px" title="CUIL incorrecto — debe tener 11 dígitos">⚠ CUIL inválido</span>' : f.esNuevo ? '<span class="badge bn" style="font-size:10px">nuevo</span>' : '<span class="badge bs" style="font-size:10px">registrado</span>'}</td>
                 </tr>`;}).join('')}
               </tbody>
             </table>
