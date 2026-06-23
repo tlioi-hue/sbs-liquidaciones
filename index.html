@@ -1239,10 +1239,9 @@ window.exportPreviewQuincena = function(cons, nombreQ) {
     const per = APP.personal.find(x => x.id === c.persona_id);
     // Fila resumen
     rows.push({
-      'Apellido y nombre': per ? `${per.apellido}, ${per.nombre}` : '—',
+      'Apellido y nombre': per ? nombreExport(per.apellido, per.nombre) : '—',
       'CUIL':     per?.cuil  || '—',
       'CBU':      per?.cbu   || '—',
-      'Alias':    per?.alias || '—',
       'Quincena': nombreQ,
       'Jornadas': c.lineas.length,
       'Total ($)': c.total,
@@ -1255,7 +1254,7 @@ window.exportPreviewQuincena = function(cons, nombreQ) {
     c.lineas.forEach(l => {
       rows.push({
         'Apellido y nombre': '',
-        'CUIL': '', 'CBU': '', 'Alias': '', 'Quincena': '',
+        'CUIL': '', 'CBU': '', 'Quincena': '',
         'Jornadas': '', 'Total ($)': '',
         'Fecha jornada': fd(l.fecha),
         'Show': l.ev_nombre,
@@ -1864,14 +1863,25 @@ window.confirmarImport = async function() {
 // ══════════════════════════════════════════════
 
 // Helper: construir filas de liquidación para export
+// Helper: normalizar texto para export (sin tildes ni diéresis)
+function normExport(s) {
+  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+// Helper: nombre completo sin coma y sin tildes
+function nombreExport(apellido, nombre) {
+  return normExport(`${apellido} ${nombre}`);
+}
+
 function buildExportRows(liqs) {
   return liqs.map(l => {
     const p = APP.personal.find(x => x.id === l.persona_id);
+    // nombre sin coma, sin tildes
+    const nombre = p ? nombreExport(p.apellido, p.nombre) : normExport(l.persona_nombre||'');
     return {
-      'Apellido y nombre': l.persona_nombre || '',
+      'Apellido y nombre': nombre,
       'CUIL':  p?.cuil  || '',
       'CBU':   p?.cbu   || '',
-      'Alias': p?.alias || '',
       'Área':  l.area   || '',
       'Evento / Quincena': l.quincena_nombre || l.evento_nombre || l.periodo || '',
       'Período': l.periodo || l.quincena_nombre || '',
@@ -1919,11 +1929,11 @@ window.exportLiqsQuincena = function(qId) {
   liqs.forEach(l => {
     const p = APP.personal.find(x => x.id === l.persona_id);
     // Fila resumen
+    const nombre = p ? nombreExport(p.apellido, p.nombre) : normExport(l.persona_nombre||'');
     rows.push({
-      'Apellido y nombre': l.persona_nombre || '',
+      'Apellido y nombre': nombre,
       'CUIL':  p?.cuil  || '',
       'CBU':   p?.cbu   || '',
-      'Alias': p?.alias || '',
       'Área': 'Movistar Arena',
       'Quincena': l.quincena_nombre || '',
       'Jornadas totales': l.jornadas,
@@ -1942,7 +1952,6 @@ window.exportLiqsQuincena = function(qId) {
           'Apellido y nombre': '',
           'CUIL': '',
           'CBU': '',
-          'Alias': '',
           'Área': '',
           'Quincena': '',
           'Jornadas totales': '',
