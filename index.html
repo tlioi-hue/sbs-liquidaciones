@@ -505,6 +505,7 @@ function renderPersonalUI(el) {
       <input type="text" placeholder="Buscar nombre, CUIL, posición..." style="max-width:320px" oninput="filtrarP(this.value)">
       <span style="font-size:12px;color:var(--text2)">${APP.personal.length} registros</span>
     </div>
+    <div id="personal-bulk-bar"></div>
     <div class="card" style="padding:0;overflow:hidden" id="tabla-p"></div>`;
   renderTablaP(APP.personal);
 }
@@ -513,12 +514,64 @@ window.filtrarP = q => renderTablaP(APP.personal.filter(p =>
   !q || (p.apellido+' '+p.nombre+(p.cuil||'')+(p.posicion||'')).toLowerCase().includes(q.toLowerCase())
 ));
 
+let selPersonal = new Set();
+
+function refreshPersonalBulk() {
+  const bar = document.getElementById('personal-bulk-bar'); if (!bar) return;
+  if (selPersonal.size) {
+    bar.className = 'bulk-bar';
+    bar.innerHTML = `
+      <i class="ti ti-users" style="font-size:15px"></i>
+      <span><strong>${selPersonal.size}</strong> seleccionadas</span>
+      <button class="btn btn-sm" style="background:rgba(255,255,255,.16);color:#fff;border-color:rgba(255,255,255,.3)" onclick="deselAllPersonal()">
+        <i class="ti ti-x"></i> Deseleccionar
+      </button>
+      <button class="btn btn-sm" style="background:#a32d2d;color:#fff;border-color:#a32d2d;margin-left:auto" onclick="delSelPersonal()">
+        <i class="ti ti-trash"></i> Eliminar seleccionadas
+      </button>`;
+  } else { bar.className = ''; bar.innerHTML = ''; }
+}
+
+window.deselAllPersonal = function() {
+  selPersonal.clear();
+  document.querySelectorAll('.chk-p').forEach(c => c.checked = false);
+  refreshPersonalBulk();
+};
+
+window.toggleSelPersona = function(id, checked) {
+  if (checked) selPersonal.add(id); else selPersonal.delete(id);
+  refreshPersonalBulk();
+};
+
+window.selTodosPersonal = function(checked) {
+  document.querySelectorAll('.chk-p').forEach(c => {
+    c.checked = checked;
+    if (checked) selPersonal.add(c.dataset.id); else selPersonal.delete(c.dataset.id);
+  });
+  refreshPersonalBulk();
+};
+
+window.delSelPersonal = async function() {
+  if (!selPersonal.size) return;
+  if (!confirm(`¿Eliminar ${selPersonal.size} persona${selPersonal.size>1?'s':''}? Esta acción no se puede deshacer.`)) return;
+  loading(true);
+  for (const id of selPersonal) {
+    await sb.from('personal').delete().eq('id', id);
+  }
+  selPersonal.clear();
+  loading(false);
+  toast(`${selPersonal.size || 'Personas'} eliminadas`, 'ok');
+  await go('personal');
+};
+
 function renderTablaP(lista) {
   const el = document.getElementById('tabla-p'); if (!el) return;
   if (!lista.length) { el.innerHTML = '<div class="empty-state"><i class="ti ti-user-off"></i><p>Sin resultados</p></div>'; return; }
   el.innerHTML = `<table><thead><tr>
+    <th style="width:36px"><input type="checkbox" class="chk" onchange="selTodosPersonal(this.checked)" title="Seleccionar todos"></th>
     <th>Apellido y nombre</th><th>CUIL</th><th>Área</th><th>Posición habitual</th><th>CBU</th><th>Estado</th><th></th>
-  </tr></thead><tbody>${lista.map(p => `<tr>
+  </tr></thead><tbody>${lista.map(p => `<tr id="prow-${p.id}">
+    <td><input type="checkbox" class="chk chk-p" data-id="${p.id}" ${selPersonal.has(p.id)?'checked':''} onchange="toggleSelPersona('${p.id}',this.checked)"></td>
     <td><strong>${p.apellido}, ${p.nombre}</strong></td>
     <td style="font-family:monospace;font-size:11.5px">${p.cuil||'—'}</td>
     <td><span class="chip ${p.area==='Externos'?'chip-ext':p.area==='Movistar Arena'?'chip-arena':'chip-fijos'}">${p.area}</span></td>
@@ -886,14 +939,33 @@ async function pgArena(el, ac) {
   const isRRHH   = APP.rol === 'rrhh';
   const liqArena = APP.liquidaciones.filter(l => l.area === 'Movistar Arena');
 
+  // Calcular monto a liquidar de quincenas abiertas (presentismo × tarifa)
+  const quincenasAbiertas = APP.quincenas.filter(q => !q.cerrada);
+  let montoALiquidar = 0;
+  quincenasAbiertas.forEach(q => {
+    APP.eventos.filter(e => e.area === 'Movistar Arena' && e.quincena_id === q.id).forEach(ev => {
+      (ev.fechas||[]).forEach(f => {
+        (f.presentismo||[]).forEach(p => {
+          const t = getTarifa(p.posicion);
+          montoALiquidar += t?.monto || 0;
+        });
+      });
+    });
+  });
+
+  // Total liquidado = solo quincenas cerradas
+  const totalLiquidado = liqArena.reduce((s,l) => s+(l.total||0), 0);
+
   if (isRRHH) ac.innerHTML = `<button class="btn btn-primary" onclick="modalNuevaQ()"><i class="ti ti-plus"></i> Nueva quincena</button>`;
 
   el.innerHTML = `
     <div class="grid4" style="margin-bottom:18px">
       <div class="metric"><div class="metric-l">Quincenas</div><div class="metric-v">${APP.quincenas.length}</div></div>
       <div class="metric"><div class="metric-l">Shows Arena</div><div class="metric-v">${APP.eventos.filter(e=>e.area==='Movistar Arena').length}</div></div>
-      <div class="metric"><div class="metric-l">Liq. pendientes</div><div class="metric-v">${liqArena.filter(l=>l.estado==='pendiente').length}</div></div>
-      <div class="metric"><div class="metric-l">Total liquidado</div><div class="metric-v" style="font-size:17px">${fmt(liqArena.reduce((s,l)=>s+(l.total||0),0))}</div></div>
+      <div class="metric"><div class="metric-l">Monto a liquidar</div><div class="metric-v" style="font-size:17px">${fmt(montoALiquidar)}</div>
+        <div class="metric-s">${quincenasAbiertas.length} quincena${quincenasAbiertas.length!==1?'s':''} abierta${quincenasAbiertas.length!==1?'s':''}</div></div>
+      <div class="metric"><div class="metric-l">Total liquidado</div><div class="metric-v" style="font-size:17px">${fmt(totalLiquidado)}</div>
+        <div class="metric-s">${APP.quincenas.filter(q=>q.cerrada).length} quincena${APP.quincenas.filter(q=>q.cerrada).length!==1?'s':''} cerrada${APP.quincenas.filter(q=>q.cerrada).length!==1?'s':''}</div></div>
     </div>
     ${!APP.quincenas.length
       ? '<div class="empty-state"><i class="ti ti-calendar-off"></i><p>Sin quincenas.</p></div>'
