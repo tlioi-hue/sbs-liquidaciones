@@ -1950,14 +1950,37 @@ window.confirmarImport = async function() {
     await sb.from('presentismo').delete().eq('fecha_id', fechaId);
     await fetchAll();
 
-    const presRows = presentes.map(fp => {
-      const p = fp.existeId
-        ? APP.personal.find(x => x.id === fp.existeId)
-        : APP.personal.find(x => x.cuil === fp.cuil || (x.apellido.toLowerCase() === fp.apellido.toLowerCase() && x.nombre.toLowerCase() === fp.nombre.toLowerCase()));
-      return p ? { fecha_id:fechaId, persona_id:p.id, posicion:fp.posicion } : null;
-    }).filter(Boolean);
+    const presRows = [];
+    for (const fp of presentes) {
+      let persona = null;
+      if (fp.existeId) {
+        persona = APP.personal.find(x => x.id === fp.existeId);
+      }
+      if (!persona && fp.cuil) {
+        persona = APP.personal.find(x => x.cuil && x.cuil.replace(/\D/g,'') === fp.cuil.replace(/\D/g,''));
+      }
+      if (!persona && fp.apellido) {
+        persona = APP.personal.find(x =>
+          x.apellido.toLowerCase() === fp.apellido.toLowerCase() &&
+          x.nombre.toLowerCase() === fp.nombre.toLowerCase()
+        );
+      }
+      if (persona) {
+        presRows.push({ fecha_id: fechaId, persona_id: persona.id, posicion: fp.posicion });
+      }
+    }
 
-    if (presRows.length) await sb.from('presentismo').insert(presRows);
+    if (presRows.length) {
+      const { error } = await sb.from('presentismo').insert(presRows);
+      if (error) {
+        console.error('Error insertando presentismo:', error);
+        toast('Error al guardar presentismo: ' + error.message, 'err');
+      } else {
+        toast(`${presRows.length} presentes guardados`, 'ok');
+      }
+    } else {
+      toast('No se encontraron personas para vincular', 'err');
+    }
   }
 
   loading(false); APP.draft = null;
