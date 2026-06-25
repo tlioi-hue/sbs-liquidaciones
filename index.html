@@ -1907,14 +1907,23 @@ window.confirmarImport = async function() {
     const selShowVal = document.getElementById('sel-show')?.value;
 
     if (selShowVal) {
-      // Crear fecha automáticamente con la fecha del draft
-      const fechaDate = d.fecha || new Date().toISOString().slice(0, 10);
+      // Usar la fecha del show seleccionado, no la del draft
+      const showEv = APP.eventos.find(e => e.id === selShowVal);
+      const fechaDate = showEv?.fecha || d.fecha || new Date().toISOString().slice(0, 10);
       loading(true);
-      const { data: nf } = await sb.from('fechas').insert({
-        evento_id: selShowVal, fecha: fechaDate, nombre: d.nombre || null
-      }).select().single();
-      evId    = selShowVal;
-      fechaId = nf?.id;
+
+      // Verificar si el show ya tiene una fecha creada para ese día
+      const fechaExistente = (showEv?.fechas||[]).find(f => f.fecha === fechaDate);
+      if (fechaExistente) {
+        evId    = selShowVal;
+        fechaId = fechaExistente.id;
+      } else {
+        const { data: nf } = await sb.from('fechas').insert({
+          evento_id: selShowVal, fecha: fechaDate, nombre: null
+        }).select().single();
+        evId    = selShowVal;
+        fechaId = nf?.id;
+      }
     } else {
       const continuar = confirm('No seleccionaste ningún show.\n¿Querés confirmar igual?\n(Se agregarán las personas nuevas pero sin vincular a ninguna quincena)');
       if (!continuar) { loading(false); return; }
