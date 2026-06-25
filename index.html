@@ -1913,8 +1913,8 @@ window.confirmarImport = async function() {
       loading(true);
 
       // Verificar si el show ya tiene una fecha creada para ese día
-      const fechaExistente = (showEv?.fechas||[]).find(f => f.fecha === fechaDate);
-      if (fechaExistente) {
+      const fechaExistente = (showEv?.fechas||[]).find(f => f.fecha === fechaDate && f.evento_id === selShowVal || f.fecha === fechaDate);
+      if (fechaExistente && fechaExistente.evento_id === selShowVal) {
         evId    = selShowVal;
         fechaId = fechaExistente.id;
       } else {
@@ -1946,8 +1946,10 @@ window.confirmarImport = async function() {
   }
 
   if (evId && fechaId) {
-    // 2. Guardar presentismo — borrar el anterior de esta fecha (re-importación limpia)
-    await sb.from('presentismo').delete().eq('fecha_id', fechaId);
+    // 2. Guardar presentismo — SIEMPRE borrar primero para evitar duplicados
+    const { error: delError } = await sb.from('presentismo').delete().eq('fecha_id', fechaId);
+    if (delError) console.error('Error borrando presentismo previo:', delError);
+    
     await fetchAll();
 
     const presRows = [];
@@ -1970,13 +1972,16 @@ window.confirmarImport = async function() {
       }
     }
 
-    if (presRows.length) {
-      const { error } = await sb.from('presentismo').insert(presRows);
+    // Deduplicar por persona_id antes de insertar
+    const presRowsUnicos = presRows.filter((r, i, arr) => 
+      arr.findIndex(x => x.persona_id === r.persona_id) === i
+    );
+
+    if (presRowsUnicos.length) {
+      const { error } = await sb.from('presentismo').insert(presRowsUnicos);
       if (error) {
         console.error('Error insertando presentismo:', error);
         toast('Error al guardar presentismo: ' + error.message, 'err');
-      } else {
-        toast(`${presRows.length} presentes guardados`, 'ok');
       }
     } else {
       toast('No se encontraron personas para vincular', 'err');
