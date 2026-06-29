@@ -1549,6 +1549,12 @@ function mapToTarifario(secPlanilla) {
 
   const needle = norm(secPlanilla);
 
+  // Casos especiales antes del match general
+  if (needle.includes('supervisor')) {
+    const sup = APP.tarifario.find(t => norm(t.posicion).includes('supervisor'));
+    if (sup) return sup.posicion;
+  }
+
   // Buscar match directo en el tarifario
   const matches = APP.tarifario.filter(t => {
     const hay = norm(t.posicion);
