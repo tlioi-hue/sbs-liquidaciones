@@ -2474,8 +2474,10 @@ window.handlePlanillaFija = function(file, mesId, lugarId) {
   r.onload = e => {
     try {
       const wb = XLSX.read(e.target.result, { type: 'binary', cellDates: true });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: false });
+      // Para Campo de Polo usar hoja LIQUIDACION si existe, sino la primera
+      const sheetName = wb.SheetNames.find(n => n.toUpperCase().includes('LIQUIDACION')) || wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
       closeModal();
       parsePlanillaFija(rows, mesId, lugarId);
     } catch(err) { alert('Error leyendo el archivo: ' + err.message); }
@@ -2506,9 +2508,9 @@ function parsePlanillaFija(rows, mesId, lugarId) {
   // Si no detectó CUIL por encabezado, intentar detectarlo por posición
   // Campo de Polo: CUIL en col C (índice 2) sin encabezado
   if (cC === -1 && nombreJunto) {
-    // Verificar si col 2 tiene números de 11 dígitos
     const testRow = rows[hi + 2] || rows[hi + 1];
-    if (testRow && testRow[2] && /^\d{10,11}/.test(String(testRow[2]).replace('.0',''))) {
+    const testVal = testRow ? String(testRow[2]||'').replace('.0','').trim() : '';
+    if (testVal && /^\d{10,11}$/.test(testVal)) {
       cC = 2;
     }
   }
@@ -2517,15 +2519,21 @@ function parsePlanillaFija(rows, mesId, lugarId) {
   for (let j = Math.max(cC||0, cPos||0, cN||0, cB||0) + 1; j < (headerRow||[]).length; j++) {
     const v = headerRow[j];
     if (v instanceof Date) { cFechaStart = j; break; }
-    if (typeof v === 'string' && ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'].includes(v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''))) {
+    const vs = String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    if (['lunes','martes','miercoles','jueves','viernes','sabado','domingo'].includes(vs)) {
       cFechaStart = j; break;
     }
   }
   if (cFechaStart === -1) cFechaStart = Math.max(cC||0, cPos||0, cN||0, cB||0) + 1;
 
-  // Campo de Polo: las fechas reales están en la fila hi+1, saltar
+  // Para Campo de Polo, los datos empiezan en hi+2 (saltando la fila de fechas)
+  // Para Ecoparque, los datos empiezan en hi+1
   let dataStart = hi + 1;
-  if (rows[hi+1] && rows[hi+1][cFechaStart] instanceof Date) dataStart = hi + 2;
+  // Detectar si la fila hi+1 es una fila de fechas (tiene Date en la posición de fechas)
+  const nextRow = rows[hi + 1];
+  if (nextRow && cFechaStart >= 0 && nextRow[cFechaStart] instanceof Date) {
+    dataStart = hi + 2;
+  }
 
   const personas = [];
   for (let i = dataStart; i < rows.length; i++) {
