@@ -2342,7 +2342,7 @@ window.confirmarCBU = async function(rows) {
 const LUGARES_FIJOS = [
   { id: 'ecoparque',     nombre: 'Ecoparque',       posiciones: ['Orientador', 'Supervisor'] },
   { id: 'teatro-colon',  nombre: 'Teatro Colón',    posiciones: ['Boletero', 'Supervisor'] },
-  { id: 'campo-de-polo', nombre: 'Campo de Polo',   posiciones: ['Asistente de acreditaciones', 'Franquero'] },
+  { id: 'campo-de-polo', nombre: 'Campo de Polo',   posiciones: ['Franquero'] },
 ];
 
 function getMesesFijos()    { return JSON.parse(localStorage.getItem('sbs_meses_fijos') || '[]'); }
@@ -2505,13 +2505,11 @@ function parsePlanillaFija(rows, mesId, lugarId) {
 
   if (hi === -1) { alert('No encontré el encabezado. Verificá que la planilla tenga columna APELLIDO o APELLIDO Y NOMBRE.'); return; }
 
-  // Si no detectó CUIL por encabezado, intentar detectarlo por posición
-  // Campo de Polo: CUIL en col C (índice 2) sin encabezado
-  if (cC === -1 && nombreJunto) {
-    const testRow = rows[hi + 2] || rows[hi + 1];
-    const testVal = testRow ? String(testRow[2]||'').replace('.0','').trim() : '';
-    if (testVal && /^\d{10,11}$/.test(testVal)) {
-      cC = 2;
+  // Si no detectó CUIL por encabezado, intentar col C (índice 2) — Campo de Polo
+  if (cC === -1) {
+    for (let i = dataStart; i < Math.min(rows.length, dataStart + 3); i++) {
+      const testVal = rows[i] ? String(rows[i][2]||'').replace('.0','').replace(/\D/g,'') : '';
+      if (testVal.length >= 10) { cC = 2; break; }
     }
   }
 
