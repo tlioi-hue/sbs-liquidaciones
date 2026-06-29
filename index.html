@@ -234,6 +234,7 @@ input:disabled, select:disabled { opacity: .6; cursor: not-allowed; background: 
         <div class="sb-sec">Liquidaciones</div>
         <div class="sb-item" onclick="go('externos')"  id="n-externos"><i class="ti ti-world"></i> Externos</div>
         <div class="sb-item" onclick="go('arena')"     id="n-arena"><i class="ti ti-building"></i> Movistar Arena</div>
+        <div class="sb-item" onclick="go('fijos')"     id="n-fijos"><i class="ti ti-calendar-repeat"></i> Servicios Fijos</div>
       </div>
       <div class="sb-bottom">
         <div class="sb-user">
@@ -381,7 +382,7 @@ function loading(show) {
   } else { if (ov) ov.style.display = 'none'; }
 }
 
-const TITLES = { db:'Dashboard', personal:'Personal', tarifario:'Tarifario', importar:'Importar planilla', cbu:'Importar CBU', externos:'Externos', arena:'Movistar Arena' };
+const TITLES = { db:'Dashboard', personal:'Personal', tarifario:'Tarifario', importar:'Importar planilla', cbu:'Importar CBU', externos:'Externos', arena:'Movistar Arena', fijos:'Servicios Fijos' };
 
 async function go(page) {
   APP.page = page;
@@ -398,7 +399,7 @@ async function render() {
   const ac = document.getElementById('topbar-ac');
   loading(true);
   try {
-    await ({ db:pgDB, personal:pgPersonal, tarifario:pgTarifario, importar:pgImportar, cbu:pgCBU, externos:pgExternos, arena:pgArena })[APP.page]?.(el, ac);
+    await ({ db:pgDB, personal:pgPersonal, tarifario:pgTarifario, importar:pgImportar, cbu:pgCBU, externos:pgExternos, arena:pgArena, fijos:pgFijos })[APP.page]?.(el, ac);
   } catch (e) {
     el.innerHTML = `<div class="alert alert-warn"><i class="ti ti-alert-circle"></i> Error cargando: ${e.message}</div>`;
     console.error(e);
@@ -611,7 +612,7 @@ window.modalPersona = function(id) {
     <div class="fg"><label class="fl">Alias CBU</label><input id="pal" value="${p?.alias||''}"></div>
     <div class="fr">
       <div class="fg"><label class="fl">Área</label>
-        <select id="par">
+        <select id="par" onchange="toggleLugarFijo(this.value)">
           <option value="Externos"      ${p?.area==='Externos'?'selected':''}>Externos</option>
           <option value="Movistar Arena" ${p?.area==='Movistar Arena'?'selected':''}>Movistar Arena</option>
           <option value="Servicios Fijos" ${p?.area==='Servicios Fijos'?'selected':''}>Servicios Fijos</option>
@@ -620,6 +621,15 @@ window.modalPersona = function(id) {
       <div class="fg"><label class="fl">Posición habitual</label>
         <select id="ppos">${po||`<option value="${p?.posicion||''}">${p?.posicion||'— cargar tarifario primero —'}</option>`}</select>
       </div>
+    </div>
+    <div class="fg" id="fg-lugar-fijo" style="${p?.area==='Servicios Fijos'?'':'display:none'}">
+      <label class="fl">Lugar (Servicios Fijos)</label>
+      <select id="plugar">
+        <option value="">— seleccionar —</option>
+        <option value="teatro-colon"  ${p?.lugar_fijo==='teatro-colon'?'selected':''}>Teatro Colón</option>
+        <option value="campo-de-polo" ${p?.lugar_fijo==='campo-de-polo'?'selected':''}>Campo de Polo</option>
+        <option value="ecoparque"     ${p?.lugar_fijo==='ecoparque'?'selected':''}>Ecoparque</option>
+      </select>
     </div>
     <div class="fr">
       <div class="fg"><label class="fl">Email</label><input id="pem" type="email" value="${p?.email||''}"></div>
@@ -632,8 +642,15 @@ window.modalPersona = function(id) {
   </div>`);
 };
 
+window.toggleLugarFijo = function(area) {
+  const fg = document.getElementById('fg-lugar-fijo');
+  if (fg) fg.style.display = area === 'Servicios Fijos' ? '' : 'none';
+};
+
 window.savePersona = async function(id) {
   const v = { nombre:$v('pn'), apellido:$v('pa'), cuil:$v('pc'), dni:$v('pd'), cbu:$v('pb'), alias:$v('pal'), area:$v('par'), posicion:$v('ppos'), email:$v('pem'), tel:$v('ptel'), activo:true };
+  if (v.area === 'Servicios Fijos') v.lugar_fijo = $v('plugar') || null;
+  else v.lugar_fijo = null;
   if (!v.nombre || !v.apellido) { alert('Nombre y apellido son obligatorios'); return; }
   loading(true);
   if (id) { await sb.from('personal').update(v).eq('id', id); }
@@ -2301,6 +2318,215 @@ window.confirmarCBU = async function(rows) {
     <div class="alert alert-ok"><i class="ti ti-check-circle"></i> ${rows.length} CBU actualizados correctamente.</div>`;
   await fetchAll();
 };
+// ══════════════════════════════════════════════
+// SERVICIOS FIJOS — Teatro Colón, Campo de Polo, Ecoparque
+// ══════════════════════════════════════════════
+const LUGARES_FIJOS = [
+  { id: 'teatro-colon',  nombre: 'Teatro Colón',    posiciones: ['Boletero', 'Supervisor'] },
+  { id: 'campo-de-polo', nombre: 'Campo de Polo',   posiciones: ['Asistente de acreditaciones', 'Franquero'] },
+  { id: 'ecoparque',     nombre: 'Ecoparque',       posiciones: ['Orientador', 'Supervisor'] },
+];
+
+async function pgFijos(el, ac) {
+  await fetchAll();
+  const isRRHH = APP.rol === 'rrhh';
+  const liqFijos = APP.liquidaciones.filter(l => l.area === 'Servicios Fijos');
+  const totalLiq = liqFijos.reduce((s,l) => s+(l.total||0), 0);
+
+  if (isRRHH) ac.innerHTML = `<button class="btn btn-primary" onclick="modalNuevoMesFijos()"><i class="ti ti-plus"></i> Liquidar mes</button>`;
+
+  el.innerHTML = `
+    <div class="grid4" style="margin-bottom:18px">
+      <div class="metric"><div class="metric-l">Lugares</div><div class="metric-v">3</div><div class="metric-s">Teatro Colón · Campo de Polo · Ecoparque</div></div>
+      <div class="metric"><div class="metric-l">Personal fijo</div><div class="metric-v">${APP.personal.filter(p=>p.area==='Servicios Fijos').length}</div></div>
+      <div class="metric"><div class="metric-l">Liq. pendientes</div><div class="metric-v">${liqFijos.filter(l=>l.estado==='pendiente').length}</div></div>
+      <div class="metric"><div class="metric-l">Total liquidado</div><div class="metric-v" style="font-size:17px">${fmt(totalLiq)}</div></div>
+    </div>
+    ${LUGARES_FIJOS.map(lugar => renderLugarFijo(lugar, isRRHH)).join('')}`;
+}
+
+function renderLugarFijo(lugar, isRRHH) {
+  const personal = APP.personal.filter(p => p.area === 'Servicios Fijos' && p.lugar_fijo === lugar.id);
+  const liqs = APP.liquidaciones.filter(l => l.area === 'Servicios Fijos' && l.lugar_fijo === lugar.id);
+
+  return `<div class="ev-card" style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+      <div>
+        <div style="font-size:15px;font-weight:600">${lugar.nombre}</div>
+        <div style="font-size:11.5px;color:var(--text2);margin-top:2px">Posiciones: ${lugar.posiciones.join(' · ')}</div>
+      </div>
+      <span style="font-size:12px;color:var(--green);font-weight:500">${fmt(liqs.reduce((s,l)=>s+(l.total||0),0))} liquidado</span>
+    </div>
+    <div style="margin-bottom:11px">
+      ${!personal.length
+        ? `<div style="text-align:center;padding:11px;color:var(--text2);font-size:12px;border:1px dashed var(--border);border-radius:var(--radius)">Sin personal asignado — agregá personas desde Personal con Área: Servicios Fijos</div>`
+        : `<table><thead><tr><th>Apellido y nombre</th><th>CUIL</th><th>Posición</th><th>CBU</th></tr></thead>
+          <tbody>${personal.map(p => `<tr>
+            <td><strong>${p.apellido}, ${p.nombre}</strong></td>
+            <td style="font-family:monospace;font-size:11.5px">${p.cuil||'—'}</td>
+            <td>${p.posicion||'—'}</td>
+            <td style="font-family:monospace;font-size:11.5px">${p.cbu?p.cbu.slice(0,6)+'···'+p.cbu.slice(-4):'—'}</td>
+          </tr>`).join('')}</tbody></table>`}
+    </div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      ${isRRHH ? `<button class="btn btn-sm" onclick="modalLiqFijos('${lugar.id}')"><i class="ti ti-receipt"></i> Liquidar mes</button>` : ''}
+      ${liqs.length ? `<button class="btn btn-sm" onclick="verLiqsFijos('${lugar.id}')"><i class="ti ti-list"></i> Liquidaciones (${liqs.length})</button>` : ''}
+      ${liqs.length ? `<button class="btn btn-sm" onclick="exportLiqsFijos('${lugar.id}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>` : ''}
+    </div>
+  </div>`;
+}
+
+window.modalNuevoMesFijos = function() {
+  showModal(`<div class="modal">
+    <div class="modal-t">Liquidar mes — Servicios Fijos</div>
+    <div class="modal-s">Seleccioná el lugar</div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${LUGARES_FIJOS.map(l => `
+        <button class="btn" style="justify-content:flex-start;padding:12px 14px" onclick="closeModal();modalLiqFijos('${l.id}')">
+          <i class="ti ti-building" style="font-size:16px"></i>
+          <div style="text-align:left;margin-left:4px">
+            <div style="font-weight:500">${l.nombre}</div>
+            <div style="font-size:11px;color:var(--text2)">${l.posiciones.join(' · ')}</div>
+          </div>
+        </button>`).join('')}
+    </div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancelar</button></div>
+  </div>`);
+};
+
+window.modalLiqFijos = function(lugarId) {
+  const lugar = LUGARES_FIJOS.find(l => l.id === lugarId);
+  const personal = APP.personal.filter(p => p.area === 'Servicios Fijos' && p.lugar_fijo === lugarId);
+
+  if (!personal.length) {
+    alert(`No hay personal asignado a ${lugar.nombre}.\nAgregá personas desde Personal → Área: Servicios Fijos.`);
+    return;
+  }
+
+  showModal(`<div class="modal modal-lg">
+    <div class="modal-t">Liquidar mes — ${lugar.nombre}</div>
+    <div class="modal-s">Ingresá las jornadas trabajadas por cada persona</div>
+    <div class="fr" style="margin-bottom:16px">
+      <div class="fg"><label class="fl">Período</label><input id="fijos-periodo" placeholder="Ej: Junio 2026"></div>
+      <div class="fg"><label class="fl">Mes</label><input id="fijos-mes" type="month"></div>
+    </div>
+    <table><thead><tr><th>Apellido y nombre</th><th>Posición</th><th style="width:100px;text-align:center">Jornadas</th><th style="text-align:right">Subtotal</th></tr></thead>
+    <tbody>
+      ${personal.map(p => {
+        const posOpts = lugar.posiciones.map(pos => {
+          const tar = APP.tarifario.find(t => t.posicion === pos);
+          return `<option value="${pos}" ${p.posicion===pos?'selected':''}>${pos}${tar?' — '+fmt(tar.monto):'  sin tarifa'}</option>`;
+        }).join('');
+        return `<tr id="frow-${p.id}">
+          <td><strong>${p.apellido}, ${p.nombre}</strong></td>
+          <td><select id="fpos-${p.id}" onchange="calcFilaFijo('${p.id}')" style="font-size:12px;padding:3px 6px">${posOpts}</select></td>
+          <td><input type="number" id="fjor-${p.id}" min="0" max="31" value="0" oninput="calcFilaFijo('${p.id}')" style="text-align:center"></td>
+          <td style="text-align:right;font-weight:500" id="fsub-${p.id}">${fmt(0)}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+    <tfoot><tr>
+      <td colspan="3" style="font-weight:600;padding:10px;border-top:2px solid var(--border)">Total</td>
+      <td style="text-align:right;font-size:16px;font-weight:700;padding:10px;border-top:2px solid var(--border)" id="fijos-total">${fmt(0)}</td>
+    </tr></tfoot>
+    </table>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-success" onclick="confirmarLiqFijos('${lugarId}')"><i class="ti ti-check"></i> Generar liquidaciones</button>
+    </div>
+  </div>`);
+};
+
+window.calcFilaFijo = function(personaId) {
+  const jornadas = parseInt(document.getElementById('fjor-'+personaId)?.value) || 0;
+  const posicion  = document.getElementById('fpos-'+personaId)?.value;
+  const tar = APP.tarifario.find(t => t.posicion === posicion);
+  const subtotal = (tar?.monto || 0) * jornadas;
+  const subEl = document.getElementById('fsub-'+personaId);
+  if (subEl) subEl.textContent = fmt(subtotal);
+  // Recalcular total
+  let total = 0;
+  document.querySelectorAll('[id^="fsub-"]').forEach(el => {
+    const v = parseFloat(el.textContent.replace(/[^0-9,]/g,'').replace(',','.')) || 0;
+    total += v;
+  });
+  const totEl = document.getElementById('fijos-total');
+  if (totEl) totEl.textContent = fmt(total);
+};
+
+window.confirmarLiqFijos = async function(lugarId) {
+  const lugar = LUGARES_FIJOS.find(l => l.id === lugarId);
+  const personal = APP.personal.filter(p => p.area === 'Servicios Fijos' && p.lugar_fijo === lugarId);
+  const periodo = document.getElementById('fijos-periodo')?.value?.trim();
+  if (!periodo) { alert('Ingresá el período (Ej: Junio 2026)'); return; }
+
+  const rows = [];
+  for (const p of personal) {
+    const jornadas = parseInt(document.getElementById('fjor-'+p.id)?.value) || 0;
+    if (!jornadas) continue;
+    const posicion = document.getElementById('fpos-'+p.id)?.value;
+    const tar = APP.tarifario.find(t => t.posicion === posicion);
+    if (!tar) { alert(`Sin tarifa para "${posicion}". Cargala en el Tarifario.`); return; }
+    rows.push({
+      persona_id: p.id, persona_nombre: `${p.apellido}, ${p.nombre}`,
+      area: 'Servicios Fijos', lugar_fijo: lugarId, lugar_nombre: lugar.nombre,
+      periodo, posicion, jornadas, valor_jornada: tar.monto,
+      total: tar.monto * jornadas, estado: 'pendiente'
+    });
+  }
+
+  if (!rows.length) { alert('No hay jornadas cargadas'); return; }
+  loading(true);
+  const { error } = await sb.from('liquidaciones').insert(rows);
+  loading(false);
+  if (error) { toast('Error: ' + error.message, 'err'); return; }
+  closeModal(); toast('Liquidaciones generadas', 'ok'); await go('fijos');
+};
+
+window.verLiqsFijos = function(lugarId) {
+  const lugar = LUGARES_FIJOS.find(l => l.id === lugarId);
+  const liqs = APP.liquidaciones.filter(l => l.area === 'Servicios Fijos' && l.lugar_fijo === lugarId);
+  showModal(`<div class="modal modal-lg">
+    <div class="modal-t">Liquidaciones — ${lugar.nombre}</div>
+    <div class="modal-s">${fmt(liqs.reduce((s,l)=>s+(l.total||0),0))} · ${liqs.length} liquidaciones</div>
+    <table><thead><tr><th>Período</th><th>Persona</th><th>Posición</th><th style="text-align:center">Jornadas</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+    <tbody>${liqs.map(l => `<tr>
+      <td style="font-size:11.5px">${l.periodo}</td>
+      <td><strong>${l.persona_nombre}</strong></td>
+      <td style="font-size:11.5px">${l.posicion}</td>
+      <td style="text-align:center">${l.jornadas}</td>
+      <td style="font-weight:600">${fmt(l.total)}</td>
+      <td><span class="badge ${l.estado==='pagado'?'bs':l.estado==='aprobado'?'bi':'bw'}">${l.estado}</span></td>
+      <td style="display:flex;gap:4px">
+        ${APP.rol==='rrhh' && l.estado==='pendiente' ? `<button class="btn btn-sm" onclick="aprobar('${l.id}')"><i class="ti ti-check"></i></button>` : ''}
+        ${l.estado==='aprobado' ? `<button class="btn btn-sm" onclick="pagar('${l.id}')"><i class="ti ti-cash"></i></button>` : ''}
+        ${APP.rol==='rrhh' ? `<button class="btn btn-sm btn-danger" onclick="delLiq('${l.id}')"><i class="ti ti-trash"></i></button>` : ''}
+      </td>
+    </tr>`).join('')}</tbody></table>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn" onclick="exportLiqsFijos('${lugarId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
+    </div>
+  </div>`);
+};
+
+window.exportLiqsFijos = function(lugarId) {
+  const lugar = LUGARES_FIJOS.find(l => l.id === lugarId);
+  const liqs = APP.liquidaciones.filter(l => l.area === 'Servicios Fijos' && l.lugar_fijo === lugarId);
+  if (!liqs.length) { alert('Sin liquidaciones para exportar'); return; }
+  const rows = liqs.map(l => {
+    const p = APP.personal.find(x => x.id === l.persona_id);
+    return {
+      'Apellido y nombre': p ? nombreExport(p.apellido, p.nombre) : normExport(l.persona_nombre||''),
+      'CUIL': p?.cuil || '', 'CBU': p?.cbu || '',
+      'Lugar': lugar.nombre, 'Período': l.periodo,
+      'Posición': l.posicion, 'Jornadas': l.jornadas,
+      'Valor jornada ($)': l.valor_jornada, 'Total ($)': l.total, 'Estado': l.estado,
+    };
+  });
+  exportXLSX(rows, `liquidaciones_${lugar.nombre.replace(/\s+/g,'_')}.xlsx`);
+};
+
 function showModal(html) {
   let o = document.getElementById('mo');
   if (!o) { o = document.createElement('div'); o.id = 'mo'; o.className = 'mo'; document.body.appendChild(o); }
