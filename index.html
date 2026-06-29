@@ -2540,6 +2540,12 @@ function parsePlanillaFija(rows, mesId, lugarId) {
     const apellidoNombre = String(row[cB]||'').trim();
     if (!apellidoNombre) continue;
 
+    // Cortar si encontramos un encabezado secundario (segunda seccion de la planilla)
+    const apellidoUp = apellidoNombre.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+    if (apellidoUp === "NOMBRE" || apellidoUp === "APELLIDO" || apellidoUp === "APELLIDO Y NOMBRE") break;
+    const col0 = String(row[0]||"").toUpperCase().trim();
+    if (col0 === "PUESTO") break;
+
     let apellido = apellidoNombre, nombre = '';
     if (nombreJunto) {
       const partes = apellidoNombre.split(' ');
