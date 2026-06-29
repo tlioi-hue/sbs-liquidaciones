@@ -2517,7 +2517,13 @@ function parsePlanillaFija(rows, mesId, lugarId) {
 
     // Algunos formatos tienen apellido y nombre juntos
     let nombre = cN >= 0 ? String(row[cN]||'').trim() : '';
-    let posicion = cPos >= 0 ? String(row[cPos]||'').trim() : '';
+    // Ecoparque: posición en col D (índice 3), aunque no tenga encabezado
+    let posicion = '';
+    if (cPos >= 0) {
+      posicion = String(row[cPos]||'').trim();
+    } else if (row[3] && typeof row[3] === 'string' && row[3].trim() && !/^\d+$/.test(row[3].trim())) {
+      posicion = String(row[3]).trim();
+    }
     let cuil = cC >= 0 ? String(row[cC]||'').replace(/\D/g,'') : '';
 
     // Contar jornadas (P o valor numérico)
