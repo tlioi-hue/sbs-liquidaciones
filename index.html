@@ -1554,6 +1554,14 @@ function mapToTarifario(secPlanilla) {
     const sup = APP.tarifario.find(t => norm(t.posicion).includes('supervisor'));
     if (sup) return sup.posicion;
   }
+  if (needle.includes('asistente') || needle.includes('franquero') || needle.includes('franquera')) {
+    const fra = APP.tarifario.find(t => norm(t.posicion).includes('franquero') || norm(t.posicion).includes('franquera'));
+    if (fra) return fra.posicion;
+  }
+  if (needle.includes('boletero') || needle.includes('boletera')) {
+    const bol = APP.tarifario.find(t => norm(t.posicion).includes('boletero') || norm(t.posicion).includes('boletera'));
+    if (bol) return bol.posicion;
+  }
 
   // Buscar match directo en el tarifario
   const matches = APP.tarifario.filter(t => {
@@ -2476,74 +2484,90 @@ window.handlePlanillaFija = function(file, mesId, lugarId) {
 };
 
 function parsePlanillaFija(rows, mesId, lugarId) {
-  // Buscar fila de encabezado: col A = número/nombre lugar, col B = APELLIDO
   let hi = -1, cB = -1, cN = -1, cC = -1, cPos = -1, cFechaStart = -1;
+  let nombreJunto = false;
 
   for (let i = 0; i < Math.min(rows.length, 5); i++) {
     const row = rows[i];
+    if (!row) continue;
     for (let j = 0; j < row.length; j++) {
-      const v = String(row[j]||'').trim().toUpperCase();
-      if (v === 'APELLIDO' || v === 'APELLIDO ' || v === 'APELLIDO Y NOMBRE') { cB = j; hi = i; }
+      const v = String(row[j]||'').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      if (v === 'APELLIDO') { cB = j; hi = i; }
+      if (v === 'APELLIDO Y NOMBRE') { cB = j; hi = i; nombreJunto = true; }
       if (v === 'NOMBRE') cN = j;
       if (v.includes('CUIL')) cC = j;
-      if (v.includes('FUNCION') || v.includes('FUNCIÓN') || v.includes('POSICION') || v.includes('POSICIÓN')) cPos = j;
+      if (v === 'FUNCION' || v === 'FUNCION' || v.includes('POSICION')) cPos = j;
     }
     if (hi === i) break;
   }
 
-  if (hi === -1) { alert('No encontré el encabezado. Verificá que la planilla tenga columna APELLIDO.'); return; }
+  if (hi === -1) { alert('No encontré el encabezado. Verificá que la planilla tenga columna APELLIDO o APELLIDO Y NOMBRE.'); return; }
 
-  // Detectar dónde empiezan las fechas (primera columna con fecha después del encabezado)
-  const headerRow = rows[hi];
-  for (let j = 0; j < headerRow.length; j++) {
-    const v = headerRow[j];
-    if (v instanceof Date || (typeof v === 'string' && /^\d{1,2}\/\d{1,2}/.test(v)) || (typeof v === 'string' && v.includes('2026'))) {
-      if (j > (cC || cPos || cN || 2)) { cFechaStart = j; break; }
+  // Si no detectó CUIL por encabezado, intentar detectarlo por posición
+  // Campo de Polo: CUIL en col C (índice 2) sin encabezado
+  if (cC === -1 && nombreJunto) {
+    // Verificar si col 2 tiene números de 11 dígitos
+    const testRow = rows[hi + 2] || rows[hi + 1];
+    if (testRow && testRow[2] && /^\d{10,11}/.test(String(testRow[2]).replace('.0',''))) {
+      cC = 2;
     }
   }
 
-  // Si no encontró fechas en fila hi, buscar en fila hi-1 o hi+1
-  if (cFechaStart === -1) {
-    // Para Ecoparque, las fechas están en la fila 1 (hi=1), col F en adelante
-    cFechaStart = Math.max(cC, cPos, cN, cB) + 1;
+  const headerRow = rows[hi];
+  for (let j = Math.max(cC||0, cPos||0, cN||0, cB||0) + 1; j < (headerRow||[]).length; j++) {
+    const v = headerRow[j];
+    if (v instanceof Date) { cFechaStart = j; break; }
+    if (typeof v === 'string' && ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'].includes(v.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''))) {
+      cFechaStart = j; break;
+    }
   }
+  if (cFechaStart === -1) cFechaStart = Math.max(cC||0, cPos||0, cN||0, cB||0) + 1;
+
+  // Campo de Polo: las fechas reales están en la fila hi+1, saltar
+  let dataStart = hi + 1;
+  if (rows[hi+1] && rows[hi+1][cFechaStart] instanceof Date) dataStart = hi + 2;
 
   const personas = [];
-  for (let i = hi + 1; i < rows.length; i++) {
+  for (let i = dataStart; i < rows.length; i++) {
     const row = rows[i];
-    if (!row || !row[cB]) continue;
-    const apellido = String(row[cB]||'').trim();
-    if (!apellido || apellido.toUpperCase() === 'APELLIDO') continue;
+    if (!row || row[cB] === null || row[cB] === undefined || row[cB] === '') continue;
+    const apellidoNombre = String(row[cB]||'').trim();
+    if (!apellidoNombre) continue;
 
-    // Algunos formatos tienen apellido y nombre juntos
-    let nombre = cN >= 0 ? String(row[cN]||'').trim() : '';
-    // Ecoparque: posición en col D (índice 3), aunque no tenga encabezado
-    let posicion = '';
-    if (cPos >= 0) {
-      posicion = String(row[cPos]||'').trim();
-    } else if (row[3] && typeof row[3] === 'string' && row[3].trim() && !/^\d+$/.test(row[3].trim())) {
-      posicion = String(row[3]).trim();
+    let apellido = apellidoNombre, nombre = '';
+    if (nombreJunto) {
+      const partes = apellidoNombre.split(' ');
+      apellido = partes[0];
+      nombre = partes.slice(1).join(' ');
+    } else {
+      nombre = cN >= 0 ? String(row[cN]||'').trim() : '';
     }
-    let cuil = cC >= 0 ? String(row[cC]||'').replace(/\D/g,'') : '';
 
-    // Contar jornadas (P o valor numérico)
+    let posicion = '';
+    if (cPos >= 0) posicion = String(row[cPos]||'').trim();
+    else if (row[3] && typeof row[3] === 'string' && !/^\d+$/.test(row[3].trim())) posicion = String(row[3]).trim();
+
+    let cuil = '';
+    if (cC >= 0) cuil = String(row[cC]||'').replace(/\.0$/, '').replace(/\D/g, '');
+
     let jornadas = 0;
     for (let j = cFechaStart; j < row.length; j++) {
-      const v = String(row[j]||'').trim().toUpperCase();
-      if (v === 'P') { jornadas++; continue; }
-      // Campo de Polo: valor numérico = presente
-      const num = parseFloat(String(row[j]||'').replace(',','.'));
+      const v = row[j];
+      if (v === null || v === undefined || v === '') continue;
+      const str = String(v).trim().toUpperCase();
+      if (str === 'P') { jornadas++; continue; }
+      if (str === '-' || str === 'A') continue;
+      const num = parseFloat(String(v).replace(',', '.'));
       if (!isNaN(num) && num > 0) jornadas++;
     }
 
-    if (jornadas === 0 && !apellido) continue;
+    if (!apellido) continue;
 
-    // Mapear posición al tarifario
     const posicionMapeada = posicion ? mapToTarifario(posicion) : '';
-
-    // Buscar en personal
-    const per = APP.personal.find(p => (cuil && p.cuil === cuil) ||
-      (p.apellido.toLowerCase() === apellido.toLowerCase() && (!nombre || p.nombre.toLowerCase().includes(nombre.toLowerCase().split(' ')[0]))));
+    const per = APP.personal.find(p =>
+      (cuil && p.cuil && p.cuil.replace(/\D/g,'') === cuil) ||
+      (p.apellido.toLowerCase() === apellido.toLowerCase() && (!nombre || p.nombre.toLowerCase().startsWith(nombre.toLowerCase().split(' ')[0].toLowerCase())))
+    );
 
     personas.push({
       _id: uid(), apellido, nombre, cuil, posicion: posicionMapeada || posicion,
