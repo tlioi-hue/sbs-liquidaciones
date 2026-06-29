@@ -2516,6 +2516,15 @@ function parsePlanillaFija(rows, mesId, lugarId) {
   }
   if (cFechaStart === -1) cFechaStart = Math.max(cC||0, cPos||0, cN||0, cB||0) + 1;
 
+  // Detectar columna TOTAL para excluirla del conteo de jornadas
+  let cTotal = -1;
+  if (headerRow) {
+    for (let j = cFechaStart; j < headerRow.length; j++) {
+      const v = String(headerRow[j]||"").toUpperCase().trim();
+      if (v === "TOTAL" || v === "TOTAL DIAS" || v === "TOTAL JORNADAS") { cTotal = j; break; }
+    }
+  }
+
   // Para Campo de Polo, los datos empiezan en hi+2 (saltando la fila de fechas)
   // Para Ecoparque, los datos empiezan en hi+1
   let dataStart = hi + 1;
@@ -2563,7 +2572,8 @@ function parsePlanillaFija(rows, mesId, lugarId) {
     if (cC >= 0) cuil = String(row[cC]||'').replace(/\.0$/, '').replace(/\D/g, '');
 
     let jornadas = 0;
-    for (let j = cFechaStart; j < row.length; j++) {
+    const jEnd = cTotal !== -1 ? cTotal : row.length;
+    for (let j = cFechaStart; j < jEnd; j++) {
       const v = row[j];
       if (v === null || v === undefined || v === '') continue;
       const str = String(v).trim().toUpperCase();
