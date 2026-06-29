@@ -2505,14 +2505,6 @@ function parsePlanillaFija(rows, mesId, lugarId) {
 
   if (hi === -1) { alert('No encontré el encabezado. Verificá que la planilla tenga columna APELLIDO o APELLIDO Y NOMBRE.'); return; }
 
-  // Si no detectó CUIL por encabezado, intentar col C (índice 2) — Campo de Polo
-  if (cC === -1) {
-    for (let i = dataStart; i < Math.min(rows.length, dataStart + 3); i++) {
-      const testVal = rows[i] ? String(rows[i][2]||'').replace('.0','').replace(/\D/g,'') : '';
-      if (testVal.length >= 10) { cC = 2; break; }
-    }
-  }
-
   const headerRow = rows[hi];
   for (let j = Math.max(cC||0, cPos||0, cN||0, cB||0) + 1; j < (headerRow||[]).length; j++) {
     const v = headerRow[j];
@@ -2531,6 +2523,14 @@ function parsePlanillaFija(rows, mesId, lugarId) {
   const nextRow = rows[hi + 1];
   if (nextRow && cFechaStart >= 0 && nextRow[cFechaStart] instanceof Date) {
     dataStart = hi + 2;
+  }
+
+  // Si no detectó CUIL por encabezado, intentar col C (índice 2) — Campo de Polo
+  if (cC === -1) {
+    for (let i = dataStart; i < Math.min(rows.length, dataStart + 3); i++) {
+      const testVal = rows[i] ? String(rows[i][2]||'').replace('.0','').replace(/\D/g,'') : '';
+      if (testVal.length >= 10) { cC = 2; break; }
+    }
   }
 
   const personas = [];
