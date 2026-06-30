@@ -1919,11 +1919,12 @@ function pgVerificar(el, ac) {
               </tr></thead>
               <tbody>
                 ${sf.map(f => {
-                  const posOpts = APP.tarifario.map(t =>
+                  const tarifasArea = APP.tarifario.filter(t => t.area === d.area || t.area === 'General');
+                  const posOpts = tarifasArea.map(t =>
                     `<option value="${t.posicion}" ${f.posicion===t.posicion?'selected':''}>${t.posicion}</option>`
                   ).join('');
-                  // Si la posición detectada no está en el tarifario, agregar como opción extra
-                  const enTarifario = APP.tarifario.some(t => t.posicion === f.posicion);
+                  // Si la posición detectada no está en el tarifario de esta área, agregar como opción extra
+                  const enTarifario = tarifasArea.some(t => t.posicion === f.posicion);
                   const extraOpt = !enTarifario ? `<option value="${f.posicion}" selected>${f.posicion}</option>` : '';
                   return `<tr id="fr-${f._id}" class="${f.sel?'sel':f.presente?'':'ausente'}">
                   <td class="tdc" style="text-align:center">
@@ -2597,15 +2598,14 @@ window.delMesFijo = function(id) {
 // ── IMPORTAR PLANILLA FIJA ──
 window.importarPlanillaFija = function(mesId, lugarId) {
   const lugar = LUGARES_FIJOS.find(l => l.id === lugarId);
-  const esColon = lugarId === 'teatro-colon';
-  const accept = esColon ? '.xlsx,.xls,.pdf' : '.xlsx,.xls';
+  const accept = '.xlsx,.xls,.pdf';
   showModal(`<div class="modal">
     <div class="modal-t">Importar planilla — ${lugar.nombre}</div>
-    <div class="modal-s">Subí ${esColon?'el Excel o PDF':'el Excel'} con el presentismo del mes. La app contará los días con P por persona.</div>
+    <div class="modal-s">Subí el Excel o PDF con el presentismo del mes. La app contará los días con P por persona.</div>
     <div class="drop-zone" id="dz-fijo" onclick="document.getElementById('fi-fijo').click()">
       <i class="ti ti-table-import" style="font-size:30px;color:var(--text2);display:block;margin-bottom:7px"></i>
       <div style="font-size:13px;font-weight:600;margin-bottom:3px">Arrastrá acá o hacé clic</div>
-      <div style="font-size:11.5px;color:var(--text2)">${esColon?'.xlsx · .xls · .pdf':'.xlsx · .xls'}</div>
+      <div style="font-size:11.5px;color:var(--text2)">.xlsx · .xls · .pdf</div>
     </div>
     <input type="file" id="fi-fijo" accept="${accept}" style="display:none" onchange="handlePlanillaFija(this.files[0],'${mesId}','${lugarId}')">
     <div class="modal-f"><button class="btn" onclick="closeModal()">Cancelar</button></div>
@@ -2686,7 +2686,7 @@ async function extraerFilasPDF(arrayBuffer) {
 // Solo se extrae el TOTAL de jornadas por persona — el desglose entre jornada de 6hs (Fábrica / Teatro
 // lun-sáb) y jornada de 8hs (Teatro domingo) no está estructurado en el PDF (va en comentarios sueltos),
 // así que se ajusta manualmente en la pantalla de verificación.
-function parsePlanillaFijaPDF(pdfRows, mesId, lugarId) {
+function parsePlanillaFijaPDF_Colon(pdfRows, mesId, lugarId) {
   // 1. Encontrar la fila de encabezado con las fechas (contiene "1/6","2/6", etc), solo para ubicar dónde
   // empiezan los datos — ya no se usa para clasificar día de semana.
   let headerIdx = -1;
@@ -2734,6 +2734,89 @@ function parsePlanillaFijaPDF(pdfRows, mesId, lugarId) {
 
   if (!personas.length) { alert('No encontré personas con CUIL válido en el PDF.'); return; }
   mostrarVerificacionFija(personas, mesId, lugarId);
+}
+
+// Parsea filas extraídas del PDF de Ecoparque o Campo de Polo (sin CUIL en la planilla).
+// Estructura esperada por fila: Nº, Apellido, Nombre, Posición/Función, luego una celda 'P' (o "P (nota)")
+// por cada día presente. No hay tarifa diferencial de jornada en estos lugares.
+// El match con personal existente se hace por apellido + nombre, ya que no hay CUIL disponible.
+function parsePlanillaFijaPDF_SinCuil(pdfRows, mesId, lugarId) {
+  const areaLugar = LUGARES_FIJOS.find(l => l.id === lugarId)?.nombre;
+  const posicionesValidas = APP.tarifario.filter(t => t.area === areaLugar || t.area === 'General').map(t => t.posicion);
+
+  // 1. Encontrar la fila de encabezado con las fechas (contiene "1/6","4/6", etc)
+  let headerIdx = -1;
+  for (let i = 0; i < pdfRows.length; i++) {
+    const fechasEnFila = pdfRows[i].filter(it => /^\d{1,2}\/\d{1,2}$/.test(it.text.trim()));
+    if (fechasEnFila.length >= 5) { headerIdx = i; break; }
+  }
+  if (headerIdx === -1) { alert('No encontré las fechas en el PDF. Verificá el formato de la planilla.'); return; }
+
+  // 2. Procesar filas de datos: empiezan con un número de orden, seguido de Apellido, Nombre, Posición
+  const personas = [];
+  for (let i = headerIdx + 1; i < pdfRows.length; i++) {
+    const row = pdfRows[i];
+    if (!row.length) continue;
+    const primero = row[0]?.text.trim();
+    // La fila de datos arranca con un número de orden (1, 2, 3...)
+    if (!/^\d+$/.test(primero)) continue;
+
+    // Buscar dónde termina el bloque de texto (apellido+nombre+posición) y empiezan las marcas P/A/-
+    // Las marcas son celdas que son exactamente P, A, -, o empiezan con "P" (ej: "P (una hora tarde)")
+    const esMarca = (txt) => {
+      const t = txt.trim().toUpperCase();
+      return t === 'P' || t === 'A' || t === '-' || t.startsWith('P ') || t.startsWith('P(');
+    };
+    let primeraMarcaIdx = row.findIndex((it, idx) => idx > 0 && esMarca(it.text));
+    if (primeraMarcaIdx === -1) primeraMarcaIdx = row.length; // sin marcas, fila como Macias
+
+    // Las celdas de texto entre el número de orden y la primera marca: apellido, nombre, posición
+    const textCells = row.slice(1, primeraMarcaIdx).map(it => it.text.trim()).filter(Boolean);
+    // La última celda de texto suele ser la posición/función si coincide con el tarifario; si no, se asume
+    // que las últimas palabras son "Nombre Posición" pegado — pero en este formato vienen como celdas
+    // separadas, así que buscamos cuál de las celdas matchea una posición conocida del tarifario.
+    let posicionDetectada = '';
+    let idxPosicion = textCells.length;
+    for (let k = textCells.length - 1; k >= 0; k--) {
+      if (posicionesValidas.some(pv => textCells[k].toLowerCase().includes(pv.toLowerCase()) || pv.toLowerCase().includes(textCells[k].toLowerCase()))) {
+        posicionDetectada = posicionesValidas.find(pv => textCells[k].toLowerCase().includes(pv.toLowerCase()) || pv.toLowerCase().includes(textCells[k].toLowerCase()));
+        idxPosicion = k;
+        break;
+      }
+    }
+    const nombreCompleto = textCells.slice(0, idxPosicion);
+    const apellido = nombreCompleto[0] || '';
+    const nombre = nombreCompleto.slice(1).join(' ');
+
+    if (!apellido) continue;
+
+    // Contar jornadas: cualquier marca que empiece con "P" (incluye "P (una hora tarde)")
+    const marcas = row.slice(primeraMarcaIdx);
+    let jornadas = 0;
+    marcas.forEach(it => {
+      const txt = it.text.trim().toUpperCase();
+      if (txt.startsWith('P')) jornadas++;
+    });
+
+    const per = APP.personal.find(p =>
+      p.apellido.toLowerCase() === apellido.toLowerCase() &&
+      (!nombre || !p.nombre || p.nombre.toLowerCase().split(' ')[0] === nombre.toLowerCase().split(' ')[0])
+    );
+
+    personas.push({
+      _id: uid(), apellido, nombre, cuil: '', posicion: posicionDetectada || per?.posicion || '',
+      jornadas, jornadasFinde: 0, existeId: per?.id || null, esNuevo: !per
+    });
+  }
+
+  if (!personas.length) { alert('No encontré personas en el PDF. Verificá el formato de la planilla.'); return; }
+  mostrarVerificacionFija(personas, mesId, lugarId);
+}
+
+// Router: decide qué parser de PDF usar según el lugar
+function parsePlanillaFijaPDF(pdfRows, mesId, lugarId) {
+  if (lugarId === 'teatro-colon') return parsePlanillaFijaPDF_Colon(pdfRows, mesId, lugarId);
+  return parsePlanillaFijaPDF_SinCuil(pdfRows, mesId, lugarId);
 }
 
 function parsePlanillaFija(rows, mesId, lugarId) {
@@ -2883,11 +2966,6 @@ function mostrarVerificacionFija(personas, mesId, lugarId) {
   const meses = getMesesFijos();
   const mes = meses.find(m => m.id === mesId);
 
-  const posOpts = APP.tarifario
-    .filter(t => lugar.posiciones.some(p => t.posicion.toLowerCase().includes(p.toLowerCase().split(' ')[0])) || lugar.posiciones.includes(t.posicion))
-    .map(t => `<option value="${t.posicion}">${t.posicion} — ${fmt(t.monto)}</option>`).join('') ||
-    APP.tarifario.map(t => `<option value="${t.posicion}">${t.posicion} — ${fmt(t.monto)}</option>`).join('');
-
   // Mostrar en pantalla de verificación
   const el = document.getElementById('content');
   const ac = document.getElementById('topbar-ac');
@@ -2906,12 +2984,14 @@ function mostrarVerificacionFija(personas, mesId, lugarId) {
         <th style="text-align:center">Jornadas 6 hs.</th>${lugarId==='teatro-colon'?'<th style="text-align:center">Jornadas 8 hs.</th>':''}<th style="text-align:right">Subtotal</th><th>Estado</th>
       </tr></thead>
       <tbody>${personas.map(p => {
-        // Para Colón, las opciones de posición son los nombres "base" (sin sufijo de duración de jornada)
+        // Las opciones de posición se filtran siempre por el área del lugar (Ecoparque/Colón/Polo),
+        // nunca se muestra el tarifario completo de otras áreas.
+        const areaLugarVer = LUGARES_FIJOS.find(l => l.id === lugarId)?.nombre;
         const posicionesBase = lugarId === 'teatro-colon'
           ? [...new Set(APP.tarifario
               .filter(t => t.area === 'Teatro Colón')
               .map(t => t.posicion.replace(/\s*\[Jornada [68] hs\.\]\s*$/i, '')))]
-          : APP.tarifario.map(t => t.posicion);
+          : [...new Set(APP.tarifario.filter(t => t.area === areaLugarVer || t.area === 'General').map(t => t.posicion))];
         // Si la persona no tiene posición asignada (nueva), usar la primera disponible como default
         const posicionEfectiva = p.posicion || posicionesBase[0] || '';
         const subtotal = calcSubtotalFijo(posicionEfectiva, p.jornadas, p.jornadasFinde||0);
@@ -2930,9 +3010,10 @@ function mostrarVerificacionFija(personas, mesId, lugarId) {
         <td colspan="${lugarId==='teatro-colon'?5:4}" style="font-weight:600;padding:10px;border-top:2px solid var(--border)">Total estimado</td>
         <td style="text-align:right;font-size:16px;font-weight:700;padding:10px;border-top:2px solid var(--border)" id="pf-total">
           ${fmt(personas.reduce((s,p) => {
+            const areaLugarVer2 = LUGARES_FIJOS.find(l => l.id === lugarId)?.nombre;
             const posicionesBase2 = lugarId === 'teatro-colon'
               ? [...new Set(APP.tarifario.filter(t => t.area === 'Teatro Colón').map(t => t.posicion.replace(/\s*\[Jornada [68] hs\.\]\s*$/i, '')))]
-              : APP.tarifario.map(t => t.posicion);
+              : [...new Set(APP.tarifario.filter(t => t.area === areaLugarVer2 || t.area === 'General').map(t => t.posicion))];
             const posEf = p.posicion || posicionesBase2[0] || '';
             return s+calcSubtotalFijo(posEf, p.jornadas, p.jornadasFinde||0);
           }, 0))}
