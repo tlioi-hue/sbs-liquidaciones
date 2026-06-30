@@ -2592,6 +2592,9 @@ function renderMesFijo(mes, isRRHH) {
       ${LUGARES_FIJOS.map(l => {
         const pres = mes.presentes?.[l.id] || [];
         const liqL = liqMes.filter(liq => liq.lugar_fijo === l.id);
+        const lugarCerrado = !!(mes.cerradoPorLugar?.[l.id]);
+        const estadoChip = liqL.length ? (lugarCerrado ? 'fb-c' : 'fb-p') : 'fb-o';
+        const estadoTxt = liqL.length ? (lugarCerrado ? 'cerrado' : 'liquidado') : 'sin liquidar';
         return `<div class="fecha-row">
           <div style="flex:1">
             <span class="chip ${chipClaseArea(l.nombre)}" style="font-weight:600">${l.nombre}</span>
@@ -2599,19 +2602,19 @@ function renderMesFijo(mes, isRRHH) {
           </div>
           <span class="pill">${pres.length} personas</span>
           <span class="pill">${pres.reduce((s,p)=>s+(p.jornadas||0),0)} jornadas</span>
-          <span class="fb ${liqL.length?'fb-c':'fb-o'}">${liqL.length?'liquidado':'sin liquidar'}</span>
+          <span class="fb ${estadoChip}">${estadoTxt}</span>
           <div style="display:flex;gap:5px;flex-shrink:0">
-            ${!mes.cerrado && !liqL.length && isRRHH ? `<button class="btn btn-sm" onclick="importarPlanillaFija('${mes.id}','${l.id}')"><i class="ti ti-file-upload"></i></button>` : ''}
+            ${!lugarCerrado && !liqL.length && isRRHH ? `<button class="btn btn-sm" onclick="importarPlanillaFija('${mes.id}','${l.id}')"><i class="ti ti-file-upload"></i></button>` : ''}
             ${pres.length ? `<button class="btn btn-sm" onclick="verDetalleLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-eye"></i></button>` : ''}
-            ${pres.length && !liqL.length && !mes.cerrado && isRRHH ? `<button class="btn btn-sm btn-success" onclick="liquidarLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
+            ${pres.length && !liqL.length && !lugarCerrado && isRRHH ? `<button class="btn btn-sm btn-success" onclick="liquidarLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
+            ${liqL.length && !lugarCerrado && isRRHH ? `<button class="btn btn-sm btn-success" onclick="cerrarLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-lock"></i> Cerrar</button>` : ''}
           </div>
         </div>`;
       }).join('')}
     </div>
     <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center">
       ${totalMes ? `<button class="btn btn-sm" onclick="exportMesFijo('${mes.id}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>` : ''}
-      ${totalMes && !mes.cerrado && isRRHH ? `<button class="btn btn-sm" onclick="previaMesFijo('${mes.id}')"><i class="ti ti-eye"></i> Vista previa liquidación</button>` : ''}
-      ${totalMes && !mes.cerrado && isRRHH ? `<button class="btn btn-sm btn-success" onclick="cerrarMesFijo('${mes.id}')"><i class="ti ti-lock"></i> Cerrar mes definitivamente</button>` : ''}
+      ${totalMes && isRRHH ? `<button class="btn btn-sm" onclick="previaMesFijo('${mes.id}')"><i class="ti ti-eye"></i> Vista previa liquidación</button>` : ''}
     </div>
   </div>`;
 }
@@ -3314,6 +3317,7 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
   const mes = getMesesFijos().find(m => m.id === mesId);
   const pres = mes?.presentes?.[lugarId] || [];
   const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId && l.lugar_fijo === lugarId);
+  const lugarCerrado = !!(mes?.cerradoPorLugar?.[lugarId]);
   showModal(`<div class="modal modal-lg">
     <div class="modal-t">${lugar.nombre} — ${mes.nombre}</div>
     <div class="modal-s">${pres.length} personas · ${pres.reduce((s,p)=>s+(p.jornadas||0)+(p.jornadasFinde||0),0)} jornadas totales</div>
@@ -3329,7 +3333,7 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
       ${pres.map(p => {
         const liq = liqs.find(l => l.persona_id === p.personaId);
         const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
-        const editable = liq && !mes.cerrado;
+        const editable = liq && !lugarCerrado;
         return `<tr style="font-size:12px;border-top:1px solid var(--border)">
           <td style="padding:6px 10px"><strong>${p.apellido}, ${p.nombre}</strong></td>
           <td style="padding:6px 10px;font-family:monospace;font-size:11px">${p.cuil||'—'}</td>
@@ -3432,6 +3436,28 @@ window.previaMesFijo = function(mesId) {
 };
 
 // ── CERRAR MES DEFINITIVAMENTE ──
+window.cerrarLugarFijo = async function(mesId, lugarId) {
+  const lugar = LUGARES_FIJOS.find(l => l.id === lugarId);
+  if (!confirm(`¿Cerrar ${lugar.nombre} definitivamente? Las liquidaciones pasarán a "aprobado".`)) return;
+  loading(true);
+  const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId && l.lugar_fijo === lugarId && l.estado === 'pendiente');
+  for (const l of liqs) {
+    await sb.from('liquidaciones').update({ estado: 'aprobado' }).eq('id', l.id);
+  }
+  // Marcar el lugar como cerrado en localStorage
+  const meses = getMesesFijos();
+  const idx = meses.findIndex(m => m.id === mesId);
+  if (idx >= 0) {
+    if (!meses[idx].cerradoPorLugar) meses[idx].cerradoPorLugar = {};
+    meses[idx].cerradoPorLugar[lugarId] = true;
+    saveMesesFijos(meses);
+  }
+  await fetchAll();
+  loading(false);
+  toast(`${lugar.nombre} cerrado — ${liqs.length} liquidaciones aprobadas`, 'ok');
+  await go('fijos');
+};
+
 window.cerrarMesFijo = async function(mesId) {
   if (!confirm('¿Cerrar este mes definitivamente? Todas las liquidaciones pendientes pasarán a estado "aprobado".')) return;
   loading(true);
