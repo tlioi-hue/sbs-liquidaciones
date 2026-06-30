@@ -2578,14 +2578,16 @@ function renderMesFijo(mes, isRRHH) {
           <span class="fb ${liqL.length?'fb-c':'fb-o'}">${liqL.length?'liquidado':'sin liquidar'}</span>
           <div style="display:flex;gap:5px;flex-shrink:0">
             ${isRRHH ? `<button class="btn btn-sm" onclick="importarPlanillaFija('${mes.id}','${l.id}')"><i class="ti ti-file-upload"></i></button>` : ''}
+            ${pres.length ? `<button class="btn btn-sm" onclick="verDetalleLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-eye"></i></button>` : ''}
             ${pres.length && !liqL.length && isRRHH ? `<button class="btn btn-sm btn-success" onclick="liquidarLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
-            ${liqL.length ? `<button class="btn btn-sm" onclick="verLiqs('${mes.id}','${l.id}')"><i class="ti ti-eye"></i></button>` : ''}
           </div>
         </div>`;
       }).join('')}
     </div>
-    <div style="display:flex;gap:7px;flex-wrap:wrap">
+    <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center">
       ${totalMes ? `<button class="btn btn-sm" onclick="exportMesFijo('${mes.id}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>` : ''}
+      ${totalMes && isRRHH ? `<button class="btn btn-sm" onclick="previaMesFijo('${mes.id}')"><i class="ti ti-eye"></i> Vista previa liquidación</button>` : ''}
+      ${totalMes && isRRHH ? `<button class="btn btn-sm btn-success" onclick="cerrarMesFijo('${mes.id}')"><i class="ti ti-lock"></i> Cerrar mes definitivamente</button>` : ''}
     </div>
   </div>`;
 }
@@ -3229,21 +3231,137 @@ window.verLiqs = function(mesId, lugarId) {
   </div>`);
 };
 
+// ── VER DETALLE DE UN LUGAR (ojo) ──
+window.verDetalleLugarFijo = function(mesId, lugarId) {
+  const lugar = LUGARES_FIJOS.find(l => l.id === lugarId);
+  const mes = getMesesFijos().find(m => m.id === mesId);
+  const pres = mes?.presentes?.[lugarId] || [];
+  const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId && l.lugar_fijo === lugarId);
+  showModal(`<div class="modal modal-lg">
+    <div class="modal-t">${lugar.nombre} — ${mes.nombre}</div>
+    <div class="modal-s">${pres.length} personas · ${pres.reduce((s,p)=>s+(p.jornadas||0)+(p.jornadasFinde||0),0)} jornadas totales</div>
+    <div style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px">
+      <table style="width:100%"><thead><tr style="font-size:11px;color:var(--text2)">
+        <th style="padding:6px 10px;text-align:left">Apellido y nombre</th>
+        <th style="padding:6px 10px;text-align:left">CUIL</th>
+        <th style="padding:6px 10px;text-align:left">Posición</th>
+        <th style="padding:6px 10px;text-align:center">${lugarId==='teatro-colon'?'Jornadas 6hs':'Jornadas'}</th>
+        ${lugarId==='teatro-colon'?'<th style="padding:6px 10px;text-align:center">Jornadas 8hs</th>':''}
+        <th style="padding:6px 10px;text-align:right">Subtotal</th>
+      </tr></thead><tbody>
+      ${pres.map(p => {
+        const liq = liqs.find(l => l.persona_id === p.personaId);
+        const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
+        return `<tr style="font-size:12px;border-top:1px solid var(--border)">
+          <td style="padding:6px 10px"><strong>${p.apellido}, ${p.nombre}</strong></td>
+          <td style="padding:6px 10px;font-family:monospace;font-size:11px">${p.cuil||'—'}</td>
+          <td style="padding:6px 10px">${p.posicion||'—'}</td>
+          <td style="padding:6px 10px;text-align:center">${p.jornadas||0}</td>
+          ${lugarId==='teatro-colon'?`<td style="padding:6px 10px;text-align:center">${p.jornadasFinde||0}</td>`:''}
+          <td style="padding:6px 10px;text-align:right;font-weight:600">${fmt(sub)}</td>
+        </tr>`;
+      }).join('')}
+      </tbody><tfoot><tr style="border-top:2px solid var(--border);font-weight:700">
+        <td colspan="${lugarId==='teatro-colon'?5:4}" style="padding:8px 10px">Total</td>
+        <td style="padding:8px 10px;text-align:right">${fmt(liqs.length ? liqs.reduce((s,l)=>s+(l.total||0),0) : pres.reduce((s,p)=>s+calcSubtotalFijo(p.posicion,p.jornadas||0,p.jornadasFinde||0),0))}</td>
+      </tr></tfoot>
+      </table>
+    </div>
+    <div class="modal-f"><button class="btn btn-primary" onclick="closeModal()">Cerrar</button></div>
+  </div>`);
+};
+
+// ── VISTA PREVIA LIQUIDACIÓN DEL MES ──
+window.previaMesFijo = function(mesId) {
+  const mes = getMesesFijos().find(m => m.id === mesId);
+  const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId);
+  if (!liqs.length) { alert('No hay liquidaciones generadas para este mes todavía.'); return; }
+  const totalMes = liqs.reduce((s,l) => s+(l.total||0), 0);
+  showModal(`<div class="modal modal-lg">
+    <div class="modal-t">Vista previa — ${mes.nombre}</div>
+    <div class="modal-s">${liqs.length} liquidaciones · Total: ${fmt(totalMes)}</div>
+    <div style="max-height:420px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px">
+      <table style="width:100%"><thead><tr style="font-size:11px;color:var(--text2)">
+        <th style="padding:6px 10px;text-align:left">Apellido y nombre</th>
+        <th style="padding:6px 10px;text-align:left">CUIL</th>
+        <th style="padding:6px 10px;text-align:left">Lugar</th>
+        <th style="padding:6px 10px;text-align:left">Posición</th>
+        <th style="padding:6px 10px;text-align:center">Jornadas</th>
+        <th style="padding:6px 10px;text-align:right">Total</th>
+        <th style="padding:6px 10px;text-align:left">Estado</th>
+      </tr></thead><tbody>
+      ${liqs.map(l => {
+        const per = APP.personal.find(x => x.id === l.persona_id);
+        return `<tr style="font-size:12px;border-top:1px solid var(--border)">
+          <td style="padding:6px 10px"><strong>${per ? `${per.apellido}, ${per.nombre}` : l.persona_nombre}</strong></td>
+          <td style="padding:6px 10px;font-family:monospace;font-size:11px">${per?.cuil||'—'}</td>
+          <td style="padding:6px 10px"><span class="chip ${chipClaseArea(l.lugar_nombre)}" style="font-size:10px">${l.lugar_nombre||'—'}</span></td>
+          <td style="padding:6px 10px">${l.posicion||'—'}</td>
+          <td style="padding:6px 10px;text-align:center">${l.jornadas||0}</td>
+          <td style="padding:6px 10px;text-align:right;font-weight:600">${fmt(l.total)}</td>
+          <td style="padding:6px 10px"><span class="badge ${l.estado==='pagado'?'bs':l.estado==='aprobado'?'bi':'bw'}" style="font-size:10px">${l.estado}</span></td>
+        </tr>`;
+      }).join('')}
+      </tbody><tfoot><tr style="border-top:2px solid var(--border);font-weight:700">
+        <td colspan="5" style="padding:8px 10px">Total del mes</td>
+        <td style="padding:8px 10px;text-align:right;font-size:15px">${fmt(totalMes)}</td>
+        <td></td>
+      </tr></tfoot>
+      </table>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn btn-sm" onclick="closeModal();exportMesFijo('${mesId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
+    </div>
+  </div>`);
+};
+
+// ── CERRAR MES DEFINITIVAMENTE ──
+window.cerrarMesFijo = async function(mesId) {
+  if (!confirm('¿Cerrar este mes definitivamente? Todas las liquidaciones pendientes pasarán a estado "aprobado".')) return;
+  loading(true);
+  const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId && l.estado === 'pendiente');
+  for (const l of liqs) {
+    await sb.from('liquidaciones').update({ estado: 'aprobado' }).eq('id', l.id);
+  }
+  loading(false);
+  toast(`Mes cerrado — ${liqs.length} liquidaciones aprobadas`, 'ok');
+  await go('fijos');
+};
+
 window.exportMesFijo = function(mesId) {
   const mes = getMesesFijos().find(m => m.id === mesId);
   const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId);
   if (!liqs.length) { alert('Sin liquidaciones para exportar'); return; }
+  // Usar buildExportRows para formato estándar igual que Arena
   const rows = liqs.map(l => {
     const p = APP.personal.find(x => x.id === l.persona_id);
+    const nombre = p ? nombreExport(p.apellido, p.nombre) : normExport(l.persona_nombre||'');
     return {
-      'Apellido y nombre': p ? nombreExport(p.apellido, p.nombre) : normExport(l.persona_nombre||''),
-      'CUIL': p?.cuil||'', 'CBU': p?.cbu||'',
-      'Lugar': l.lugar_nombre||'', 'Período': l.periodo||'',
-      'Posición': l.posicion||'', 'Jornadas': l.jornadas,
-      'Valor jornada ($)': l.valor_jornada, 'Total ($)': l.total, 'Estado': l.estado,
+      'Apellido y nombre': nombre,
+      'CUIL':  p?.cuil  || '',
+      'CBU':   p?.cbu   || '',
+      'Alias': p?.alias || '',
+      'Área':  'Servicios Fijos',
+      'Lugar': normExport(l.lugar_nombre||''),
+      'Período': normExport(l.periodo||mes.nombre),
+      'Posición': normExport(l.posicion||''),
+      'Jornadas': l.jornadas || 0,
+      'Jornadas semana': l.jornadas_semana ?? '',
+      'Jornadas finde': l.jornadas_finde ?? '',
+      'Valor jornada ($)': l.valor_jornada || '',
+      'Valor jornada finde ($)': l.valor_jornada_finde || '',
+      'Total ($)': l.total,
+      'Estado': l.estado,
+      'Fecha creación': l.created_at ? new Date(l.created_at).toLocaleDateString('es-AR') : '',
     };
   });
-  exportXLSX(rows, `liquidaciones_fijos_${mes.nombre.replace(/\s+/g,'_')}.xlsx`);
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [22,16,26,14,14,14,14,14,10,10,10,16,16,12,12,14].map(w => ({ wch:w }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Liquidaciones');
+  XLSX.writeFile(wb, `liquidaciones_fijos_${normExport(mes.nombre).replace(/\s+/g,'_')}.xlsx`);
+  toast('Excel exportado', 'ok');
 };
 
 
