@@ -442,13 +442,13 @@ function chipClaseArea(area) {
   if (area === 'Ecoparque') return 'chip-eco';
   return 'chip-fijos';
 }
-// Calcula subtotal de Servicios Fijos considerando tarifa diferencial de fin de semana.
+// Calcula subtotal de Servicios Fijos considerando tarifa diferencial por duración de jornada.
 // Busca en el tarifario dos posiciones derivadas de `posBase`:
-//   "<posBase> [Día de semana]" y "<posBase> [Fin de semana]"
-// Si no existen esas variantes, usa una sola tarifa (tar) para todas las jornadas (semana+finde).
+//   "<posBase> [Jornada 6 hs.]" y "<posBase> [Jornada 8 hs.]"
+// Si no existen esas variantes, usa una sola tarifa (tar) para todas las jornadas.
 function getTarifaSemanaFinde(posBase) {
-  const tSemana = APP.tarifario.find(t => t.posicion === `${posBase} [Día de semana]`);
-  const tFinde  = APP.tarifario.find(t => t.posicion === `${posBase} [Fin de semana]`);
+  const tSemana = APP.tarifario.find(t => t.posicion === `${posBase} [Jornada 6 hs.]`);
+  const tFinde  = APP.tarifario.find(t => t.posicion === `${posBase} [Jornada 8 hs.]`);
   return { tSemana, tFinde };
 }
 function calcSubtotalFijo(posBaseOTar, jornadasSemana, jornadasFinde) {
@@ -743,12 +743,11 @@ window.modalTarifa = function(id) {
         <option value="General"       ${t?.area==='General'?'selected':''}>General (ambas áreas)</option>
       </select>
     </div>
-    <div class="fg"><label class="fl">Monto por jornada — Lun a Vie ($) *</label>
+    <div class="fg"><label class="fl">Monto por jornada ($) *</label>
       <input id="tm" type="number" min="0" step="1" value="${t?.monto||''}" placeholder="Ej: 15000">
     </div>
-    <div class="fg" id="fgMontoFinde" style="display:${t?.area==='Teatro Colón'?'block':'none'}">
-      <label class="fl">Monto por jornada — Sáb/Dom ($)</label>
-      <input id="tmf" type="number" min="0" step="1" value="${t?.monto_finde||''}" placeholder="Ej: 18000">
+    <div id="avisoColon" style="display:${t?.area==='Teatro Colón'?'block':'none'}">
+      <div class="alert alert-info" style="padding:8px 12px;font-size:11.5px"><i class="ti ti-info-circle"></i> Para Teatro Colón, cargá una posición por cada duración de jornada, ej: "Boletero [Jornada 6 hs.]" y "Boletero [Jornada 8 hs.]".</div>
     </div>
     <div class="modal-f">
       <button class="btn" onclick="closeModal()">Cancelar</button>
@@ -759,18 +758,16 @@ window.modalTarifa = function(id) {
 
 window.toggleMontoFinde = function() {
   const area = $v('ta');
-  const fg = document.getElementById('fgMontoFinde');
+  const fg = document.getElementById('avisoColon');
   if (fg) fg.style.display = area === 'Teatro Colón' ? 'block' : 'none';
 };
 
 window.saveTarifa = async function(id) {
   const pos = $v('tp'), area = $v('ta'), monto = parseFloat($v('tm'));
-  const montoFindeRaw = $v('tmf');
-  const monto_finde = (area === 'Teatro Colón' && montoFindeRaw) ? parseFloat(montoFindeRaw) : null;
   if (!pos || isNaN(monto)) { alert('Completá posición y monto'); return; }
   loading(true);
-  if (id) { await sb.from('tarifario').update({ posicion:pos, area, monto, monto_finde }).eq('id', id); }
-  else    { await sb.from('tarifario').insert({ posicion:pos, area, monto, monto_finde }); }
+  if (id) { await sb.from('tarifario').update({ posicion:pos, area, monto }).eq('id', id); }
+  else    { await sb.from('tarifario').insert({ posicion:pos, area, monto }); }
   loading(false); closeModal(); toast('Posición guardada', 'ok'); await go('tarifario');
 };
 
@@ -2577,32 +2574,19 @@ async function extraerFilasPDF(arrayBuffer) {
 }
 
 // Parsea filas extraídas del PDF de Teatro Colón.
-// Estructura esperada por fila: Nº, Apellido, Nombre, CUIL, luego una celda 'P' por cada día presente
-// alineada bajo la columna de fecha correspondiente del encabezado.
+// Estructura esperada por fila: Nº, Apellido, Nombre, CUIL, luego una celda 'P' por cada día presente.
+// Solo se extrae el TOTAL de jornadas por persona — el desglose entre jornada de 6hs (Fábrica / Teatro
+// lun-sáb) y jornada de 8hs (Teatro domingo) no está estructurado en el PDF (va en comentarios sueltos),
+// así que se ajusta manualmente en la pantalla de verificación.
 function parsePlanillaFijaPDF(pdfRows, mesId, lugarId) {
-  // 1. Encontrar la fila de encabezado con las fechas (contiene "1/6","2/6", etc o nombres de día)
-  let headerIdx = -1, fechaCols = []; // [{x, fecha:Date}]
+  // 1. Encontrar la fila de encabezado con las fechas (contiene "1/6","2/6", etc), solo para ubicar dónde
+  // empiezan los datos — ya no se usa para clasificar día de semana.
+  let headerIdx = -1;
   for (let i = 0; i < pdfRows.length; i++) {
-    const row = pdfRows[i];
-    const fechasEnFila = row.filter(it => /^\d{1,2}\/\d{1,2}$/.test(it.text.trim()));
+    const fechasEnFila = pdfRows[i].filter(it => /^\d{1,2}\/\d{1,2}$/.test(it.text.trim()));
     if (fechasEnFila.length >= 10) { headerIdx = i; break; }
   }
   if (headerIdx === -1) { alert('No encontré las fechas en el PDF. Verificá el formato de la planilla.'); return; }
-
-  // Año del mes seleccionado (para construir fechas reales) — se extrae del nombre, ej "Junio 2026"
-  const meses = getMesesFijos();
-  const mes = meses.find(m => m.id === mesId);
-  const anioMatch = (mes?.nombre || '').match(/\b(20\d{2})\b/);
-  const anio = anioMatch ? parseInt(anioMatch[1]) : new Date().getFullYear();
-
-  pdfRows[headerIdx].forEach(it => {
-    const m = it.text.trim().match(/^(\d{1,2})\/(\d{1,2})$/);
-    if (m) {
-      const dia = parseInt(m[1]), mesNum = parseInt(m[2]);
-      fechaCols.push({ x: it.x, fecha: new Date(anio, mesNum - 1, dia) });
-    }
-  });
-  fechaCols.sort((a,b) => a.x - b.x);
 
   // 2. Procesar filas de datos: las que tienen un CUIL (11 dígitos) en alguna celda
   const personas = [];
@@ -2618,19 +2602,14 @@ function parsePlanillaFijaPDF(pdfRows, mesId, lugarId) {
     const apellido = textCells[0]?.text.trim() || '';
     const nombre = textCells.slice(1).map(it => it.text.trim()).join(' ');
 
-    // Celdas de marca de presencia (después del CUIL)
+    // Celdas de marca de presencia (después del CUIL) — se cuenta el total de "P", sin clasificar por fecha
     const marcas = row.slice(cuilIdx + 1);
-    let jornadas = 0, jornadasFinde = 0;
+    let jornadas = 0;
     marcas.forEach(it => {
       const txt = it.text.trim().toUpperCase();
-      if (!txt.startsWith('P')) return; // ignora notas tipo "[1]" sueltas, '-' etc. Solo cuenta si empieza con P
-      // Encontrar la columna de fecha más cercana en X
-      let closest = null, minDist = Infinity;
-      fechaCols.forEach(fc => { const d = Math.abs(fc.x - it.x); if (d < minDist) { minDist = d; closest = fc; } });
-      if (!closest || minDist > 15) return; // tolerancia de alineación
-      const dow = closest.fecha.getDay();
-      if (dow === 0 || dow === 6) jornadasFinde++; else jornadas++;
+      if (txt.startsWith('P')) jornadas++; // ignora notas tipo "[1]" sueltas, '-' etc.
     });
+    const jornadasFinde = 0; // arranca en 0: se ajusta manualmente según Fábrica/Teatro lun-sáb vs Teatro domingo
 
     if (!apellido) continue;
 
@@ -2815,14 +2794,14 @@ function mostrarVerificacionFija(personas, mesId, lugarId) {
     <div class="card" style="padding:0;overflow:hidden">
       <table><thead><tr>
         <th>Apellido y nombre</th><th>CUIL</th><th>Posición</th>
-        <th style="text-align:center">Jornadas L-V</th>${lugarId==='teatro-colon'?'<th style="text-align:center">Jornadas S/D</th>':''}<th style="text-align:right">Subtotal</th><th>Estado</th>
+        <th style="text-align:center">Jornadas 6 hs.</th>${lugarId==='teatro-colon'?'<th style="text-align:center">Jornadas 8 hs.</th>':''}<th style="text-align:right">Subtotal</th><th>Estado</th>
       </tr></thead>
       <tbody>${personas.map(p => {
-        // Para Colón, las opciones de posición son los nombres "base" (sin sufijo semana/finde)
+        // Para Colón, las opciones de posición son los nombres "base" (sin sufijo de duración de jornada)
         const posicionesBase = lugarId === 'teatro-colon'
           ? [...new Set(APP.tarifario
               .filter(t => t.area === 'Teatro Colón')
-              .map(t => t.posicion.replace(/\s*\[(Día de semana|Fin de semana)\]\s*$/i, '')))]
+              .map(t => t.posicion.replace(/\s*\[Jornada [68] hs\.\]\s*$/i, '')))]
           : APP.tarifario.map(t => t.posicion);
         // Si la persona no tiene posición asignada (nueva), usar la primera disponible como default
         const posicionEfectiva = p.posicion || posicionesBase[0] || '';
@@ -2843,7 +2822,7 @@ function mostrarVerificacionFija(personas, mesId, lugarId) {
         <td style="text-align:right;font-size:16px;font-weight:700;padding:10px;border-top:2px solid var(--border)" id="pf-total">
           ${fmt(personas.reduce((s,p) => {
             const posicionesBase2 = lugarId === 'teatro-colon'
-              ? [...new Set(APP.tarifario.filter(t => t.area === 'Teatro Colón').map(t => t.posicion.replace(/\s*\[(Día de semana|Fin de semana)\]\s*$/i, '')))]
+              ? [...new Set(APP.tarifario.filter(t => t.area === 'Teatro Colón').map(t => t.posicion.replace(/\s*\[Jornada [68] hs\.\]\s*$/i, '')))]
               : APP.tarifario.map(t => t.posicion);
             const posEf = p.posicion || posicionesBase2[0] || '';
             return s+calcSubtotalFijo(posEf, p.jornadas, p.jornadasFinde||0);
