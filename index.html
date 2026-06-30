@@ -3267,11 +3267,13 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
       </tr></tfoot>
       </table>
     </div>
-    <div class="modal-f"><button class="btn btn-primary" onclick="closeModal()">Cerrar</button></div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn btn-sm" onclick="closeModal();exportMesFijo('${mesId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
+    </div>
   </div>`);
 };
 
-// ── VISTA PREVIA LIQUIDACIÓN DEL MES ──
 window.previaMesFijo = function(mesId) {
   const mes = getMesesFijos().find(m => m.id === mesId);
   const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId);
