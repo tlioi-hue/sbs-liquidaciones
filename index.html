@@ -3284,20 +3284,24 @@ window.exportDetalleLugarFijo = function(mesId, lugarId) {
     const per = APP.personal.find(x => x.id === p.personaId);
     const liq = liqs.find(l => l.persona_id === p.personaId);
     const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
-    return {
+    const esColon = lugarId === 'teatro-colon';
+    const row = {
       'Apellido y nombre': per ? nombreExport(per.apellido, per.nombre) : normExport(`${p.apellido} ${p.nombre}`),
       'CUIL': per?.cuil || p.cuil || '',
       'CBU':  per?.cbu  || '',
-      'Alias': per?.alias || '',
-      'Lugar': normExport(lugar.nombre),
-      'Período': normExport(mes.nombre),
-      'Posición': normExport(p.posicion||''),
-      'Jornadas': (p.jornadas||0) + (p.jornadasFinde||0),
-      'Jornadas 6hs': lugarId === 'teatro-colon' ? (p.jornadas||0) : '',
-      'Jornadas 8hs': lugarId === 'teatro-colon' ? (p.jornadasFinde||0) : '',
-      'Total ($)': sub,
-      'Estado': liq ? liq.estado : 'sin liquidar',
     };
+    if (esColon) row['Alias'] = per?.alias || '';
+    row['Lugar']   = normExport(lugar.nombre);
+    row['Período'] = normExport(mes.nombre);
+    row['Posición'] = normExport(p.posicion||'');
+    if (esColon) {
+      row['Jornadas 6hs'] = p.jornadas||0;
+      row['Jornadas 8hs'] = p.jornadasFinde||0;
+    } else {
+      row['Jornadas'] = (p.jornadas||0) + (p.jornadasFinde||0);
+    }
+    row['Total ($)'] = sub;
+    return row;
   });
   const ws = XLSX.utils.json_to_sheet(rows);
   ws['!cols'] = [22,16,26,14,14,14,14,10,10,12,12].map(w => ({ wch:w }));
