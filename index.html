@@ -553,9 +553,17 @@ async function pgPersonal(el, ac) {
 }
 
 function renderPersonalUI(el) {
+  // Áreas únicas para el filtro, reemplazando "Servicios Fijos" por los lugares específicos
+  const areas = [...new Set(APP.personal.map(p =>
+    p.area === 'Servicios Fijos' ? (LUGARES_FIJOS.find(l => l.id === p.lugar_fijo)?.nombre || 'Servicios Fijos') : p.area
+  ))].sort();
   el.innerHTML = `
-    <div style="margin-bottom:13px;display:flex;gap:9px;align-items:center">
-      <input type="text" placeholder="Buscar nombre, CUIL, posición..." style="max-width:320px" oninput="filtrarP(this.value)">
+    <div style="margin-bottom:13px;display:flex;gap:9px;align-items:center;flex-wrap:wrap">
+      <input type="text" id="buscar-p" placeholder="Buscar nombre, CUIL, posición..." style="max-width:280px" oninput="filtrarP()">
+      <select id="filtro-area-p" onchange="filtrarP()" style="font-size:12.5px;padding:5px 9px">
+        <option value="">Todas las áreas</option>
+        ${areas.map(a => `<option value="${a}">${a}</option>`).join('')}
+      </select>
       <span style="font-size:12px;color:var(--text2)">${APP.personal.length} registros</span>
     </div>
     <div id="personal-bulk-bar"></div>
@@ -563,9 +571,19 @@ function renderPersonalUI(el) {
   renderTablaP(APP.personal);
 }
 
-window.filtrarP = q => renderTablaP(APP.personal.filter(p =>
-  !q || (p.apellido+' '+p.nombre+(p.cuil||'')+(p.posicion||'')).toLowerCase().includes(q.toLowerCase())
-));
+window.filtrarP = function() {
+  const q = document.getElementById('buscar-p')?.value || '';
+  const areaFiltro = document.getElementById('filtro-area-p')?.value || '';
+  const lista = APP.personal.filter(p => {
+    const areaMostrada = p.area === 'Servicios Fijos'
+      ? (LUGARES_FIJOS.find(l => l.id === p.lugar_fijo)?.nombre || 'Servicios Fijos')
+      : p.area;
+    const matchQ = !q || (p.apellido+' '+p.nombre+(p.cuil||'')+(p.posicion||'')).toLowerCase().includes(q.toLowerCase());
+    const matchA = !areaFiltro || areaMostrada === areaFiltro;
+    return matchQ && matchA;
+  });
+  renderTablaP(lista);
+};
 
 let selPersonal = new Set();
 
@@ -627,7 +645,12 @@ function renderTablaP(lista) {
     <td><input type="checkbox" class="chk chk-p" data-id="${p.id}" ${selPersonal.has(p.id)?'checked':''} onchange="toggleSelPersona('${p.id}',this.checked)"></td>
     <td><strong>${p.apellido}, ${p.nombre}</strong></td>
     <td style="font-family:monospace;font-size:11.5px">${p.cuil||'—'}</td>
-    <td><span class="chip ${chipClaseArea(p.area)}">${p.area}</span></td>
+    <td>${(() => {
+      const areaMostrada = p.area === 'Servicios Fijos'
+        ? (LUGARES_FIJOS.find(l => l.id === p.lugar_fijo)?.nombre || 'Servicios Fijos')
+        : p.area;
+      return `<span class="chip ${chipClaseArea(areaMostrada)}">${areaMostrada}</span>`;
+    })()}</td>
     <td>${p.posicion||'—'}</td>
     <td style="font-family:monospace;font-size:11.5px">${p.cbu?p.cbu.slice(0,6)+'···'+p.cbu.slice(-4):'—'}</td>
     <td><span class="badge ${p.activo!==false?'bs':'bg'}">${p.activo!==false?'activo':'inactivo'}</span></td>
