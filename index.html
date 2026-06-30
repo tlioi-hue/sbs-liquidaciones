@@ -2556,10 +2556,10 @@ async function pgFijos(el, ac) {
 
   el.innerHTML = `
     <div class="grid4" style="margin-bottom:18px">
-      <div class="metric"><div class="metric-l">Lugares</div><div class="metric-v">3</div><div class="metric-s">Ecoparque · Teatro Colón · Campo de Polo</div></div>
-      <div class="metric"><div class="metric-l">Personal fijo</div><div class="metric-v">${APP.personal.filter(p=>p.area==='Servicios Fijos').length}</div></div>
-      <div class="metric"><div class="metric-l">Meses registrados</div><div class="metric-v">${meses.length}</div></div>
-      <div class="metric"><div class="metric-l">Total liquidado</div><div class="metric-v" style="font-size:17px">${fmt(totalLiq)}</div></div>
+      <div class="metric"><div class="metric-l">Ecoparque</div><div class="metric-v" style="font-size:17px">${fmt(APP.liquidaciones.filter(l=>l.area==='Servicios Fijos'&&l.lugar_fijo==='ecoparque').reduce((s,l)=>s+(l.total||0),0))}</div><div class="metric-s">Total liquidado</div></div>
+      <div class="metric"><div class="metric-l">Teatro Colón</div><div class="metric-v" style="font-size:17px">${fmt(APP.liquidaciones.filter(l=>l.area==='Servicios Fijos'&&l.lugar_fijo==='teatro-colon').reduce((s,l)=>s+(l.total||0),0))}</div><div class="metric-s">Total liquidado</div></div>
+      <div class="metric"><div class="metric-l">Campo de Polo</div><div class="metric-v" style="font-size:17px">${fmt(APP.liquidaciones.filter(l=>l.area==='Servicios Fijos'&&l.lugar_fijo==='campo-de-polo').reduce((s,l)=>s+(l.total||0),0))}</div><div class="metric-s">Total liquidado</div></div>
+      <div class="metric"><div class="metric-l">Total general</div><div class="metric-v" style="font-size:17px">${fmt(totalLiq)}</div><div class="metric-s">${meses.length} mes${meses.length!==1?'es':''} · ${APP.personal.filter(p=>p.area==='Servicios Fijos').length} personas</div></div>
     </div>
     ${!meses.length
       ? '<div class="empty-state"><i class="ti ti-calendar-off"></i><p>Sin meses. Creá el primero.</p></div>'
@@ -2567,6 +2567,8 @@ async function pgFijos(el, ac) {
 }
 
 function renderMesFijo(mes, isRRHH) {
+  const liqFijosTodas = APP.liquidaciones.filter(l => l.area === 'Servicios Fijos');
+  if (liqFijosTodas.length) console.log('DEBUG mes.id:', JSON.stringify(mes.id), 'liq mes_ids:', liqFijosTodas.map(l=>JSON.stringify(l.mes_id)));
   const liqMes = APP.liquidaciones.filter(l => l.area === 'Servicios Fijos' && l.mes_id === mes.id);
   const totalMes = liqMes.reduce((s,l) => s+(l.total||0), 0);
 
@@ -2601,17 +2603,17 @@ function renderMesFijo(mes, isRRHH) {
           <span class="pill">${pres.reduce((s,p)=>s+(p.jornadas||0),0)} jornadas</span>
           <span class="fb ${liqL.length?'fb-c':'fb-o'}">${liqL.length?'liquidado':'sin liquidar'}</span>
           <div style="display:flex;gap:5px;flex-shrink:0">
-            ${isRRHH ? `<button class="btn btn-sm" onclick="importarPlanillaFija('${mes.id}','${l.id}')"><i class="ti ti-file-upload"></i></button>` : ''}
+            ${!mes.cerrado && isRRHH ? `<button class="btn btn-sm" onclick="importarPlanillaFija('${mes.id}','${l.id}')"><i class="ti ti-file-upload"></i></button>` : ''}
             ${pres.length ? `<button class="btn btn-sm" onclick="verDetalleLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-eye"></i></button>` : ''}
-            ${pres.length && !liqL.length && isRRHH ? `<button class="btn btn-sm btn-success" onclick="liquidarLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
+            ${pres.length && !liqL.length && !mes.cerrado && isRRHH ? `<button class="btn btn-sm btn-success" onclick="liquidarLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
           </div>
         </div>`;
       }).join('')}
     </div>
     <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center">
       ${totalMes ? `<button class="btn btn-sm" onclick="exportMesFijo('${mes.id}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>` : ''}
-      ${totalMes && isRRHH ? `<button class="btn btn-sm" onclick="previaMesFijo('${mes.id}')"><i class="ti ti-eye"></i> Vista previa liquidación</button>` : ''}
-      ${totalMes && isRRHH ? `<button class="btn btn-sm btn-success" onclick="cerrarMesFijo('${mes.id}')"><i class="ti ti-lock"></i> Cerrar mes definitivamente</button>` : ''}
+      ${totalMes && !mes.cerrado && isRRHH ? `<button class="btn btn-sm" onclick="previaMesFijo('${mes.id}')"><i class="ti ti-eye"></i> Vista previa liquidación</button>` : ''}
+      ${totalMes && !mes.cerrado && isRRHH ? `<button class="btn btn-sm btn-success" onclick="cerrarMesFijo('${mes.id}')"><i class="ti ti-lock"></i> Cerrar mes definitivamente</button>` : ''}
     </div>
   </div>`;
 }
@@ -3264,7 +3266,9 @@ window.editarMontoDetalle = async function(liqId, fechaIdx, nuevoMonto) {
 
 window.confirmarLiqFijoDirecto = async function(rows) {
   loading(true);
-  await sb.from('liquidaciones').insert(rows);
+  const { data, error } = await sb.from('liquidaciones').insert(rows).select();
+  if (error) { loading(false); alert('Error al guardar: ' + error.message); return; }
+  console.log('Liquidaciones insertadas:', data?.length, data?.[0]);
   await fetchAll();
   loading(false);
   closeModal();
