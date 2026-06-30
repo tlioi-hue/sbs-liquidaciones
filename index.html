@@ -1055,12 +1055,13 @@ window.verLiqsEv = function(evId) {
   showModal(`<div class="modal modal-lg">
     <div class="modal-t">Liquidaciones — ${ev.nombre}</div>
     <div class="modal-s">${fmt(liqs.reduce((s,l)=>s+(l.total||0),0))} total · ${liqs.length} liquidaciones</div>
-    <table><thead><tr><th>Fecha</th><th>Persona</th><th>Posición</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+    <table><thead><tr><th>Fecha</th><th>Persona</th><th>Posición</th><th style="text-align:center">Jornadas</th><th>Total ($)</th><th>Estado</th><th></th></tr></thead>
     <tbody>${liqs.map(l => `<tr>
       <td style="font-size:11.5px">${l.periodo}</td>
       <td><strong>${l.persona_nombre}</strong></td>
       <td style="font-size:11.5px">${l.posicion||'—'}</td>
-      <td style="font-weight:600">${fmt(l.total)}</td>
+      <td style="text-align:center"><input type="number" value="${l.jornadas||1}" min="0" style="width:55px;text-align:center" onchange="editarLiquidacion('${l.id}','jornadas',this.value)"></td>
+      <td><input type="number" id="liq-total-${l.id}" value="${l.total||0}" min="0" style="width:100px;font-weight:600" onchange="editarLiquidacion('${l.id}','total',this.value)"></td>
       <td><span class="badge ${l.estado==='pagado'?'bs':l.estado==='aprobado'?'bi':'bw'}">${l.estado}</span></td>
       <td style="display:flex;gap:4px">
         ${APP.rol==='rrhh' && l.estado==='pendiente' ? `<button class="btn btn-sm" onclick="aprobar('${l.id}')"><i class="ti ti-check"></i></button>` : ''}
@@ -1598,14 +1599,14 @@ window.verLiqsQ = function(qId) {
   showModal(`<div class="modal modal-lg">
     <div class="modal-t">Liquidaciones — ${q.nombre}</div>
     <div class="modal-s">${fmt(liqs.reduce((s,l)=>s+(l.total||0),0))} · ${liqs.length} personas</div>
-    <table><thead><tr><th>Persona</th><th>CUIL</th><th style="text-align:center">Jornadas</th><th>Total</th><th>Estado</th><th></th></tr></thead>
+    <table><thead><tr><th>Persona</th><th>CUIL</th><th style="text-align:center">Jornadas</th><th>Total ($)</th><th>Estado</th><th></th></tr></thead>
     <tbody>${liqs.map(l => {
       const p = APP.personal.find(x => x.id === l.persona_id);
       return `<tr>
         <td><strong>${l.persona_nombre}</strong></td>
         <td style="font-family:monospace;font-size:11.5px">${p?.cuil||'—'}</td>
-        <td style="text-align:center">${l.jornadas}</td>
-        <td style="font-weight:600">${fmt(l.total)}</td>
+        <td style="text-align:center"><input type="number" value="${l.jornadas||0}" min="0" style="width:55px;text-align:center" onchange="editarLiquidacion('${l.id}','jornadas',this.value)"></td>
+        <td><input type="number" id="liq-total-${l.id}" value="${l.total||0}" min="0" style="width:110px;font-weight:600" onchange="editarLiquidacion('${l.id}','total',this.value)"></td>
         <td><span class="badge ${l.estado==='pagado'?'bs':l.estado==='aprobado'?'bi':'bw'}">${l.estado}</span></td>
         <td style="display:flex;gap:4px">
           ${APP.rol==='rrhh' && l.estado==='pendiente' ? `<button class="btn btn-sm" onclick="aprobar('${l.id}')"><i class="ti ti-check"></i></button>` : ''}
@@ -1634,15 +1635,15 @@ window.detalleLiqQ = function(id) {
       ${p?.alias ? `<div>Alias: <strong>${p.alias}</strong></div>` : ''}
     </div>
     ${l.detalle && l.detalle.length ? `
-      <div style="font-size:10.5px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Detalle de jornadas</div>
-      ${l.detalle.map(d => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px">
+      <div style="font-size:10.5px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Detalle de jornadas <span style="font-weight:400;font-size:10px">(editá el monto de cada jornada si necesitás ajustar)</span></div>
+      ${l.detalle.map((d,i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px">
         <span style="color:var(--text2)">${fd(d.fecha)} · ${d.ev_nombre||d.evNombre||''}</span>
         <span>${d.posicion}</span>
-        <span style="font-weight:500">${fmt(d.monto)}</span>
+        <input type="number" value="${d.monto||0}" min="0" style="width:100px;font-weight:500;text-align:right" onchange="editarMontoDetalle('${l.id}',${i},this.value)">
       </div>`).join('')}` : ''}
     <div style="display:flex;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);margin-top:4px">
       <span style="font-weight:600">Total</span>
-      <span style="font-size:18px;font-weight:700">${fmt(l.total)}</span>
+      <span id="liq-total-${l.id}" style="font-size:18px;font-weight:700">${fmt(l.total)}</span>
     </div>
     <div class="modal-f"><button class="btn" onclick="closeModal()">Cerrar</button></div>
   </div>`);
@@ -3224,10 +3225,61 @@ window.liquidarLugarFijo = async function(mesId, lugarId) {
   </div>`);
 };
 
+window.editarLiquidacion = async function(liqId, campo, valor) {
+  const num = parseFloat(String(valor).replace(/[^0-9.,-]/g,'').replace(',','.'));
+  if (isNaN(num)) return;
+  const upd = { [campo]: num };
+  // Si se edita jornadas o total individualmente, guardar como está
+  // Si se editan jornadas, recalcular total usando valor_jornada guardado
+  if (campo === 'jornadas') {
+    const liq = APP.liquidaciones.find(l => l.id === liqId);
+    if (liq) upd.total = num * (liq.valor_jornada || 0);
+  }
+  await sb.from('liquidaciones').update(upd).eq('id', liqId);
+  // Actualizar en memoria
+  const idx = APP.liquidaciones.findIndex(l => l.id === liqId);
+  if (idx >= 0) { APP.liquidaciones[idx] = { ...APP.liquidaciones[idx], ...upd }; }
+  // Actualizar el total mostrado si cambió por recálculo
+  if (campo === 'jornadas') {
+    const totalEl = document.getElementById(`liq-total-${liqId}`);
+    if (totalEl) totalEl.value = APP.liquidaciones[idx]?.total || 0;
+  }
+  toast('Guardado', 'ok');
+};
+
+window.editarMontoDetalle = async function(liqId, fechaIdx, nuevoMonto) {
+  const liq = APP.liquidaciones.find(l => l.id === liqId); if (!liq) return;
+  const num = parseFloat(String(nuevoMonto).replace(/[^0-9.,-]/g,'').replace(',','.'));
+  if (isNaN(num)) return;
+  const detalle = [...(liq.detalle||[])];
+  detalle[fechaIdx] = { ...detalle[fechaIdx], monto: num };
+  const nuevoTotal = detalle.reduce((s,d) => s+(d.monto||0), 0);
+  await sb.from('liquidaciones').update({ detalle, total: nuevoTotal }).eq('id', liqId);
+  const idx = APP.liquidaciones.findIndex(l => l.id === liqId);
+  if (idx >= 0) APP.liquidaciones[idx] = { ...APP.liquidaciones[idx], detalle, total: nuevoTotal };
+  const totalEl = document.getElementById(`liq-total-${liqId}`);
+  if (totalEl) totalEl.textContent = fmt(nuevoTotal);
+  toast('Guardado', 'ok');
+};
+
 window.confirmarLiqFijoDirecto = async function(rows) {
   loading(true);
   await sb.from('liquidaciones').insert(rows);
-  loading(false); closeModal(); toast('Liquidaciones generadas', 'ok'); await go('fijos');
+  await fetchAll();
+  loading(false);
+  closeModal();
+  toast('Liquidaciones generadas', 'ok');
+  // Ofrecer descarga del Excel inmediatamente
+  const mesId = rows[0]?.mes_id;
+  const lugarId = rows[0]?.lugar_fijo;
+  if (mesId && lugarId) {
+    setTimeout(() => {
+      if (confirm('¿Querés descargar el Excel de la liquidación ahora?')) {
+        exportDetalleLugarFijo(mesId, lugarId);
+      }
+    }, 300);
+  }
+  await go('fijos');
 };
 
 window.verLiqs = function(mesId, lugarId) {
@@ -3279,9 +3331,9 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
           <td style="padding:6px 10px"><strong>${p.apellido}, ${p.nombre}</strong></td>
           <td style="padding:6px 10px;font-family:monospace;font-size:11px">${p.cuil||'—'}</td>
           <td style="padding:6px 10px">${p.posicion||'—'}</td>
-          <td style="padding:6px 10px;text-align:center">${p.jornadas||0}</td>
+          <td style="padding:6px 10px;text-align:center">${liq ? `<input type="number" value="${liq.jornadas||0}" min="0" style="width:55px;text-align:center" onchange="editarLiquidacion('${liq.id}','jornadas',this.value)">` : (p.jornadas||0)}</td>
           ${lugarId==='teatro-colon'?`<td style="padding:6px 10px;text-align:center">${p.jornadasFinde||0}</td>`:''}
-          <td style="padding:6px 10px;text-align:right;font-weight:600">${fmt(sub)}</td>
+          <td style="padding:6px 10px;text-align:right;font-weight:600">${liq ? `<input type="number" id="liq-total-${liq.id}" value="${sub}" min="0" style="width:110px;font-weight:600;text-align:right" onchange="editarLiquidacion('${liq.id}','total',this.value)">` : fmt(sub)}</td>
         </tr>`;
       }).join('')}
       </tbody><tfoot><tr style="border-top:2px solid var(--border);font-weight:700">
