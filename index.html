@@ -713,7 +713,7 @@ async function pgTarifario(el, ac) {
     ${!APP.tarifario.length
       ? '<div class="empty-state"><i class="ti ti-list-check"></i><p>Sin posiciones.</p></div>'
       : `<table><thead><tr><th>Posición</th><th>Área</th><th>$/jornada</th><th>Actualizado</th><th></th></tr></thead>
-        <tbody>${[...APP.tarifario].sort((a,b) => a.area.localeCompare(b.area) || a.posicion.localeCompare(b.posicion)).map(t => `<tr>
+        <tbody>${[...APP.tarifario].sort((a,b) => a.area.localeCompare(b.area) || (a.monto||0) - (b.monto||0)).map(t => `<tr>
           <td><strong>${t.posicion}</strong></td>
           <td><span class="chip ${chipClaseArea(t.area)}">${t.area}</span></td>
           <td style="font-weight:600">${fmt(t.monto)}${t.monto_finde ? `<br><span style="font-size:11px;font-weight:400;color:var(--text2)">finde: ${fmt(t.monto_finde)}</span>` : ''}</td>
