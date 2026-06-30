@@ -2567,8 +2567,6 @@ async function pgFijos(el, ac) {
 }
 
 function renderMesFijo(mes, isRRHH) {
-  const liqFijosTodas = APP.liquidaciones.filter(l => l.area === 'Servicios Fijos');
-  if (liqFijosTodas.length) console.log('DEBUG mes.id:', JSON.stringify(mes.id), 'liq mes_ids:', liqFijosTodas.map(l=>JSON.stringify(l.mes_id)));
   const liqMes = APP.liquidaciones.filter(l => l.area === 'Servicios Fijos' && l.mes_id === mes.id);
   const totalMes = liqMes.reduce((s,l) => s+(l.total||0), 0);
 
@@ -2603,7 +2601,7 @@ function renderMesFijo(mes, isRRHH) {
           <span class="pill">${pres.reduce((s,p)=>s+(p.jornadas||0),0)} jornadas</span>
           <span class="fb ${liqL.length?'fb-c':'fb-o'}">${liqL.length?'liquidado':'sin liquidar'}</span>
           <div style="display:flex;gap:5px;flex-shrink:0">
-            ${!mes.cerrado && isRRHH ? `<button class="btn btn-sm" onclick="importarPlanillaFija('${mes.id}','${l.id}')"><i class="ti ti-file-upload"></i></button>` : ''}
+            ${!mes.cerrado && !liqL.length && isRRHH ? `<button class="btn btn-sm" onclick="importarPlanillaFija('${mes.id}','${l.id}')"><i class="ti ti-file-upload"></i></button>` : ''}
             ${pres.length ? `<button class="btn btn-sm" onclick="verDetalleLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-eye"></i></button>` : ''}
             ${pres.length && !liqL.length && !mes.cerrado && isRRHH ? `<button class="btn btn-sm btn-success" onclick="liquidarLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
           </div>
