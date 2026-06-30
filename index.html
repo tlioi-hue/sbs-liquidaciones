@@ -2835,9 +2835,55 @@ function parsePlanillaFijaPDF_SinCuil(pdfRows, mesId, lugarId) {
   mostrarVerificacionFija(personas, mesId, lugarId);
 }
 
+// Parsea filas extraídas del PDF de Campo de Polo. Formato: Apellido y Nombre, CUIL (11 dígitos),
+// FUNCION, y luego una celda con monto en pesos (ej: "$32,614") por cada jornada presente.
+// No usa "P" como marca — la presencia se indica con el monto de esa jornada.
+function parsePlanillaFijaPDF_Polo(pdfRows, mesId, lugarId) {
+  const personas = [];
+  for (let i = 0; i < pdfRows.length; i++) {
+    const row = pdfRows[i];
+    const cuilItem = row.find(it => /^\d{11}$/.test(it.text.replace(/\D/g,'')) && it.text.replace(/\D/g,'').length === 11);
+    if (!cuilItem) continue; // las filas de datos en este formato siempre tienen CUIL
+    const cuil = cuilItem.text.replace(/\D/g,'');
+    const cuilIdx = row.indexOf(cuilItem);
+
+    // Antes del CUIL: "Apellido Nombre" en una sola celda de texto
+    const apellidoNombre = (row[cuilIdx - 1]?.text || '').trim();
+    const partes = apellidoNombre.split(/\s+/);
+    const apellido = partes[0] || '';
+    const nombre = partes.slice(1).join(' ');
+    if (!apellido) continue;
+
+    // Después del CUIL: la celda de FUNCION (texto), luego las marcas de monto ($X,XXX) por jornada
+    const funcion = (row[cuilIdx + 1]?.text || '').trim();
+
+    // Contar jornadas: cualquier celda con formato de monto en pesos ($N,NNN o similar)
+    const marcas = row.slice(cuilIdx + 2);
+    let jornadas = 0;
+    marcas.forEach(it => {
+      const txt = it.text.trim();
+      if (/^\$[\d.,]+$/.test(txt)) jornadas++;
+    });
+
+    const per = APP.personal.find(p =>
+      (p.cuil && p.cuil.replace(/\D/g,'') === cuil) ||
+      p.apellido.toLowerCase() === apellido.toLowerCase()
+    );
+
+    personas.push({
+      _id: uid(), apellido, nombre, cuil, posicion: per?.posicion || '',
+      jornadas, jornadasFinde: 0, existeId: per?.id || null, esNuevo: !per
+    });
+  }
+
+  if (!personas.length) { alert('No encontré personas con CUIL válido en el PDF.'); return; }
+  mostrarVerificacionFija(personas, mesId, lugarId);
+}
+
 // Router: decide qué parser de PDF usar según el lugar
 function parsePlanillaFijaPDF(pdfRows, mesId, lugarId) {
   if (lugarId === 'teatro-colon') return parsePlanillaFijaPDF_Colon(pdfRows, mesId, lugarId);
+  if (lugarId === 'campo-de-polo') return parsePlanillaFijaPDF_Polo(pdfRows, mesId, lugarId);
   return parsePlanillaFijaPDF_SinCuil(pdfRows, mesId, lugarId);
 }
 
@@ -2958,7 +3004,9 @@ function parsePlanillaFija(rows, mesId, lugarId) {
       const v = row[j];
       if (v === null || v === undefined || v === '') continue;
       const str = String(v).trim().toUpperCase();
-      const esFinde = !!finde[j];
+      // Solo Teatro Colón separa jornadas de semana/finde (tarifa diferencial). Los demás lugares
+      // (Ecoparque, Campo de Polo) cuentan todo como una sola jornada, sin distinción de día.
+      const esFinde = lugarId === 'teatro-colon' && !!finde[j];
       if (str === 'P') { if (esFinde) jornadasFinde++; else jornadas++; continue; }
       if (str === '-' || str === 'A') continue;
       const num = parseFloat(String(v).replace(',', '.'));
