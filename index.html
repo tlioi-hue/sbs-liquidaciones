@@ -2807,14 +2807,16 @@ function mostrarVerificacionFija(personas, mesId, lugarId) {
         <th style="text-align:center">Jornadas L-V</th>${lugarId==='teatro-colon'?'<th style="text-align:center">Jornadas S/D</th>':''}<th style="text-align:right">Subtotal</th><th>Estado</th>
       </tr></thead>
       <tbody>${personas.map(p => {
-        const subtotal = calcSubtotalFijo(p.posicion, p.jornadas, p.jornadasFinde||0);
         // Para Colón, las opciones de posición son los nombres "base" (sin sufijo semana/finde)
         const posicionesBase = lugarId === 'teatro-colon'
           ? [...new Set(APP.tarifario
               .filter(t => t.area === 'Teatro Colón')
               .map(t => t.posicion.replace(/\s*\[(Día de semana|Fin de semana)\]\s*$/i, '')))]
           : APP.tarifario.map(t => t.posicion);
-        const allPosOpts = posicionesBase.map(pb => `<option value="${pb}" ${pb===p.posicion?'selected':''}>${pb}</option>`).join('');
+        // Si la persona no tiene posición asignada (nueva), usar la primera disponible como default
+        const posicionEfectiva = p.posicion || posicionesBase[0] || '';
+        const subtotal = calcSubtotalFijo(posicionEfectiva, p.jornadas, p.jornadasFinde||0);
+        const allPosOpts = posicionesBase.map(pb => `<option value="${pb}" ${pb===posicionEfectiva?'selected':''}>${pb}</option>`).join('');
         return `<tr id="pfrow-${p._id}">
           <td><strong>${p.apellido}, ${p.nombre}</strong></td>
           <td style="font-family:monospace;font-size:11.5px">${p.cuil||'—'}</td>
@@ -2828,7 +2830,13 @@ function mostrarVerificacionFija(personas, mesId, lugarId) {
       <tfoot><tr>
         <td colspan="${lugarId==='teatro-colon'?5:4}" style="font-weight:600;padding:10px;border-top:2px solid var(--border)">Total estimado</td>
         <td style="text-align:right;font-size:16px;font-weight:700;padding:10px;border-top:2px solid var(--border)" id="pf-total">
-          ${fmt(personas.reduce((s,p) => s+calcSubtotalFijo(p.posicion, p.jornadas, p.jornadasFinde||0), 0))}
+          ${fmt(personas.reduce((s,p) => {
+            const posicionesBase2 = lugarId === 'teatro-colon'
+              ? [...new Set(APP.tarifario.filter(t => t.area === 'Teatro Colón').map(t => t.posicion.replace(/\s*\[(Día de semana|Fin de semana)\]\s*$/i, '')))]
+              : APP.tarifario.map(t => t.posicion);
+            const posEf = p.posicion || posicionesBase2[0] || '';
+            return s+calcSubtotalFijo(posEf, p.jornadas, p.jornadasFinde||0);
+          }, 0))}
         </td>
         <td style="border-top:2px solid var(--border)"></td>
       </tr></tfoot>
