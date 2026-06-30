@@ -433,7 +433,16 @@ async function fetchAll() {
 // ── helpers de acceso local (post-fetch) ──
 function getEvento(id)   { return APP.eventos.find(e => e.id === id); }
 function getPersona(id)  { return APP.personal.find(p => p.id === id); }
-function getTarifa(pos)  { return APP.tarifario.find(t => t.posicion === pos); }
+// Busca tarifa por nombre de posición. Si se pasa `area`, prioriza coincidencias de esa área
+// (o "General") para evitar cruces cuando el mismo nombre de posición existe en varias áreas
+// (ej: "Supervisor" en Ecoparque y en Movistar Arena con montos distintos).
+function getTarifa(pos, area) {
+  if (area) {
+    const enArea = APP.tarifario.find(t => t.posicion === pos && (t.area === area || t.area === 'General'));
+    if (enArea) return enArea;
+  }
+  return APP.tarifario.find(t => t.posicion === pos);
+}
 function chipClaseArea(area) {
   if (area === 'Externos') return 'chip-ext';
   if (area === 'Movistar Arena') return 'chip-arena';
@@ -792,7 +801,7 @@ async function pgExternos(el, ac) {
     (ev.fechas||[]).forEach(f => {
       const yaLiq = liqsF(ev.id, f.id).map(l => l.persona_id);
       (f.presentismo||[]).filter(p => !yaLiq.includes(p.persona_id)).forEach(p => {
-        const t = getTarifa(p.posicion);
+        const t = getTarifa(p.posicion, 'Externos');
         montoALiquidar += t?.monto || 0;
       });
     });
@@ -958,7 +967,7 @@ window.liquidarFechaExt = async function(evId, fechaId) {
   const rows = [], sinTarifa = [];
   sinLiq.forEach(p => {
     const per = APP.personal.find(x => x.id === p.persona_id);
-    const t   = getTarifa(p.posicion);
+    const t   = getTarifa(p.posicion, 'Externos');
     if (per && t) rows.push({
       persona_id: per.id, persona_nombre:`${per.apellido}, ${per.nombre}`,
       evento_id: evId, fecha_id: fechaId, area:'Externos', posicion: p.posicion,
@@ -1036,7 +1045,7 @@ async function pgArena(el, ac) {
     APP.eventos.filter(e => e.area === 'Movistar Arena' && e.quincena_id === q.id).forEach(ev => {
       (ev.fechas||[]).forEach(f => {
         (f.presentismo||[]).forEach(p => {
-          const t = getTarifa(p.posicion);
+          const t = getTarifa(p.posicion, 'Movistar Arena');
           montoALiquidar += t?.monto || 0;
         });
       });
@@ -1046,7 +1055,9 @@ async function pgArena(el, ac) {
   // Total liquidado = solo quincenas cerradas
   const totalLiquidado = liqArena.reduce((s,l) => s+(l.total||0), 0);
 
-  if (isRRHH) ac.innerHTML = `<button class="btn btn-primary" onclick="modalNuevaQ()"><i class="ti ti-plus"></i> Nueva quincena</button>`;
+  if (isRRHH) ac.innerHTML = `
+    <button class="btn" onclick="diagnosticarLiqArena()"><i class="ti ti-search"></i> Revisar montos</button>
+    <button class="btn btn-primary" onclick="modalNuevaQ()"><i class="ti ti-plus"></i> Nueva quincena</button>`;
 
   el.innerHTML = `
     <div class="grid4" style="margin-bottom:18px">
@@ -1061,6 +1072,93 @@ async function pgArena(el, ac) {
       ? '<div class="empty-state"><i class="ti ti-calendar-off"></i><p>Sin quincenas.</p></div>'
       : APP.quincenas.map(q => renderQCard(q, isRRHH)).join('')}`;
 }
+
+// ── DIAGNÓSTICO: liquidaciones de Arena con monto cruzado de otra área (bug histórico) ──
+// Las liquidaciones de Arena guardan el detalle por jornada en el campo `detalle` (JSONB),
+// cada línea con su propia posición y monto. Hay que recalcular cada línea individualmente.
+window.diagnosticarLiqArena = async function() {
+  await fetchAll();
+  const liqArena = APP.liquidaciones.filter(l => l.area === 'Movistar Arena');
+  const correcciones = []; // [{ id, detalleCorregido, totalCorregido, lineasAfectadas:[{persona,posicion,actual,correcto}] }]
+
+  liqArena.forEach(l => {
+    const detalle = l.detalle || [];
+    if (!detalle.length) return;
+    let cambio = false;
+    const lineasAfectadas = [];
+    const detalleCorregido = detalle.map(linea => {
+      const tarCorrecta = getTarifa(linea.posicion, 'Movistar Arena');
+      if (!tarCorrecta) return linea; // sin tarifa en Arena para esa posición, no se toca
+      const montoCorrecto = tarCorrecta.monto;
+      if ((linea.monto||0) !== montoCorrecto) {
+        cambio = true;
+        lineasAfectadas.push({ posicion: linea.posicion, actual: linea.monto||0, correcto: montoCorrecto });
+        return { ...linea, monto: montoCorrecto, sin_tarifa: false };
+      }
+      return linea;
+    });
+    if (cambio) {
+      const totalCorregido = detalleCorregido.reduce((s,x) => s + (x.monto||0), 0);
+      correcciones.push({
+        id: l.id, persona_nombre: l.persona_nombre, periodo: l.periodo, estado: l.estado,
+        totalActual: l.total||0, totalCorregido, detalleCorregido, lineasAfectadas
+      });
+    }
+  });
+
+  if (!correcciones.length) {
+    showModal(`<div class="modal"><div class="modal-t">Revisión de montos — Movistar Arena</div>
+      <div class="modal-s">No se encontraron diferencias. Todas las liquidaciones de Arena tienen el monto correcto según el tarifario actual.</div>
+      <div class="modal-f"><button class="btn btn-primary" onclick="closeModal()">Cerrar</button></div>
+    </div>`);
+    return;
+  }
+
+  const totalDiferencia = correcciones.reduce((s,c) => s + (c.totalCorregido - c.totalActual), 0);
+  showModal(`<div class="modal modal-lg">
+    <div class="modal-t">Revisión de montos — Movistar Arena</div>
+    <div class="modal-s">${correcciones.length} liquidación${correcciones.length>1?'es':''} con al menos una jornada cruzada con otra área (Orientador/Supervisor compartidos con Ecoparque).</div>
+    <div style="max-height:320px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px">
+      <table style="width:100%"><thead><tr style="font-size:11px;color:var(--text2)">
+        <th style="text-align:left;padding:6px 10px">Persona</th><th style="text-align:left;padding:6px 10px">Período</th>
+        <th style="text-align:left;padding:6px 10px">Jornadas afectadas</th>
+        <th style="text-align:right;padding:6px 10px">Actual</th><th style="text-align:right;padding:6px 10px">Correcto</th>
+        <th style="text-align:left;padding:6px 10px">Estado</th>
+      </tr></thead><tbody>
+      ${correcciones.map(c => `<tr style="font-size:12px;border-top:1px solid var(--border)">
+        <td style="padding:6px 10px">${c.persona_nombre}</td>
+        <td style="padding:6px 10px">${c.periodo||'—'}</td>
+        <td style="padding:6px 10px">${c.lineasAfectadas.map(la=>`${la.posicion} (${fmt(la.actual)}→${fmt(la.correcto)})`).join(', ')}</td>
+        <td style="padding:6px 10px;text-align:right;color:var(--orange)">${fmt(c.totalActual)}</td>
+        <td style="padding:6px 10px;text-align:right;color:var(--green);font-weight:600">${fmt(c.totalCorregido)}</td>
+        <td style="padding:6px 10px"><span class="badge ${c.estado==='pendiente'?'bw':'bs'}" style="font-size:10px">${c.estado}</span></td>
+      </tr>`).join('')}
+      </tbody></table>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:10px;background:var(--bg3);border-radius:var(--radius);margin-bottom:4px">
+      <span style="font-weight:500">Diferencia total a favor de corrección</span>
+      <span style="font-size:16px;font-weight:700">${fmt(totalDiferencia)}</span>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-success" onclick="corregirLiqArena(${JSON.stringify(correcciones.map(c=>({id:c.id, detalle:c.detalleCorregido, total:c.totalCorregido}))).replace(/"/g,'&quot;')})">
+        <i class="ti ti-check"></i> Corregir ${correcciones.length} liquidación${correcciones.length>1?'es':''}
+      </button>
+    </div>
+  </div>`);
+};
+
+window.corregirLiqArena = async function(correcciones) {
+  if (!confirm(`Vas a actualizar ${correcciones.length} liquidaciones con el monto correcto. Esta acción no se puede deshacer. ¿Confirmás?`)) return;
+  loading(true);
+  for (const c of correcciones) {
+    await sb.from('liquidaciones').update({ detalle: c.detalle, total: c.total }).eq('id', c.id);
+  }
+  loading(false);
+  closeModal();
+  toast(`${correcciones.length} liquidaciones corregidas`, 'ok');
+  await go('arena');
+};
 
 function renderQCard(q, isRRHH) {
   const shows = APP.eventos.filter(e => e.area === 'Movistar Arena' && e.quincena_id === q.id);
@@ -1222,7 +1320,7 @@ window.verShowArena = function(evId) {
   fechas.forEach(f => {
     (f.presentismo||[]).forEach(p => {
       const per = APP.personal.find(x => x.id === p.persona_id);
-      const tar = getTarifa(p.posicion);
+      const tar = getTarifa(p.posicion, 'Movistar Arena');
       presentes.push({ fechaId:f.id, per, posicion:p.posicion, monto:tar?.monto||0, sinTarifa:!tar });
     });
   });
@@ -1271,7 +1369,7 @@ window.updatePresentismo = async function(fechaId, personaId, nuevaPosicion) {
     });
   });
   // Actualizar celda de monto
-  const tar = getTarifa(nuevaPosicion);
+  const tar = getTarifa(nuevaPosicion, 'Movistar Arena');
   const cell = document.getElementById(`monto-cell-${fechaId}-${personaId}`);
   if (cell) cell.innerHTML = tar ? fmt(tar.monto) : '<span style="color:var(--orange)">sin tarifa</span>';
   // Recalcular total
@@ -1293,7 +1391,7 @@ window.exportShowArenaPreview = function(evId) {
   fechas.forEach(f => {
     (f.presentismo||[]).forEach(p => {
       const per = APP.personal.find(x => x.id === p.persona_id);
-      const tar = getTarifa(p.posicion);
+      const tar = getTarifa(p.posicion, 'Movistar Arena');
       rows.push({
         'Apellido y nombre': per ? `${per.apellido}, ${per.nombre}` : '—',
         'CUIL':     per?.cuil  || '—',
@@ -1319,7 +1417,7 @@ window.previaCierre = function(qId, definitivo) {
   shows.forEach(ev => {
     (ev.fechas||[]).forEach(f => {
       (f.presentismo||[]).forEach(p => {
-        const t = getTarifa(p.posicion);
+        const t = getTarifa(p.posicion, 'Movistar Arena');
         jornadas.push({ persona_id:p.persona_id, ev_nombre:ev.nombre, fecha:f.fecha, posicion:p.posicion, monto:t?.monto||0, sin_tarifa:!t });
       });
     });
@@ -1581,9 +1679,15 @@ window.handleFileCtx = async function(file, evId, fechaId, modo) {
   r.readAsBinaryString(file);
 };
 
-// Mapea una sección/puesto de la planilla a la posición más cercana del tarifario
-function mapToTarifario(secPlanilla) {
+// Mapea una sección/puesto de la planilla a la posición más cercana del tarifario.
+// `area` (opcional) restringe la búsqueda solo a tarifas de esa área (o "General"), para evitar
+// que se mezclen posiciones del mismo nombre entre áreas distintas (ej: "Orientador" de Ecoparque
+// no debe aplicarse a un evento de Movistar Arena).
+function mapToTarifario(secPlanilla, area) {
   if (!APP.tarifario.length) return secPlanilla;
+
+  const universo = area ? APP.tarifario.filter(t => t.area === area || t.area === 'General') : APP.tarifario;
+  if (!universo.length) return secPlanilla;
 
   const norm = s => s.toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -1593,20 +1697,20 @@ function mapToTarifario(secPlanilla) {
 
   // Casos especiales antes del match general
   if (needle.includes('supervisor')) {
-    const sup = APP.tarifario.find(t => norm(t.posicion).includes('supervisor'));
+    const sup = universo.find(t => norm(t.posicion).includes('supervisor'));
     if (sup) return sup.posicion;
   }
   if (needle.includes('asistente') || needle.includes('franquero') || needle.includes('franquera')) {
-    const fra = APP.tarifario.find(t => norm(t.posicion).includes('franquero') || norm(t.posicion).includes('franquera'));
+    const fra = universo.find(t => norm(t.posicion).includes('franquero') || norm(t.posicion).includes('franquera'));
     if (fra) return fra.posicion;
   }
   if (needle.includes('boletero') || needle.includes('boletera')) {
-    const bol = APP.tarifario.find(t => norm(t.posicion).includes('boletero') || norm(t.posicion).includes('boletera'));
+    const bol = universo.find(t => norm(t.posicion).includes('boletero') || norm(t.posicion).includes('boletera'));
     if (bol) return bol.posicion;
   }
 
   // Buscar match directo en el tarifario
-  const matches = APP.tarifario.filter(t => {
+  const matches = universo.filter(t => {
     const hay = norm(t.posicion);
     const wordsNeedle = needle.split(/[\s\-]+/).filter(w => w.length > 2);
     const wordsHay    = hay.split(/[\s\-]+/).filter(w => w.length > 2);
@@ -1620,16 +1724,16 @@ function mapToTarifario(secPlanilla) {
   if (ubicaciones.some(u => needle.includes(u))) {
     // P.POINT / PUNTO DE POINT → Recepcion
     if (needle.includes('point') || needle.includes('punto')) {
-      const recepcion = APP.tarifario.find(t => norm(t.posicion).includes('recepcion') || norm(t.posicion).includes('recepción'));
+      const recepcion = universo.find(t => norm(t.posicion).includes('recepcion') || norm(t.posicion).includes('recepción'));
       if (recepcion) return recepcion.posicion;
     }
     // BACKS → Orientador
     if (needle.includes('back')) {
-      const orientador = APP.tarifario.find(t => norm(t.posicion).includes('orientador'));
+      const orientador = universo.find(t => norm(t.posicion).includes('orientador'));
       if (orientador) return orientador.posicion;
     }
     // Resto de ubicaciones físicas → Orientador
-    const orientador = APP.tarifario.find(t => norm(t.posicion).includes('orientador'));
+    const orientador = universo.find(t => norm(t.posicion).includes('orientador'));
     if (orientador) return orientador.posicion;
   }
 
@@ -1637,6 +1741,7 @@ function mapToTarifario(secPlanilla) {
 }
 
 function parseDraft(rows, filename, evId, fechaId, modo) {
+  const areaParaTarifa = modo === 'ext' ? 'Externos' : 'Movistar Arena';
   let hi=-1, cA=-1, cN=-1, cC=-1, cP=-1, cT=-1;
   for (let i = 0; i < Math.min(rows.length, 6); i++) {
     rows[i].forEach((v, j) => {
@@ -1673,9 +1778,11 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
     const num = parseFloat(a0);
     if (!isNaN(num) && num > 0) {
       // SIN SECCIÓN: filas antes del primer encabezado. Intentar mapear igual.
-      const posSinSec = mapToTarifario(sec);
+      const posSinSec = mapToTarifario(sec, areaParaTarifa);
       const posicion = (sec === 'SIN SECCIÓN' && posSinSec === 'SIN SECCIÓN' && APP.tarifario.length)
-        ? (APP.tarifario.find(t => t.posicion.toLowerCase().includes('orientador'))?.posicion || APP.tarifario[0].posicion)
+        ? (APP.tarifario.find(t => (t.area===areaParaTarifa||t.area==='General') && t.posicion.toLowerCase().includes('orientador'))?.posicion
+           || APP.tarifario.find(t => t.area===areaParaTarifa||t.area==='General')?.posicion
+           || APP.tarifario[0].posicion)
         : posSinSec;
       const ex = APP.personal.find(p => p.cuil && p.cuil === cuil)
               || (b0 ? APP.personal.find(p => p.apellido.toLowerCase() === b0.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
@@ -1690,13 +1797,14 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
       const secCombinada = sec + ' - ' + subPuesto;
       // 1. Intentar match exacto del sub-puesto en el tarifario (ej: "Coordinador")
       const matchExacto = APP.tarifario.find(t =>
+        (t.area===areaParaTarifa||t.area==='General') &&
         t.posicion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim() ===
         subPuesto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim()
       );
       // 2. Si no hay match exacto, usar la sección padre para mapear (ej: SUPERVISORES → Supervisor)
       const posicion = matchExacto
         ? matchExacto.posicion
-        : mapToTarifario(sec);
+        : mapToTarifario(sec, areaParaTarifa);
       const ex = APP.personal.find(p => p.cuil && p.cuil === cuil)
               || (b0 ? APP.personal.find(p => p.apellido.toLowerCase() === b0.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
       filas.push({ _id:uid(), posicion, posicionOriginal:secCombinada, apellido:b0, nombre:nom, cuil, tel,
@@ -1784,7 +1892,7 @@ function pgVerificar(el, ac) {
       </div>
       ${secs.map(sec => {
         const sf  = filas.filter(f => f.posicion === sec);
-        const tar = APP.tarifario.find(t => t.posicion === sec);
+        const tar = getTarifa(sec, d.area);
         // Detectar si el nombre de la sección fue mapeado (distinto al original)
         const originalSec = sf[0]?.posicionOriginal || sec;
         const fueMapeado  = originalSec !== sec;
@@ -2629,6 +2737,7 @@ function parsePlanillaFijaPDF(pdfRows, mesId, lugarId) {
 }
 
 function parsePlanillaFija(rows, mesId, lugarId) {
+  const areaLugar = LUGARES_FIJOS.find(l => l.id === lugarId)?.nombre;
   let hi = -1, cB = -1, cN = -1, cC = -1, cPos = -1, cFechaStart = -1;
   let nombreJunto = false;
 
@@ -2753,7 +2862,7 @@ function parsePlanillaFija(rows, mesId, lugarId) {
 
     if (!apellido) continue;
 
-    const posicionMapeada = posicion ? mapToTarifario(posicion) : '';
+    const posicionMapeada = posicion ? mapToTarifario(posicion, areaLugar) : '';
     const per = APP.personal.find(p =>
       (cuil && p.cuil && p.cuil.replace(/\D/g,'') === cuil) ||
       (p.apellido.toLowerCase() === apellido.toLowerCase() && (!nombre || p.nombre.toLowerCase().startsWith(nombre.toLowerCase().split(' ')[0].toLowerCase())))
