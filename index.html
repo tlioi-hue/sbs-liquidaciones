@@ -3329,13 +3329,14 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
       ${pres.map(p => {
         const liq = liqs.find(l => l.persona_id === p.personaId);
         const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
+        const editable = liq && !mes.cerrado;
         return `<tr style="font-size:12px;border-top:1px solid var(--border)">
           <td style="padding:6px 10px"><strong>${p.apellido}, ${p.nombre}</strong></td>
           <td style="padding:6px 10px;font-family:monospace;font-size:11px">${p.cuil||'—'}</td>
           <td style="padding:6px 10px">${p.posicion||'—'}</td>
-          <td style="padding:6px 10px;text-align:center">${liq ? `<input type="number" value="${liq.jornadas||0}" min="0" style="width:55px;text-align:center" onchange="editarLiquidacion('${liq.id}','jornadas',this.value)">` : (p.jornadas||0)}</td>
+          <td style="padding:6px 10px;text-align:center">${editable ? `<input type="number" value="${liq.jornadas||0}" min="0" style="width:55px;text-align:center" onchange="editarLiquidacion('${liq.id}','jornadas',this.value)">` : (liq?.jornadas||p.jornadas||0)}</td>
           ${lugarId==='teatro-colon'?`<td style="padding:6px 10px;text-align:center">${p.jornadasFinde||0}</td>`:''}
-          <td style="padding:6px 10px;text-align:right;font-weight:600">${liq ? `<input type="number" id="liq-total-${liq.id}" value="${sub}" min="0" style="width:110px;font-weight:600;text-align:right" onchange="editarLiquidacion('${liq.id}','total',this.value)">` : fmt(sub)}</td>
+          <td style="padding:6px 10px;text-align:right;font-weight:600">${editable ? `<input type="number" id="liq-total-${liq.id}" value="${sub}" min="0" style="width:110px;font-weight:600;text-align:right" onchange="editarLiquidacion('${liq.id}','total',this.value)">` : fmt(sub)}</td>
         </tr>`;
       }).join('')}
       </tbody><tfoot><tr style="border-top:2px solid var(--border);font-weight:700">
