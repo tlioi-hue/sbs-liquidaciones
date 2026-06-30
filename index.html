@@ -3439,6 +3439,10 @@ window.cerrarMesFijo = async function(mesId) {
   for (const l of liqs) {
     await sb.from('liquidaciones').update({ estado: 'aprobado' }).eq('id', l.id);
   }
+  // Marcar el mes como cerrado en localStorage
+  const meses = getMesesFijos();
+  const idx = meses.findIndex(m => m.id === mesId);
+  if (idx >= 0) { meses[idx].cerrado = true; saveMesesFijos(meses); }
   loading(false);
   toast(`Mes cerrado — ${liqs.length} liquidaciones aprobadas`, 'ok');
   await go('fijos');
