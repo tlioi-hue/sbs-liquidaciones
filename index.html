@@ -3269,15 +3269,46 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
     </div>
     <div class="modal-f">
       <button class="btn" onclick="closeModal()">Cerrar</button>
-      <button class="btn btn-sm" onclick="closeModal();exportMesFijo('${mesId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
+      <button class="btn btn-sm" onclick="closeModal();exportDetalleLugarFijo('${mesId}','${lugarId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
     </div>
   </div>`);
 };
 
+window.exportDetalleLugarFijo = function(mesId, lugarId) {
+  const mes = getMesesFijos().find(m => m.id === mesId);
+  const lugar = LUGARES_FIJOS.find(l => l.id === lugarId);
+  const pres = mes?.presentes?.[lugarId] || [];
+  const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId && l.lugar_fijo === lugarId);
+  if (!pres.length) { alert('Sin personas cargadas para exportar'); return; }
+  const rows = pres.map(p => {
+    const per = APP.personal.find(x => x.id === p.personaId);
+    const liq = liqs.find(l => l.persona_id === p.personaId);
+    const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
+    return {
+      'Apellido y nombre': per ? nombreExport(per.apellido, per.nombre) : normExport(`${p.apellido} ${p.nombre}`),
+      'CUIL': per?.cuil || p.cuil || '',
+      'CBU':  per?.cbu  || '',
+      'Alias': per?.alias || '',
+      'Lugar': normExport(lugar.nombre),
+      'Período': normExport(mes.nombre),
+      'Posición': normExport(p.posicion||''),
+      'Jornadas': (p.jornadas||0) + (p.jornadasFinde||0),
+      'Jornadas 6hs': lugarId === 'teatro-colon' ? (p.jornadas||0) : '',
+      'Jornadas 8hs': lugarId === 'teatro-colon' ? (p.jornadasFinde||0) : '',
+      'Total ($)': sub,
+      'Estado': liq ? liq.estado : 'sin liquidar',
+    };
+  });
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [22,16,26,14,14,14,14,10,10,12,12].map(w => ({ wch:w }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Presentes');
+  XLSX.writeFile(wb, `presentes_${normExport(lugar.nombre).replace(/\s+/g,'_')}_${normExport(mes.nombre).replace(/\s+/g,'_')}.xlsx`);
+  toast('Excel exportado', 'ok');
+};
+
 window.previaMesFijo = function(mesId) {
   const mes = getMesesFijos().find(m => m.id === mesId);
-  const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId);
-  if (!liqs.length) { alert('No hay liquidaciones generadas para este mes todavía.'); return; }
   const totalMes = liqs.reduce((s,l) => s+(l.total||0), 0);
   showModal(`<div class="modal modal-lg">
     <div class="modal-t">Vista previa — ${mes.nombre}</div>
