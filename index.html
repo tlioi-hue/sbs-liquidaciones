@@ -3383,7 +3383,8 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
       ${pres.map(p => {
         const liq = liqs.find(l => l.persona_id === p.personaId);
         const per = APP.personal.find(x => x.id === p.personaId)
-          || APP.personal.find(x => x.apellido.toLowerCase() === p.apellido.toLowerCase() && x.nombre.toLowerCase().startsWith((p.nombre||'').toLowerCase().split(' ')[0]));
+          || APP.personal.find(x => x.id === liq?.persona_id)
+          || APP.personal.find(x => x.apellido.toLowerCase().replace(/\s/g,'') === (p.apellido||'').toLowerCase().replace(/\s/g,''));
         const cuil = per?.cuil || p.cuil || '—';
         const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
         const editable = liq && !lugarCerrado;
@@ -3416,9 +3417,10 @@ window.exportDetalleLugarFijo = function(mesId, lugarId) {
   const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId && l.lugar_fijo === lugarId);
   if (!pres.length) { alert('Sin personas cargadas para exportar'); return; }
   const rows = pres.map(p => {
-    const per = APP.personal.find(x => x.id === p.personaId)
-      || APP.personal.find(x => x.apellido.toLowerCase() === p.apellido.toLowerCase() && x.nombre.toLowerCase().startsWith((p.nombre||'').toLowerCase().split(' ')[0]));
     const liq = liqs.find(l => l.persona_id === p.personaId);
+    const per = APP.personal.find(x => x.id === p.personaId)
+      || APP.personal.find(x => x.id === liq?.persona_id)
+      || APP.personal.find(x => x.apellido.toLowerCase().replace(/\s/g,'') === (p.apellido||'').toLowerCase().replace(/\s/g,''));
     const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
     const cuil = per?.cuil || p.cuil || '';
     const esColon = lugarId === 'teatro-colon';
