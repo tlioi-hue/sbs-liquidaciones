@@ -507,6 +507,7 @@ async function pgDB(el) {
   const quinCerradas = APP.quincenas.filter(q => q.cerrada).length;
   const lugaresCerrados = meses.reduce((s, m) => s + Object.values(m.cerradoPorLugar||{}).filter(Boolean).length, 0);
   const totalCerrados = quinCerradas + lugaresCerrados;
+  const mesesEco   = [...new Set(liqFijos.filter(l=>l.lugar_fijo==='ecoparque').map(l=>l.mes_id))].length;
   const mesesColon = [...new Set(liqFijos.filter(l=>l.lugar_fijo==='teatro-colon').map(l=>l.mes_id))].length;
   const mesesPolo  = [...new Set(liqFijos.filter(l=>l.lugar_fijo==='campo-de-polo').map(l=>l.mes_id))].length;
 
