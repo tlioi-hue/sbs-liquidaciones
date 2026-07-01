@@ -2649,6 +2649,7 @@ function renderMesFijo(mes, isRRHH) {
             ${pres.length ? `<button class="btn btn-sm" onclick="verDetalleLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-eye"></i></button>` : ''}
             ${pres.length && !liqL.length && !lugarCerrado && isRRHH ? `<button class="btn btn-sm btn-success" onclick="liquidarLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
             ${liqL.length && !lugarCerrado && isRRHH ? `<button class="btn btn-sm btn-success" onclick="cerrarLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-lock"></i> Cerrar</button>` : ''}
+            ${liqL.length && lugarCerrado && isRRHH ? `<button class="btn btn-sm" onclick="reabrirLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-lock-open"></i> Reabrir</button>` : ''}
           </div>
         </div>`;
       }).join('')}
@@ -3493,6 +3494,19 @@ window.previaMesFijo = function(mesId) {
 };
 
 // ── CERRAR MES DEFINITIVAMENTE ──
+window.reabrirLugarFijo = function(mesId, lugarId) {
+  const lugar = LUGARES_FIJOS.find(l => l.id === lugarId);
+  if (!confirm(`¿Reabrir ${lugar.nombre}? Podrás editar las liquidaciones nuevamente.`)) return;
+  const meses = getMesesFijos();
+  const idx = meses.findIndex(m => m.id === mesId);
+  if (idx >= 0) {
+    if (meses[idx].cerradoPorLugar) meses[idx].cerradoPorLugar[lugarId] = false;
+    saveMesesFijos(meses);
+  }
+  toast(`${lugar.nombre} reabierto`, 'ok');
+  go('fijos');
+};
+
 window.cerrarLugarFijo = async function(mesId, lugarId) {
   const lugar = LUGARES_FIJOS.find(l => l.id === lugarId);
   if (!confirm(`¿Cerrar ${lugar.nombre} definitivamente? Las liquidaciones pasarán a "aprobado".`)) return;
