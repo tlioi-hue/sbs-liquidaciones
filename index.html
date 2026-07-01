@@ -3391,7 +3391,7 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
         const editable = liq && !lugarCerrado;
         return `<tr style="font-size:12px;border-top:1px solid var(--border)">
           <td style="padding:6px 10px"><strong>${p.apellido}, ${p.nombre}</strong></td>
-          <td style="padding:6px 10px;font-family:monospace;font-size:11px">${cuil}</td>
+          <td style="padding:6px 10px;font-family:monospace;font-size:11px">${!lugarCerrado ? `<input type="text" value="${cuil!=='—'?cuil:''}" placeholder="CUIL" style="width:110px;font-family:monospace;font-size:11px" onchange="editarCuilPresente('${mesId}','${lugarId}','${p.apellido}',this.value)">` : cuil}</td>
           <td style="padding:6px 10px">${p.posicion||'—'}</td>
           <td style="padding:6px 10px;text-align:center">${editable ? `<input type="number" value="${liq.jornadas||0}" min="0" style="width:55px;text-align:center" onchange="editarLiquidacion('${liq.id}','jornadas',this.value)">` : (liq?.jornadas||p.jornadas||0)}</td>
           ${lugarId==='teatro-colon'?`<td style="padding:6px 10px;text-align:center">${p.jornadasFinde||0}</td>`:''}
@@ -3494,6 +3494,25 @@ window.previaMesFijo = function(mesId) {
 };
 
 // ── CERRAR MES DEFINITIVAMENTE ──
+window.editarCuilPresente = async function(mesId, lugarId, apellido, nuevoCuil) {
+  const cuil = nuevoCuil.replace(/\D/g,'');
+  if (cuil.length < 10) return;
+  // Actualizar en localStorage
+  const meses = getMesesFijos();
+  const mes = meses.find(m => m.id === mesId);
+  if (mes?.presentes?.[lugarId]) {
+    const p = mes.presentes[lugarId].find(x => x.apellido === apellido);
+    if (p) { p.cuil = cuil; saveMesesFijos(meses); }
+  }
+  // Actualizar en Supabase personal si encontramos la persona
+  const per = APP.personal.find(x => x.apellido.toLowerCase() === apellido.toLowerCase());
+  if (per) {
+    await sb.from('personal').update({ cuil }).eq('id', per.id);
+    await fetchAll();
+  }
+  toast('CUIL actualizado', 'ok');
+};
+
 window.reabrirLugarFijo = function(mesId, lugarId) {
   const lugar = LUGARES_FIJOS.find(l => l.id === lugarId);
   if (!confirm(`¿Reabrir ${lugar.nombre}? Podrás editar las liquidaciones nuevamente.`)) return;
