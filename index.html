@@ -1266,7 +1266,7 @@ function renderQCard(q, isRRHH) {
           }).join('')}
     </div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
-      ${isRRHH ? `<button class="btn btn-sm" onclick="agregarShowQ('${q.id}')"><i class="ti ti-plus"></i> Agregar show</button>` : ''}
+      ${isRRHH && !q.cerrada ? `<button class="btn btn-sm" onclick="agregarShowQ('${q.id}')"><i class="ti ti-plus"></i> Agregar show</button>` : ''}
       ${isRRHH && totalJornadas && !q.cerrada ? `
         <button class="btn btn-sm" onclick="previaCierre('${q.id}', false)"><i class="ti ti-eye"></i> Vista previa liquidación</button>
         <button class="btn btn-sm btn-success" onclick="previaCierre('${q.id}', true)"><i class="ti ti-lock"></i> Cerrar quincena definitivamente</button>
@@ -1602,7 +1602,7 @@ window.confirmarCierre = async function(qId, cons) {
       area:'Movistar Arena', quincena_id:qId, quincena_nombre:q.nombre, periodo:q.nombre,
       jornadas:c.lineas.length, total:c.total,
       detalle: c.lineas,  // se guarda como JSONB en Supabase
-      estado:'pendiente'
+      estado:'aprobado'
     });
   });
   loading(true);
@@ -1615,6 +1615,7 @@ window.confirmarCierre = async function(qId, cons) {
 window.verLiqsQ = function(qId) {
   const q    = APP.quincenas.find(x => x.id === qId);
   const liqs = APP.liquidaciones.filter(l => l.quincena_id === qId);
+  const cerrada = q.cerrada;
   showModal(`<div class="modal modal-lg">
     <div class="modal-t">Liquidaciones — ${q.nombre}</div>
     <div class="modal-s">${fmt(liqs.reduce((s,l)=>s+(l.total||0),0))} · ${liqs.length} personas</div>
@@ -1624,14 +1625,14 @@ window.verLiqsQ = function(qId) {
       return `<tr>
         <td><strong>${l.persona_nombre}</strong></td>
         <td style="font-family:monospace;font-size:11.5px">${p?.cuil||'—'}</td>
-        <td style="text-align:center"><input type="number" value="${l.jornadas||0}" min="0" style="width:55px;text-align:center" onchange="editarLiquidacion('${l.id}','jornadas',this.value)"></td>
-        <td><input type="number" id="liq-total-${l.id}" value="${l.total||0}" min="0" style="width:110px;font-weight:600" onchange="editarLiquidacion('${l.id}','total',this.value)"></td>
+        <td style="text-align:center">${cerrada ? (l.jornadas||0) : `<input type="number" value="${l.jornadas||0}" min="0" style="width:55px;text-align:center" onchange="editarLiquidacion('${l.id}','jornadas',this.value)">`}</td>
+        <td>${cerrada ? `<strong>${fmt(l.total)}</strong>` : `<input type="number" id="liq-total-${l.id}" value="${l.total||0}" min="0" style="width:110px;font-weight:600" onchange="editarLiquidacion('${l.id}','total',this.value)">`}</td>
         <td><span class="badge ${l.estado==='pagado'?'bs':l.estado==='aprobado'?'bi':'bw'}">${l.estado}</span></td>
         <td style="display:flex;gap:4px">
-          ${APP.rol==='rrhh' && l.estado==='pendiente' ? `<button class="btn btn-sm" onclick="aprobar('${l.id}')"><i class="ti ti-check"></i></button>` : ''}
+          ${!cerrada && APP.rol==='rrhh' && l.estado==='pendiente' ? `<button class="btn btn-sm" onclick="aprobar('${l.id}')"><i class="ti ti-check"></i></button>` : ''}
           ${l.estado==='aprobado' ? `<button class="btn btn-sm" onclick="pagar('${l.id}')"><i class="ti ti-cash"></i></button>` : ''}
           <button class="btn btn-sm" onclick="detalleLiqQ('${l.id}')"><i class="ti ti-eye"></i></button>
-          ${APP.rol==='rrhh' ? `<button class="btn btn-sm btn-danger" onclick="delLiq('${l.id}')"><i class="ti ti-trash"></i></button>` : ''}
+          ${!cerrada && APP.rol==='rrhh' ? `<button class="btn btn-sm btn-danger" onclick="delLiq('${l.id}')"><i class="ti ti-trash"></i></button>` : ''}
         </td>
       </tr>`;
     }).join('')}</tbody></table>
@@ -1645,6 +1646,8 @@ window.verLiqsQ = function(qId) {
 window.detalleLiqQ = function(id) {
   const l = APP.liquidaciones.find(x => x.id === id); if (!l) return;
   const p = APP.personal.find(x => x.id === l.persona_id);
+  const q = APP.quincenas.find(x => x.id === l.quincena_id);
+  const cerrada = q?.cerrada;
   showModal(`<div class="modal">
     <div class="modal-t">${l.persona_nombre}</div>
     <div class="modal-s">${l.quincena_nombre||l.periodo}</div>
@@ -1654,11 +1657,11 @@ window.detalleLiqQ = function(id) {
       ${p?.alias ? `<div>Alias: <strong>${p.alias}</strong></div>` : ''}
     </div>
     ${l.detalle && l.detalle.length ? `
-      <div style="font-size:10.5px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Detalle de jornadas <span style="font-weight:400;font-size:10px">(editá el monto de cada jornada si necesitás ajustar)</span></div>
+      <div style="font-size:10.5px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Detalle de jornadas${!cerrada ? ' <span style="font-weight:400;font-size:10px">(editá el monto de cada jornada si necesitás ajustar)</span>' : ''}</div>
       ${l.detalle.map((d,i) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px">
         <span style="color:var(--text2)">${fd(d.fecha)} · ${d.ev_nombre||d.evNombre||''}</span>
         <span>${d.posicion}</span>
-        <input type="number" value="${d.monto||0}" min="0" style="width:100px;font-weight:500;text-align:right" onchange="editarMontoDetalle('${l.id}',${i},this.value)">
+        ${cerrada ? `<span style="font-weight:500">${fmt(d.monto)}</span>` : `<input type="number" value="${d.monto||0}" min="0" style="width:100px;font-weight:500;text-align:right" onchange="editarMontoDetalle('${l.id}',${i},this.value)">`}
       </div>`).join('')}` : ''}
     <div style="display:flex;justify-content:space-between;padding:10px 0;border-top:1px solid var(--border);margin-top:4px">
       <span style="font-weight:600">Total</span>
@@ -2325,14 +2328,11 @@ window.exportLiqsQuincena = function(qId) {
       'Quincena': l.quincena_nombre || '',
       'Jornadas totales': l.jornadas,
       'Total ($)': l.total,
-      'Estado': l.estado,
-      // Columnas de detalle en blanco para fila resumen
       'Fecha jornada': '',
       'Show': '',
       'Posición jornada': '',
       'Monto jornada ($)': '',
     });
-    // Filas de detalle
     if (l.detalle && l.detalle.length) {
       l.detalle.forEach(d => {
         rows.push({
@@ -2343,7 +2343,6 @@ window.exportLiqsQuincena = function(qId) {
           'Quincena': '',
           'Jornadas totales': '',
           'Total ($)': '',
-          'Estado': '',
           'Fecha jornada': fd(d.fecha),
           'Show': d.ev_nombre || d.evNombre || '',
           'Posición jornada': d.posicion,
