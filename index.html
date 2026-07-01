@@ -502,27 +502,32 @@ async function pgDB(el) {
   const liqFijosTotal = liqFijos.reduce((s,l)=>s+(l.total||0),0);
   const persFijos  = APP.personal.filter(p => p.area === 'Servicios Fijos');
 
+  // Meses liquidados por lugar (un mes = al menos 1 liquidación en ese mes_id/lugar_fijo)
+  const mesesEco   = [...new Set(liqFijos.filter(l=>l.lugar_fijo==='ecoparque').map(l=>l.mes_id))].length;
+  const mesesColon = [...new Set(liqFijos.filter(l=>l.lugar_fijo==='teatro-colon').map(l=>l.mes_id))].length;
+  const mesesPolo  = [...new Set(liqFijos.filter(l=>l.lugar_fijo==='campo-de-polo').map(l=>l.mes_id))].length;
+
   el.innerHTML = `
   <div class="grid4" style="margin-bottom:14px">
     <div class="metric"><div class="metric-l">Personal</div><div class="metric-v">${APP.personal.length}</div>
       <div class="metric-s">${APP.personal.filter(p=>p.area==='Externos').length} ext · ${APP.personal.filter(p=>p.area==='Movistar Arena').length} arena · ${persFijos.length} fijos</div></div>
     <div class="metric"><div class="metric-l">Externos</div><div class="metric-v">${extEvs.length}</div>
       <div class="metric-s">${extEvs.length ? fmt(liqExt.reduce((s,l)=>s+(l.total||0),0)) + ' liquidado' : 'sin eventos'}</div></div>
-    <div class="metric"><div class="metric-l">Movistar Arena</div><div class="metric-v">${arenaShows.length}</div>
-      <div class="metric-s">${arenaShows.length ? fmt(liqArena.reduce((s,l)=>s+(l.total||0),0)) + ' liquidado' : 'sin shows'}</div></div>
+    <div class="metric"><div class="metric-l">Movistar Arena</div><div class="metric-v" style="font-size:17px">${fmt(liqArena.reduce((s,l)=>s+(l.total||0),0))}</div>
+      <div class="metric-s">${arenaShows.length} shows</div></div>
     <div class="metric"><div class="metric-l">Total histórico</div><div class="metric-v" style="font-size:17px">${fmt(liqTotal)}</div>
       <div class="metric-s">${APP.liquidaciones.length} liquidaciones</div></div>
   </div>
   <div class="grid3" style="margin-bottom:14px">
     <div class="metric"><div class="metric-l"><span class="chip chip-eco" style="font-size:11px">Ecoparque</span></div>
       <div class="metric-v" style="font-size:17px">${fmt(liqEco)}</div>
-      <div class="metric-s">${liqFijos.filter(l=>l.lugar_fijo==='ecoparque').length} liquidaciones</div></div>
+      <div class="metric-s">${mesesEco} ${mesesEco===1?'mes':'meses'} liquidado${mesesEco===1?'':'s'}</div></div>
     <div class="metric"><div class="metric-l"><span class="chip chip-colon" style="font-size:11px">Teatro Colón</span></div>
       <div class="metric-v" style="font-size:17px">${fmt(liqColon)}</div>
-      <div class="metric-s">${liqFijos.filter(l=>l.lugar_fijo==='teatro-colon').length} liquidaciones</div></div>
+      <div class="metric-s">${mesesColon} ${mesesColon===1?'mes':'meses'} liquidado${mesesColon===1?'':'s'}</div></div>
     <div class="metric"><div class="metric-l"><span class="chip chip-polo" style="font-size:11px">Campo de Polo</span></div>
       <div class="metric-v" style="font-size:17px">${fmt(liqPolo)}</div>
-      <div class="metric-s">${liqFijos.filter(l=>l.lugar_fijo==='campo-de-polo').length} liquidaciones</div></div>
+      <div class="metric-s">${mesesPolo} ${mesesPolo===1?'mes':'meses'} liquidado${mesesPolo===1?'':'s'}</div></div>
   </div>
   <div class="grid2">
     <div class="card">
