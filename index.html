@@ -2389,18 +2389,15 @@ async function pgCBU(el, ac) {
 
   el.innerHTML = `
     <div class="alert alert-info" style="padding:8px 12px;font-size:12px"><i class="ti ti-info-circle" style="flex-shrink:0"></i>
-      Subí el Excel o CSV con columnas CUIL y CBU. Se actualiza el CBU en Personal según el CUIL.
+      Subí el Excel con columnas <strong>Apellido · Nombre · CUIL · CBU</strong>. La app busca cada persona por nombre y actualiza los campos que estén vacíos.
     </div>
     <div class="card" style="margin-bottom:16px">
       <div class="drop-zone" id="dz-cbu" onclick="document.getElementById('fi-cbu').click()">
         <i class="ti ti-credit-card" style="font-size:34px;color:var(--text2);display:block;margin-bottom:9px"></i>
         <div style="font-size:14px;font-weight:600;margin-bottom:4px">Arrastrá el archivo acá o hacé clic</div>
-        <div style="font-size:12px;color:var(--text2)">Columnas requeridas: CUIL · CBU</div>
+        <div style="font-size:12px;color:var(--text2)">Columnas: Apellido · Nombre · CUIL · CBU</div>
       </div>
       <input type="file" id="fi-cbu" accept=".xlsx,.xls,.csv,.txt" style="display:none" onchange="handleCBUFile(this.files[0])">
-      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12.5px;cursor:pointer">
-        <input type="checkbox" id="forzar-cbu" style="width:auto" checked> Sobreescribir CBU aunque ya esté cargado
-      </label>
     </div>
     <div id="cbu-preview"></div>`;
 
@@ -2462,58 +2459,75 @@ window.handleCBUFile = function(file) {
 };
 
 function parseCBU(rows) {
-  let hi=-1, cCuil=-1, cCbu=-1;
+  let hi=-1, cCuil=-1, cCbu=-1, cApellido=-1, cNombre=-1;
 
-  // Detectar encabezados buscando palabras clave — funciona con cualquier nombre de columna
   for (let i = 0; i < Math.min(rows.length, 4); i++) {
     rows[i].forEach((v, j) => {
       const u = String(v||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-      if (u.includes('CUIL'))  { cCuil=j; hi=i; }
-      if (u.includes('CBU'))   cCbu=j;
+      if (u.includes('CUIL'))    { cCuil=j; hi=i; }
+      if (u.includes('CBU'))       cCbu=j;
+      if (u === 'APELLIDO')        cApellido=j;
+      if (u === 'NOMBRE')          cNombre=j;
     });
     if (hi === i) break;
   }
 
-  if (hi === -1 || cCuil === -1 || cCbu === -1) {
-    alert('No encontré columnas CUIL y CBU.\nVerificá que el encabezado contenga esas palabras.');
+  if (hi === -1 || cCbu === -1) {
+    alert('No encontré columna CBU.\nVerificá que el encabezado contenga esa palabra.');
     return;
   }
 
-  const forzar = document.getElementById('forzar-cbu')?.checked;
   const resultados = [];
 
   for (let i = hi + 1; i < rows.length; i++) {
     const row = rows[i];
-    // CUIL: limpiar — puede venir como número float (20461047921.0)
+
+    // Leer CUIL
     let cuilRaw = String(row[cCuil]||'').trim();
-    if (/e\+/i.test(cuilRaw)) {
-      try { cuilRaw = BigInt(Math.round(parseFloat(cuilRaw))).toString(); } catch(e) { cuilRaw=''; }
-    }
+    if (/e\+/i.test(cuilRaw)) { try { cuilRaw = BigInt(Math.round(parseFloat(cuilRaw))).toString(); } catch(e) { cuilRaw=''; } }
     const cuil = cuilRaw.replace(/\D/g,'').replace(/\.0$/, '');
 
-    // CBU: limpiar espacios y guiones pero preservar dígitos
+    // Leer CBU
     let cbuRaw = String(row[cCbu]||'').trim();
-    if (/e\+/i.test(cbuRaw)) {
-      try { cbuRaw = BigInt(Math.round(parseFloat(cbuRaw))).toString(); } catch(e) { cbuRaw=''; }
-    }
+    if (/e\+/i.test(cbuRaw)) { try { cbuRaw = BigInt(Math.round(parseFloat(cbuRaw))).toString(); } catch(e) { cbuRaw=''; } }
     const cbu = cbuRaw.replace(/[^0-9]/g,'');
 
-    if (!cuil || cuil.length < 10 || !cbu || cbu.length < 20) continue;
+    if (!cbu || cbu.length < 20) continue;
 
-    const persona = APP.personal.find(p => p.cuil && p.cuil.replace(/\D/g,'') === cuil);
+    // Leer apellido y nombre del Excel
+    const apellidoExcel = String(row[cApellido]||'').trim().toLowerCase();
+    const nombreExcel   = String(row[cNombre]||'').trim().toLowerCase();
+
+    // Buscar persona: primero por CUIL, luego por apellido+nombre
+    let persona = null;
+    if (cuil && cuil.length >= 10) {
+      persona = APP.personal.find(p => p.cuil && p.cuil.replace(/\D/g,'') === cuil);
+    }
+    if (!persona && apellidoExcel) {
+      persona = APP.personal.find(p =>
+        p.apellido.toLowerCase() === apellidoExcel &&
+        (!nombreExcel || p.nombre.toLowerCase().startsWith(nombreExcel.split(' ')[0]))
+      );
+    }
+
     if (!persona) {
-      resultados.push({ cuil, cbu, estado:'no_encontrado', nombre:'—' });
+      resultados.push({ cuil, cbu, apellido: row[cApellido]||'', nombre: row[cNombre]||'', estado:'no_encontrado' });
       continue;
     }
-    if (persona.cbu && !forzar) {
-      resultados.push({ cuil, cbu, estado:'ya_tiene', nombre:`${persona.apellido}, ${persona.nombre}`, id:persona.id });
+
+    // Determinar qué actualizar (solo campos vacíos)
+    const updCuil = (!persona.cuil && cuil && cuil.length >= 10) ? cuil : null;
+    const updCbu  = !persona.cbu ? cbu : null;
+
+    if (!updCuil && !updCbu) {
+      resultados.push({ cuil: persona.cuil||cuil, cbu, estado:'ya_tiene', nombre:`${persona.apellido}, ${persona.nombre}`, id:persona.id });
       continue;
     }
-    resultados.push({ cuil, cbu, estado:'actualizar', nombre:`${persona.apellido}, ${persona.nombre}`, id:persona.id });
+    resultados.push({ cuil: cuil||persona.cuil, cbu, updCuil, updCbu, estado:'actualizar', nombre:`${persona.apellido}, ${persona.nombre}`, id:persona.id });
   }
 
-  const aActualizar = resultados.filter(r => r.estado === 'actualizar');
-  const yaTiene     = resultados.filter(r => r.estado === 'ya_tiene');
+  const aActualizar  = resultados.filter(r => r.estado === 'actualizar');
+  const yaTiene      = resultados.filter(r => r.estado === 'ya_tiene');
   const noEncontrado = resultados.filter(r => r.estado === 'no_encontrado');
 
   const preview = document.getElementById('cbu-preview');
@@ -2524,40 +2538,40 @@ function parseCBU(rows) {
       <div style="font-size:13px;font-weight:600;margin-bottom:12px">Resultado del análisis</div>
       <div style="display:flex;gap:14px;margin-bottom:16px;flex-wrap:wrap;font-size:12.5px">
         <span style="color:var(--green)"><strong>${aActualizar.length}</strong> a actualizar</span>
-        <span style="color:var(--text2)"><strong>${yaTiene.length}</strong> ya tienen CBU</span>
-        ${noEncontrado.length ? `<span style="color:var(--orange)"><strong>${noEncontrado.length}</strong> CUIL no encontrado</span>` : ''}
+        <span style="color:var(--text2)"><strong>${yaTiene.length}</strong> ya tienen todos los datos</span>
+        ${noEncontrado.length ? `<span style="color:var(--orange)"><strong>${noEncontrado.length}</strong> no encontrado</span>` : ''}
       </div>
       ${aActualizar.length ? `
         <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px">
-          <table><thead><tr><th>Persona</th><th>CUIL</th><th>CBU nuevo</th><th>Alias</th></tr></thead>
+          <table><thead><tr><th>Persona</th><th>CUIL</th><th>CBU</th><th>Actualiza</th></tr></thead>
           <tbody>${aActualizar.map(r => `<tr>
             <td><strong>${r.nombre}</strong></td>
-            <td style="font-family:monospace;font-size:11.5px">${r.cuil}</td>
-            <td style="font-family:monospace;font-size:11.5px">${r.cbu}</td>
-            <td style="font-size:11.5px">${r.alias||'—'}</td>
-          </tr>`).join('')}</tbody></table>
+            <td style="font-family:monospace;font-size:11px">${r.updCuil ? `<span style="color:var(--green)">${r.cuil}</span>` : (r.cuil||'—')}</td>
+            <td style="font-family:monospace;font-size:11px">${r.updCbu ? `<span style="color:var(--green)">${r.cbu}</span>` : '(ya tenía)'}</td>
+            <td style="font-size:11px">${[r.updCuil?'CUIL':'', r.updCbu?'CBU':''].filter(Boolean).join(' + ')}</td>
+          </tr>`).join('')}
+          </tbody></table>
         </div>
-        <button class="btn btn-success" onclick="confirmarCBU(${JSON.stringify(aActualizar).replace(/"/g,'&quot;')})">
-          <i class="ti ti-check"></i> Confirmar — actualizar ${aActualizar.length} CBU
-        </button>` : '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> No hay CBU para actualizar.</div>'}
+        <button class="btn btn-primary" onclick="aplicarCBU(${JSON.stringify(aActualizar).replace(/"/g,'&quot;')})">
+          <i class="ti ti-check"></i> Actualizar ${aActualizar.length} persona${aActualizar.length!==1?'s':''}
+        </button>` : ''}
       ${noEncontrado.length ? `
-        <div style="margin-top:12px;font-size:12px;color:var(--orange)">
-          <strong>CUIL no encontrados en el sistema:</strong> ${noEncontrado.map(r=>r.cuil).join(', ')}
-        </div>` : ''}
+        <div style="margin-top:12px;font-size:12px;color:var(--text2)">No encontrados: ${noEncontrado.map(r=>`${r.apellido} ${r.nombre}`).join(', ')}</div>` : ''}
     </div>`;
 }
 
-window.confirmarCBU = async function(rows) {
+window.aplicarCBU = async function(rows) {
   loading(true);
   for (const r of rows) {
-    const upd = { cbu: r.cbu };
-    if (r.alias) upd.alias = r.alias;
-    await sb.from('personal').update(upd).eq('id', r.id);
+    const upd = {};
+    if (r.updCbu)  upd.cbu  = r.cbu;
+    if (r.updCuil) upd.cuil = r.updCuil;
+    if (Object.keys(upd).length) await sb.from('personal').update(upd).eq('id', r.id);
   }
   loading(false);
-  toast(`${rows.length} CBU actualizados`, 'ok');
+  toast(`${rows.length} persona${rows.length!==1?'s':''} actualizada${rows.length!==1?'s':''}`, 'ok');
   document.getElementById('cbu-preview').innerHTML = `
-    <div class="alert alert-ok"><i class="ti ti-check-circle"></i> ${rows.length} CBU actualizados correctamente.</div>`;
+    <div class="alert alert-ok"><i class="ti ti-check-circle"></i> ${rows.length} personas actualizadas correctamente.</div>`;
   await fetchAll();
 };
 // ══════════════════════════════════════════════
@@ -2888,7 +2902,16 @@ function parsePlanillaFijaPDF_SinCuil(pdfRows, mesId, lugarId) {
   }
 
   if (!personas.length) { alert('No encontré personas en el PDF. Verificá el formato de la planilla.'); return; }
-  mostrarVerificacionFija(personas, mesId, lugarId);
+
+  // Deduplicar: si hay personas repetidas (apellido+nombre igual), quedarse con la que tenga más jornadas
+  const dedup = {};
+  personas.forEach(p => {
+    const key = `${p.apellido}|${p.nombre}`.toLowerCase();
+    if (!dedup[key] || p.jornadas > dedup[key].jornadas) dedup[key] = p;
+  });
+  const personasDedup = Object.values(dedup);
+
+  mostrarVerificacionFija(personasDedup, mesId, lugarId);
 }
 
 // Parsea filas extraídas del PDF de Campo de Polo. Formato: Apellido y Nombre, CUIL (11 dígitos),
@@ -3359,11 +3382,13 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
       </tr></thead><tbody>
       ${pres.map(p => {
         const liq = liqs.find(l => l.persona_id === p.personaId);
+        const per = APP.personal.find(x => x.id === p.personaId);
+        const cuil = per?.cuil || p.cuil || '—';
         const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
         const editable = liq && !lugarCerrado;
         return `<tr style="font-size:12px;border-top:1px solid var(--border)">
           <td style="padding:6px 10px"><strong>${p.apellido}, ${p.nombre}</strong></td>
-          <td style="padding:6px 10px;font-family:monospace;font-size:11px">${p.cuil||'—'}</td>
+          <td style="padding:6px 10px;font-family:monospace;font-size:11px">${cuil}</td>
           <td style="padding:6px 10px">${p.posicion||'—'}</td>
           <td style="padding:6px 10px;text-align:center">${editable ? `<input type="number" value="${liq.jornadas||0}" min="0" style="width:55px;text-align:center" onchange="editarLiquidacion('${liq.id}','jornadas',this.value)">` : (liq?.jornadas||p.jornadas||0)}</td>
           ${lugarId==='teatro-colon'?`<td style="padding:6px 10px;text-align:center">${p.jornadasFinde||0}</td>`:''}
@@ -3393,10 +3418,11 @@ window.exportDetalleLugarFijo = function(mesId, lugarId) {
     const per = APP.personal.find(x => x.id === p.personaId);
     const liq = liqs.find(l => l.persona_id === p.personaId);
     const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
+    const cuil = per?.cuil || p.cuil || '';
     const esColon = lugarId === 'teatro-colon';
     const row = {
       'Apellido y nombre': per ? nombreExport(per.apellido, per.nombre) : normExport(`${p.apellido} ${p.nombre}`),
-      'CUIL': per?.cuil || p.cuil || '',
+      'CUIL': cuil,
       'CBU':  per?.cbu  || '',
     };
     if (esColon) row['Alias'] = per?.alias || '';
