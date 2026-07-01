@@ -3384,9 +3384,8 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
       ${pres.map(p => {
         const liq = liqs.find(l => l.persona_id === p.personaId);
         const per = APP.personal.find(x => x.id === p.personaId)
-          || APP.personal.find(x => x.id === liq?.persona_id)
-          || APP.personal.find(x => x.apellido.toLowerCase().replace(/\s/g,'') === (p.apellido||'').toLowerCase().replace(/\s/g,''));
-        const cuil = per?.cuil || p.cuil || '—';
+          || APP.personal.find(x => x.id === liq?.persona_id);
+        const cuil = p.cuil || per?.cuil || '—';
         const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
         const editable = liq && !lugarCerrado;
         return `<tr style="font-size:12px;border-top:1px solid var(--border)">
@@ -3420,13 +3419,12 @@ window.exportDetalleLugarFijo = function(mesId, lugarId) {
   const rows = pres.map(p => {
     const liq = liqs.find(l => l.persona_id === p.personaId);
     const per = APP.personal.find(x => x.id === p.personaId)
-      || APP.personal.find(x => x.id === liq?.persona_id)
-      || APP.personal.find(x => x.apellido.toLowerCase().replace(/\s/g,'') === (p.apellido||'').toLowerCase().replace(/\s/g,''));
+      || APP.personal.find(x => x.id === liq?.persona_id);
     const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
-    const cuil = per?.cuil || p.cuil || '';
+    const cuil = p.cuil || per?.cuil || ''; // presentes primero, luego personal
     const esColon = lugarId === 'teatro-colon';
     const row = {
-      'Apellido y nombre': per ? nombreExport(per.apellido, per.nombre) : normExport(`${p.apellido} ${p.nombre}`),
+      'Apellido y nombre': normExport(`${p.apellido} ${p.nombre}`),
       'CUIL': cuil,
       'CBU':  per?.cbu  || '',
     };
