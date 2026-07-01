@@ -503,7 +503,10 @@ async function pgDB(el) {
   const persFijos  = APP.personal.filter(p => p.area === 'Servicios Fijos');
 
   // Meses liquidados por lugar (un mes = al menos 1 liquidación en ese mes_id/lugar_fijo)
-  const mesesEco   = [...new Set(liqFijos.filter(l=>l.lugar_fijo==='ecoparque').map(l=>l.mes_id))].length;
+  const meses = getMesesFijos();
+  const quinCerradas = APP.quincenas.filter(q => q.cerrada).length;
+  const lugaresCerrados = meses.reduce((s, m) => s + Object.values(m.cerradoPorLugar||{}).filter(Boolean).length, 0);
+  const totalCerrados = quinCerradas + lugaresCerrados;
   const mesesColon = [...new Set(liqFijos.filter(l=>l.lugar_fijo==='teatro-colon').map(l=>l.mes_id))].length;
   const mesesPolo  = [...new Set(liqFijos.filter(l=>l.lugar_fijo==='campo-de-polo').map(l=>l.mes_id))].length;
 
@@ -516,7 +519,7 @@ async function pgDB(el) {
     <div class="metric"><div class="metric-l">Movistar Arena</div><div class="metric-v" style="font-size:17px">${fmt(liqArena.reduce((s,l)=>s+(l.total||0),0))}</div>
       <div class="metric-s">${arenaShows.length} shows</div></div>
     <div class="metric"><div class="metric-l">Total histórico</div><div class="metric-v" style="font-size:17px">${fmt(liqTotal)}</div>
-      <div class="metric-s">${APP.liquidaciones.length} liquidaciones</div></div>
+      <div class="metric-s">${totalCerrados} liquidación${totalCerrados!==1?'es':''} cerrada${totalCerrados!==1?'s':''}</div></div>
   </div>
   <div class="grid3" style="margin-bottom:14px">
     <div class="metric"><div class="metric-l"><span class="chip chip-eco" style="font-size:11px">Ecoparque</span></div>
