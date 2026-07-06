@@ -1389,13 +1389,26 @@ window.saveFechaArena = async function(evId) {
 window.verShowArena = function(evId) {
   const ev    = getEvento(evId);
   const fechas = ev?.fechas || [];
+  const q = APP.quincenas.find(x => x.id === ev?.quincena_id);
+  const cerrada = q?.cerrada;
 
   const presentes = [];
   fechas.forEach(f => {
     (f.presentismo||[]).forEach(p => {
       const per = APP.personal.find(x => x.id === p.persona_id);
-      const tar = getTarifa(p.posicion, 'Movistar Arena');
-      presentes.push({ fechaId:f.id, per, posicion:p.posicion, monto:tar?.monto||0, sinTarifa:!tar });
+      let monto, sinTarifa;
+      if (cerrada) {
+        // Quincena cerrada: usar monto de la liquidación guardada en Supabase
+        const liq = APP.liquidaciones.find(l => l.quincena_id === ev.quincena_id && l.persona_id === p.persona_id);
+        const detalleLine = liq?.detalle?.find(d => d.fecha === f.fecha);
+        monto = detalleLine?.monto ?? liq?.valor_jornada ?? 0;
+        sinTarifa = !liq;
+      } else {
+        const tar = getTarifa(p.posicion, 'Movistar Arena');
+        monto = tar?.monto || 0;
+        sinTarifa = !tar;
+      }
+      presentes.push({ fechaId:f.id, per, posicion:p.posicion, monto, sinTarifa });
     });
   });
 
@@ -1405,18 +1418,18 @@ window.verShowArena = function(evId) {
 
   showModal(`<div class="modal modal-lg">
     <div class="modal-t">${ev.nombre}${ev.fecha?' · '+fd(ev.fecha):''}</div>
-    <div class="modal-s">${presentes.length} presentes · <strong id="total-show-lbl">${fmt(totalMonto)}</strong> total estimado</div>
-    ${sinTarifaN ? `<div class="alert alert-warn" style="padding:8px 12px"><i class="ti ti-alert-triangle"></i> ${sinTarifaN} persona${sinTarifaN>1?'s':''} sin tarifa.</div>` : ''}
-    <div class="alert alert-info" style="padding:8px 12px"><i class="ti ti-edit" style="font-size:13px"></i> Podés cambiar la posición — el monto se actualiza automáticamente.</div>
+    <div class="modal-s">${presentes.length} presentes · <strong id="total-show-lbl">${fmt(totalMonto)}</strong> ${cerrada ? 'liquidado' : 'total estimado'}</div>
+    ${sinTarifaN && !cerrada ? `<div class="alert alert-warn" style="padding:8px 12px"><i class="ti ti-alert-triangle"></i> ${sinTarifaN} persona${sinTarifaN>1?'s':''} sin tarifa.</div>` : ''}
+    ${!cerrada ? `<div class="alert alert-info" style="padding:8px 12px"><i class="ti ti-edit" style="font-size:13px"></i> Podés cambiar la posición — el monto se actualiza automáticamente.</div>` : ''}
     <table><thead><tr>
       <th>Apellido y nombre</th><th>CUIL</th><th>Posición</th><th style="text-align:right">Monto</th>
     </tr></thead>
     <tbody>${presentes.map(p => `<tr>
       <td><strong>${p.per?.apellido||'?'}, ${p.per?.nombre||'?'}</strong></td>
       <td style="font-family:monospace;font-size:11.5px">${p.per?.cuil||'—'}</td>
-      <td><select style="font-size:12px;padding:3px 6px" onchange="updatePresentismo('${p.fechaId}','${p.per?.id}',this.value)">
+      <td>${cerrada ? p.posicion : `<select style="font-size:12px;padding:3px 6px" onchange="updatePresentismo('${p.fechaId}','${p.per?.id}',this.value)">
         ${APP.tarifario.filter(t => t.area === 'Movistar Arena' || t.area === 'General').map(t => `<option value="${t.posicion}" ${t.posicion===p.posicion?'selected':''}>${t.posicion}</option>`).join('')}
-      </select></td>
+      </select>`}</td>
       <td style="text-align:right;font-weight:500" id="monto-cell-${p.fechaId}-${p.per?.id}">${p.sinTarifa?'<span style="color:var(--orange)">sin tarifa</span>':fmt(p.monto)}</td>
     </tr>`).join('')}</tbody>
     <tfoot><tr>
@@ -1426,7 +1439,7 @@ window.verShowArena = function(evId) {
     </table>
     <div class="modal-f">
       <button class="btn" onclick="closeModal()">Cerrar</button>
-      <button class="btn" onclick="exportShowArenaPreview('${evId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
+      ${!cerrada ? `<button class="btn" onclick="exportShowArenaPreview('${evId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>` : ''}
     </div>
   </div>`);
 };
@@ -3421,12 +3434,12 @@ window.exportDetalleLugarFijo = function(mesId, lugarId) {
     const per = APP.personal.find(x => x.id === p.personaId)
       || APP.personal.find(x => x.id === liq?.persona_id);
     const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
-    const cuil = p.cuil || per?.cuil || ''; // presentes primero, luego personal
+    const cuil = p.cuil || ''; // siempre del localStorage, igual que el ojo
     const esColon = lugarId === 'teatro-colon';
     const row = {
       'Apellido y nombre': normExport(`${p.apellido} ${p.nombre}`),
       'CUIL': cuil,
-      'CBU':  per?.cbu  || '',
+      'CBU':  per?.cbu || '',
     };
     if (esColon) row['Alias'] = per?.alias || '';
     row['Lugar']   = normExport(lugar.nombre);
