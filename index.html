@@ -1133,6 +1133,9 @@ async function pgArena(el, ac) {
     <button class="btn" onclick="diagnosticarLiqArena()"><i class="ti ti-search"></i> Revisar montos</button>
     <button class="btn btn-primary" onclick="modalNuevaQ()"><i class="ti ti-plus"></i> Nueva quincena</button>`;
 
+  const mostrarCerradas = localStorage.getItem('arena_mostrar_cerradas') !== 'no';
+  const cerradasCount = APP.quincenas.filter(q => q.cerrada).length;
+
   el.innerHTML = `
     <div class="grid4" style="margin-bottom:18px">
       <div class="metric"><div class="metric-l">Quincenas</div><div class="metric-v">${APP.quincenas.length}</div></div>
@@ -1140,12 +1143,26 @@ async function pgArena(el, ac) {
       <div class="metric"><div class="metric-l">Monto a liquidar</div><div class="metric-v" style="font-size:17px">${fmt(montoALiquidar)}</div>
         <div class="metric-s">${quincenasAbiertas.length} quincena${quincenasAbiertas.length!==1?'s':''} abierta${quincenasAbiertas.length!==1?'s':''}</div></div>
       <div class="metric"><div class="metric-l">Total liquidado</div><div class="metric-v" style="font-size:17px">${fmt(totalLiquidado)}</div>
-        <div class="metric-s">${APP.quincenas.filter(q=>q.cerrada).length} quincena${APP.quincenas.filter(q=>q.cerrada).length!==1?'s':''} cerrada${APP.quincenas.filter(q=>q.cerrada).length!==1?'s':''}</div></div>
+        <div class="metric-s">${cerradasCount} quincena${cerradasCount!==1?'s':''} cerrada${cerradasCount!==1?'s':''}</div></div>
     </div>
+    ${cerradasCount ? `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+      <button class="btn btn-sm" onclick="toggleCerradasArena()">
+        <i class="ti ti-${mostrarCerradas?'eye-off':'eye'}"></i>
+        ${mostrarCerradas?'Ocultar':'Mostrar'} quincenas cerradas (${cerradasCount})
+      </button>
+    </div>` : ''}
     ${!APP.quincenas.length
       ? '<div class="empty-state"><i class="ti ti-calendar-off"></i><p>Sin quincenas.</p></div>'
-      : APP.quincenas.map(q => renderQCard(q, isRRHH)).join('')}`;
+      : APP.quincenas.filter(q => mostrarCerradas || !q.cerrada).map(q => renderQCard(q, isRRHH)).join('')
+        || '<div class="empty-state"><i class="ti ti-calendar-off"></i><p>No hay quincenas abiertas. <a href="#" onclick="toggleCerradasArena()">Mostrar cerradas</a></p></div>'
+    }`;
 }
+
+window.toggleCerradasArena = function() {
+  const actual = localStorage.getItem('arena_mostrar_cerradas') !== 'no';
+  localStorage.setItem('arena_mostrar_cerradas', actual ? 'no' : 'si');
+  go('arena');
+};
 
 // ── DIAGNÓSTICO: liquidaciones de Arena con monto cruzado de otra área (bug histórico) ──
 // Las liquidaciones de Arena guardan el detalle por jornada en el campo `detalle` (JSONB),
