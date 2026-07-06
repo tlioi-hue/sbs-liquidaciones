@@ -1130,7 +1130,6 @@ async function pgArena(el, ac) {
   const totalLiquidado = liqArena.reduce((s,l) => s+(l.total||0), 0);
 
   if (isRRHH) ac.innerHTML = `
-    <button class="btn" onclick="diagnosticarLiqArena()"><i class="ti ti-search"></i> Revisar montos</button>
     <button class="btn btn-primary" onclick="modalNuevaQ()"><i class="ti ti-plus"></i> Nueva quincena</button>`;
 
   const mostrarCerradas = localStorage.getItem('arena_mostrar_cerradas') !== 'no';
