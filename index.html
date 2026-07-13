@@ -1600,10 +1600,9 @@ window.exportPreviewQuincena = function(cons, nombreQ) {
   const rows = [];
   cons.forEach(c => {
     const per = APP.personal.find(x => x.id === c.persona_id);
-    // Fila resumen
     rows.push({
-      'Apellido y nombre': per ? nombreExport(per.apellido, per.nombre) : '—',
       'CUIL':     per?.cuil  || '—',
+      'Apellido y nombre': per ? nombreExport(per.apellido, per.nombre) : '—',
       'CBU':      per?.cbu   || '—',
       'Quincena': nombreQ,
       'Jornadas': c.lineas.length,
@@ -1613,11 +1612,9 @@ window.exportPreviewQuincena = function(cons, nombreQ) {
       'Posición': '',
       'Monto jornada ($)': '',
     });
-    // Detalle de jornadas
     c.lineas.forEach(l => {
       rows.push({
-        'Apellido y nombre': '',
-        'CUIL': '', 'CBU': '', 'Quincena': '',
+        'CUIL': '', 'Apellido y nombre': '', 'CBU': '', 'Quincena': '',
         'Jornadas': '', 'Total ($)': '',
         'Fecha jornada': fd(l.fecha),
         'Show': l.ev_nombre,
@@ -1626,7 +1623,14 @@ window.exportPreviewQuincena = function(cons, nombreQ) {
       });
     });
   });
-  exportXLSX(rows, `preview_${nombreQ.replace(/\s+/g,'_')}.xlsx`);
+  const header = ['CUIL','Apellido y nombre','CBU','Quincena','Jornadas','Total ($)','Fecha jornada','Show','Posición','Monto jornada ($)'];
+  const aoa = [header, ...rows.map(r => header.map(h => r[h] ?? ''))];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [16,22,26,20,10,12,12,28,16,14].map(w => ({ wch:w }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Liquidaciones');
+  XLSX.writeFile(wb, `preview_${nombreQ.replace(/\s+/g,'_')}.xlsx`);
+  toast('Excel exportado', 'ok');
 };
 
 window.confirmarCierre = async function(qId, cons) {
