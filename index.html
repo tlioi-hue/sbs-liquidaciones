@@ -2389,7 +2389,13 @@ window.exportLiqsQuincena = function(qId) {
       });
     }
   });
-  exportXLSX(rows, `liquidaciones_${q.nombre.replace(/\s+/g,'_')}.xlsx`);
+  const header = ['CUIL','Apellido y nombre','CBU','Área','Quincena','Jornadas totales','Total ($)','Fecha jornada','Show','Posición jornada','Monto jornada ($)'];
+  const ws = XLSX.utils.json_to_sheet(rows, { header });
+  ws['!cols'] = [16,22,26,14,20,12,12,12,28,16,14].map(w => ({ wch:w }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Liquidaciones');
+  XLSX.writeFile(wb, `liquidaciones_${q.nombre.replace(/\s+/g,'_')}.xlsx`);
+  toast('Excel exportado', 'ok');
 };
 
 // ══════════════════════════════════════════════
