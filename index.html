@@ -2359,8 +2359,8 @@ window.exportLiqsQuincena = function(qId) {
     // Fila resumen
     const nombre = p ? nombreExport(p.apellido, p.nombre) : normExport(l.persona_nombre||'');
     rows.push({
-      'Apellido y nombre': nombre,
       'CUIL':  p?.cuil  || '',
+      'Apellido y nombre': nombre,
       'CBU':   p?.cbu   || '',
       'Área': 'Movistar Arena',
       'Quincena': l.quincena_nombre || '',
@@ -2374,8 +2374,8 @@ window.exportLiqsQuincena = function(qId) {
     if (l.detalle && l.detalle.length) {
       l.detalle.forEach(d => {
         rows.push({
-          'Apellido y nombre': '',
           'CUIL': '',
+          'Apellido y nombre': '',
           'CBU': '',
           'Área': '',
           'Quincena': '',
