@@ -1886,13 +1886,17 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
     if (s.includes('SUPERVIS') && s.includes('VIP'))
       return APP.tarifario.find(t => t.posicion === `Supervisor VIP DOI ${tipo} 6hs`)?.posicion || seccion;
     if (s.includes('COORDINAD'))
-      return APP.tarifario.find(t => t.posicion === 'Coordinador' && (t.area === 'Movistar Arena' || t.area === 'General'))?.posicion || 'Coordinador';
+      return !esFinde
+        ? (APP.tarifario.find(t => t.posicion === 'Coordinador DOI DS 9hs')?.posicion || 'Coordinador DOI DS 9hs')
+        : (APP.tarifario.find(t => t.posicion === 'Coordinador' && (t.area === 'Movistar Arena' || t.area === 'General'))?.posicion || 'Coordinador');
     if (s.includes('SUPERVIS') && !s.includes('VIP'))
       return APP.tarifario.find(t => t.posicion === `Supervisor DOI ${tipo} ${hs}`)?.posicion || seccion;
     if (s.includes('FIRMA'))
       return APP.tarifario.find(t => t.posicion === `Firmas DOI ${tipo}`)?.posicion || seccion;
-    if (s.includes('RECEP'))
-      return APP.tarifario.find(t => t.posicion === `Recepcion DOI ${tipo}`)?.posicion || seccion;
+    if (s.includes('RECEP') || s.includes('POINT') || s.includes('P.POINT'))
+      return esFinde
+        ? (APP.tarifario.find(t => t.posicion === 'Recepcion')?.posicion || 'Recepcion')
+        : (APP.tarifario.find(t => t.posicion === `Recepcion DOI DS`)?.posicion || seccion);
     if (s.includes('VIP'))
       return APP.tarifario.find(t => t.posicion === `VIP DOI ${tipo} 6hs`)?.posicion || seccion;
     return seccion;
