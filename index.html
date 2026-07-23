@@ -1858,6 +1858,43 @@ function mapToTarifario(secPlanilla, area) {
 
 function parseDraft(rows, filename, evId, fechaId, modo) {
   const areaParaTarifa = modo === 'ext' ? 'Externos' : 'Movistar Arena';
+
+  // ── Detección DOI/Disney ──
+  const fnLower = (filename||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const esDOI = fnLower.includes('disney') || fnLower.includes('doi');
+  const turnoManana = esDOI && (fnLower.includes('mana') || fnLower.includes('am') || fnLower.includes('turno 1') || fnLower.includes('manana'));
+  const turnoTarde  = esDOI && !turnoManana;
+
+  // Determinar si la fecha del show es fin de semana
+  let esFinde = false;
+  if (esDOI && fechaId) {
+    const ev = APP.eventos.find(e => e.fechas?.some(f => f.id === fechaId));
+    const fecha = ev?.fechas?.find(f => f.id === fechaId);
+    if (fecha?.fecha) {
+      const dow = new Date(fecha.fecha + 'T12:00:00').getDay();
+      esFinde = dow === 0 || dow === 6;
+    }
+  }
+
+  // Mapeo de posición estándar → posición DOI
+  function mapTarifarioDOI(seccion) {
+    const s = seccion.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const hs = esFinde ? (turnoManana ? '8hs' : '7hs') : '9hs';
+    const tipo = esFinde ? 'FDS' : 'DS';
+    if (s.includes('STAFF') || s.includes('ORIENTAD') || s.includes('ANILLO') || s.includes('BOWL') || s.includes('PLATEA') || s.includes('BACK') || s.includes('INGRESO') || s.includes('PUERTA') || s.includes('ACCESO') || s.includes('CALLE'))
+      return APP.tarifario.find(t => t.posicion === `Staff DOI ${tipo} ${hs}`)?.posicion || seccion;
+    if (s.includes('SUPERVIS') && s.includes('VIP'))
+      return APP.tarifario.find(t => t.posicion === `Supervisor VIP DOI ${tipo} 6hs`)?.posicion || seccion;
+    if (s.includes('SUPERVIS'))
+      return APP.tarifario.find(t => t.posicion === `Supervisor DOI ${tipo} ${hs}`)?.posicion || seccion;
+    if (s.includes('FIRMA'))
+      return APP.tarifario.find(t => t.posicion === `Firmas DOI ${tipo}`)?.posicion || seccion;
+    if (s.includes('RECEP'))
+      return APP.tarifario.find(t => t.posicion === `Recepcion DOI ${tipo}`)?.posicion || seccion;
+    if (s.includes('VIP'))
+      return APP.tarifario.find(t => t.posicion === `VIP DOI ${tipo} 6hs`)?.posicion || seccion;
+    return seccion;
+  }
   let hi=-1, cA=-1, cN=-1, cC=-1, cP=-1, cT=-1;
   for (let i = 0; i < Math.min(rows.length, 6); i++) {
     rows[i].forEach((v, j) => {
@@ -1894,7 +1931,7 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
     const num = parseFloat(a0);
     if (!isNaN(num) && num > 0) {
       // SIN SECCIÓN: filas antes del primer encabezado. Intentar mapear igual.
-      const posSinSec = mapToTarifario(sec, areaParaTarifa);
+      const posSinSec = esDOI ? mapTarifarioDOI(sec) : mapToTarifario(sec, areaParaTarifa);
       const posicion = (sec === 'SIN SECCIÓN' && posSinSec === 'SIN SECCIÓN' && APP.tarifario.length)
         ? (APP.tarifario.find(t => (t.area===areaParaTarifa||t.area==='General') && t.posicion.toLowerCase().includes('orientador'))?.posicion
            || APP.tarifario.find(t => t.area===areaParaTarifa||t.area==='General')?.posicion
@@ -1918,9 +1955,9 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
         subPuesto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim()
       );
       // 2. Si no hay match exacto, usar la sección padre para mapear (ej: SUPERVISORES → Supervisor)
-      const posicion = matchExacto
-        ? matchExacto.posicion
-        : mapToTarifario(sec, areaParaTarifa);
+      const posicion = esDOI
+        ? mapTarifarioDOI(subPuesto || sec)
+        : (matchExacto ? matchExacto.posicion : mapToTarifario(sec, areaParaTarifa));
       const ex = APP.personal.find(p => p.cuil && p.cuil === cuil)
               || (b0 ? APP.personal.find(p => p.apellido.toLowerCase() === b0.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
       filas.push({ _id:uid(), posicion, posicionOriginal:secCombinada, apellido:b0, nombre:nom, cuil, tel,
@@ -1931,7 +1968,8 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
 
   const ev = evId ? getEvento(evId) : null;
   const f  = fechaId && ev ? (ev.fechas||[]).find(x => x.id === fechaId) : null;
-  APP.draft = { filas, nombre:ev?.nombre||filename.replace(/\.[^/.]+$/,''), fecha:f?.fecha||'', area:modo==='ext'?'Externos':'Movistar Arena', evId, fechaId, modo };
+  APP.draft = { filas, nombre:ev?.nombre||filename.replace(/\.[^/.]+$/,''), fecha:f?.fecha||'', area:modo==='ext'?'Externos':'Movistar Arena', evId, fechaId, modo,
+    esDOI, turnoManana, turnoTarde, esFinde };
   go('importar');
 }
 
@@ -1953,6 +1991,7 @@ function pgVerificar(el, ac) {
       <div class="step-sep"></div>
       <div class="step"><div class="step-num">3</div><span>Confirmar</span></div>
     </div>
+    ${d.esDOI ? `<div class="alert alert-info" style="padding:8px 12px;margin-bottom:10px"><i class="ti ti-building-stadium"></i> <strong>Planilla DOI detectada</strong> — Turno ${d.turnoManana?'mañana':'tarde'} · ${d.esFinde?'Fin de semana':'Día de semana'}. Se aplicaron tarifas DOI automáticamente.</div>` : ''}
     <div class="card" style="margin-bottom:13px">
       <div style="display:flex;gap:13px;font-size:12.5px;flex-wrap:wrap;margin-bottom:12px">
         <span><strong>${filas.length}</strong> en planilla</span>
