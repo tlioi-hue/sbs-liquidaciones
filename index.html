@@ -1856,8 +1856,16 @@ function mapToTarifario(secPlanilla, area) {
   return secPlanilla;
 }
 
+window.elegirTurnoDOI = function(esManana) {
+  closeModal();
+  const p = window._doiPendiente;
+  if (!p) return;
+  window._doiPendiente = null;
+  const fnModificado = p.filename + (esManana ? ' TM' : ' TT');
+  parseDraft(p.rows, fnModificado, p.evId, p.fechaId, p.modo);
+};
+
 window.parseDraftConTurno = function(rows, filename, evId, fechaId, modo, esManana) {
-  // Agregar sufijo al nombre del archivo para que la detección de turno funcione
   const fnModificado = filename + (esManana ? ' TM' : ' TT');
   parseDraft(rows, fnModificado, evId, fechaId, modo);
 };
@@ -1874,14 +1882,16 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
 
   // Si es DOI pero el turno no está claro en el nombre, preguntar al usuario
   if (esDOI && !turnoClaro) {
+    // Guardar parámetros temporalmente para usarlos cuando el usuario elija el turno
+    window._doiPendiente = { rows, filename, evId, fechaId, modo };
     showModal(`<div class="modal">
       <div class="modal-t">Planilla DOI — ¿Qué turno es?</div>
       <div class="modal-s">No se pudo detectar el turno en el nombre del archivo. Seleccioná el turno para aplicar las tarifas correctas.</div>
       <div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">
-        <button class="btn btn-primary" style="justify-content:center;padding:14px" onclick="closeModal();parseDraftConTurno(${JSON.stringify(rows)}, ${JSON.stringify(filename)}, ${JSON.stringify(evId)}, ${JSON.stringify(fechaId)}, ${JSON.stringify(modo)}, true)">
+        <button class="btn btn-primary" style="justify-content:center;padding:14px" onclick="elegirTurnoDOI(true)">
           <i class="ti ti-sun"></i> Turno mañana
         </button>
-        <button class="btn" style="justify-content:center;padding:14px" onclick="closeModal();parseDraftConTurno(${JSON.stringify(rows)}, ${JSON.stringify(filename)}, ${JSON.stringify(evId)}, ${JSON.stringify(fechaId)}, ${JSON.stringify(modo)}, false)">
+        <button class="btn" style="justify-content:center;padding:14px" onclick="elegirTurnoDOI(false)">
           <i class="ti ti-moon"></i> Turno tarde
         </button>
       </div>
