@@ -1861,8 +1861,8 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
 
   // ── Detección DOI/Disney ──
   const fnLower = (filename||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
-  const esDOI = fnLower.includes('disney') || fnLower.includes('doi');
-  const turnoManana = esDOI && (fnLower.includes('mana') || fnLower.includes('am') || fnLower.includes('turno 1') || fnLower.includes('manana'));
+  const esDOI = fnLower.includes('disney') || fnLower.includes('doi') || fnLower.includes('ice') || fnLower.includes('on ice');
+  const turnoManana = esDOI && (fnLower.includes('mana') || fnLower.includes('am') || fnLower.includes('turno 1') || fnLower.includes('manana') || fnLower.includes('morning'));
   const turnoTarde  = esDOI && !turnoManana;
 
   // Determinar si la fecha del show es fin de semana
@@ -1881,11 +1881,13 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
     const s = seccion.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
     const hs = esFinde ? (turnoManana ? '8hs' : '7hs') : '9hs';
     const tipo = esFinde ? 'FDS' : 'DS';
-    if (s.includes('STAFF') || s.includes('ORIENTAD') || s.includes('ANILLO') || s.includes('BOWL') || s.includes('PLATEA') || s.includes('BACK') || s.includes('INGRESO') || s.includes('PUERTA') || s.includes('ACCESO') || s.includes('CALLE'))
+    if (s.includes('STAFF') || s.includes('ORIENTAD') || s.includes('ANILLO') || s.includes('BOWL') || s.includes('PLATEA') || s.includes('BACK') || s.includes('INGRESO') || s.includes('PUERTA') || s.includes('ACCESO') || s.includes('CALLE') || s.includes('CORTA') || s.includes('TICKET'))
       return APP.tarifario.find(t => t.posicion === `Staff DOI ${tipo} ${hs}`)?.posicion || seccion;
     if (s.includes('SUPERVIS') && s.includes('VIP'))
       return APP.tarifario.find(t => t.posicion === `Supervisor VIP DOI ${tipo} 6hs`)?.posicion || seccion;
-    if (s.includes('SUPERVIS'))
+    if (s.includes('COORDINAD'))
+      return APP.tarifario.find(t => t.posicion === 'Coordinador' && (t.area === 'Movistar Arena' || t.area === 'General'))?.posicion || 'Coordinador';
+    if (s.includes('SUPERVIS') && !s.includes('VIP'))
       return APP.tarifario.find(t => t.posicion === `Supervisor DOI ${tipo} ${hs}`)?.posicion || seccion;
     if (s.includes('FIRMA'))
       return APP.tarifario.find(t => t.posicion === `Firmas DOI ${tipo}`)?.posicion || seccion;
@@ -1933,9 +1935,11 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
       // SIN SECCIÓN: filas antes del primer encabezado. Intentar mapear igual.
       const posSinSec = esDOI ? mapTarifarioDOI(sec) : mapToTarifario(sec, areaParaTarifa);
       const posicion = (sec === 'SIN SECCIÓN' && posSinSec === 'SIN SECCIÓN' && APP.tarifario.length)
-        ? (APP.tarifario.find(t => (t.area===areaParaTarifa||t.area==='General') && t.posicion.toLowerCase().includes('orientador'))?.posicion
-           || APP.tarifario.find(t => t.area===areaParaTarifa||t.area==='General')?.posicion
-           || APP.tarifario[0].posicion)
+        ? esDOI
+          ? (APP.tarifario.find(t => t.posicion === `Staff DOI ${esFinde?(turnoManana?'FDS 8hs':'FDS 7hs'):'DS 9hs'}`)?.posicion || APP.tarifario[0].posicion)
+          : (APP.tarifario.find(t => (t.area===areaParaTarifa||t.area==='General') && t.posicion.toLowerCase().includes('orientador'))?.posicion
+             || APP.tarifario.find(t => t.area===areaParaTarifa||t.area==='General')?.posicion
+             || APP.tarifario[0].posicion)
         : posSinSec;
       const ex = APP.personal.find(p => p.cuil && p.cuil === cuil)
               || (b0 ? APP.personal.find(p => p.apellido.toLowerCase() === b0.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
@@ -1956,7 +1960,7 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
       );
       // 2. Si no hay match exacto, usar la sección padre para mapear (ej: SUPERVISORES → Supervisor)
       const posicion = esDOI
-        ? mapTarifarioDOI(subPuesto || sec)
+        ? (mapTarifarioDOI(sec) !== sec ? mapTarifarioDOI(sec) : mapTarifarioDOI(subPuesto))
         : (matchExacto ? matchExacto.posicion : mapToTarifario(sec, areaParaTarifa));
       const ex = APP.personal.find(p => p.cuil && p.cuil === cuil)
               || (b0 ? APP.personal.find(p => p.apellido.toLowerCase() === b0.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
