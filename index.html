@@ -2148,6 +2148,7 @@ window.actualizarShows = function() {
   const shows = APP.eventos.filter(e => e.quincena_id === qId && e.area === 'Movistar Arena');
   selShow.innerHTML = `<option value="">— elegir show —</option>` +
     shows.map(s => `<option value="${s.id}">${s.nombre}${s.fecha?' · '+s.fecha:''}</option>`).join('');
+  selShow.onchange = function() { recalcularDOIsiCorresponde(); };
   if (selFecha) selFecha.innerHTML = '<option value="">— elegir show primero —</option>';
 };
 
@@ -2164,21 +2165,18 @@ window.actualizarFechas = function() {
   selFecha.onchange = function() { recalcularDOIsiCorresponde(); };
 };
 
-// Recalcula posiciones DOI cuando se elige la fecha del show
+// Recalcula posiciones DOI cuando se elige el show
 window.recalcularDOIsiCorresponde = function() {
   const d = APP.draft;
   if (!d || !d.esDOI) return;
-  const fechaId = document.getElementById('sel-fecha')?.value;
-  if (!fechaId || fechaId === '__nueva__') return;
   const evId = document.getElementById('sel-show')?.value;
+  if (!evId) return;
   const ev = APP.eventos.find(e => e.id === evId);
-  const fecha = ev?.fechas?.find(f => f.id === fechaId);
-  if (!fecha?.fecha) return;
-  const dow = new Date(fecha.fecha + 'T12:00:00').getDay();
+  const fechaStr = ev?.fecha; // formato YYYY-MM-DD
+  if (!fechaStr) return;
+  const dow = new Date(fechaStr + 'T12:00:00').getDay();
   const nuevoEsFinde = dow === 0 || dow === 6;
-  if (nuevoEsFinde === d.esFinde) return; // no cambió, no hace falta recalcular
   d.esFinde = nuevoEsFinde;
-  // Reasignar posiciones DOI a todas las filas
   const { esFinde, turnoManana } = d;
   const tipo = esFinde ? 'FDS' : 'DS';
   const hs = esFinde ? (turnoManana ? '8hs' : '7hs') : '9hs';
