@@ -1964,7 +1964,13 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
       );
       // 2. Si no hay match exacto, usar la sección padre para mapear (ej: SUPERVISORES → Supervisor)
       const posicion = esDOI
-        ? (mapTarifarioDOI(sec) !== sec ? mapTarifarioDOI(sec) : mapTarifarioDOI(subPuesto))
+        ? (() => {
+            // Siempre intentar mapear el subPuesto primero para posiciones específicas
+            const mappedSub = mapTarifarioDOI(subPuesto);
+            if (mappedSub !== subPuesto) return mappedSub; // subPuesto tiene mapeo DOI específico
+            const mappedSec = mapTarifarioDOI(sec);
+            return mappedSec !== sec ? mappedSec : subPuesto;
+          })()
         : (matchExacto ? matchExacto.posicion : mapToTarifario(sec, areaParaTarifa));
       const ex = APP.personal.find(p => p.cuil && p.cuil === cuil)
               || (b0 ? APP.personal.find(p => p.apellido.toLowerCase() === b0.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
