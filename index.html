@@ -1856,14 +1856,38 @@ function mapToTarifario(secPlanilla, area) {
   return secPlanilla;
 }
 
+window.parseDraftConTurno = function(rows, filename, evId, fechaId, modo, esManana) {
+  // Agregar sufijo al nombre del archivo para que la detección de turno funcione
+  const fnModificado = filename + (esManana ? ' TM' : ' TT');
+  parseDraft(rows, fnModificado, evId, fechaId, modo);
+};
+
 function parseDraft(rows, filename, evId, fechaId, modo) {
   const areaParaTarifa = modo === 'ext' ? 'Externos' : 'Movistar Arena';
 
   // ── Detección DOI/Disney ──
   const fnLower = (filename||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   const esDOI = fnLower.includes('disney') || fnLower.includes('doi') || fnLower.includes('ice') || fnLower.includes('on ice');
-  const turnoManana = esDOI && (fnLower.includes('mana') || fnLower.includes('am') || fnLower.includes('turno 1') || fnLower.includes('manana') || fnLower.includes('morning'));
+  const turnoClaro = fnLower.includes('mana') || fnLower.includes('am') || fnLower.includes('turno 1') || fnLower.includes('manana') || fnLower.includes('morning') || fnLower.includes('tarde') || fnLower.includes('pm') || fnLower.includes('turno 2') || fnLower.includes(' tm') || fnLower.includes(' tt');
+  const turnoManana = esDOI && (fnLower.includes('mana') || fnLower.includes('am') || fnLower.includes('turno 1') || fnLower.includes('manana') || fnLower.includes('morning') || fnLower.includes(' tm'));
   const turnoTarde  = esDOI && !turnoManana;
+
+  // Si es DOI pero el turno no está claro en el nombre, preguntar al usuario
+  if (esDOI && !turnoClaro) {
+    showModal(`<div class="modal">
+      <div class="modal-t">Planilla DOI — ¿Qué turno es?</div>
+      <div class="modal-s">No se pudo detectar el turno en el nombre del archivo. Seleccioná el turno para aplicar las tarifas correctas.</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">
+        <button class="btn btn-primary" style="justify-content:center;padding:14px" onclick="closeModal();parseDraftConTurno(${JSON.stringify(rows)}, ${JSON.stringify(filename)}, ${JSON.stringify(evId)}, ${JSON.stringify(fechaId)}, ${JSON.stringify(modo)}, true)">
+          <i class="ti ti-sun"></i> Turno mañana
+        </button>
+        <button class="btn" style="justify-content:center;padding:14px" onclick="closeModal();parseDraftConTurno(${JSON.stringify(rows)}, ${JSON.stringify(filename)}, ${JSON.stringify(evId)}, ${JSON.stringify(fechaId)}, ${JSON.stringify(modo)}, false)">
+          <i class="ti ti-moon"></i> Turno tarde
+        </button>
+      </div>
+    </div>`);
+    return;
+  }
 
   // Determinar si la fecha del show es fin de semana
   let esFinde = false;
