@@ -1965,9 +1965,20 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
       // 2. Si no hay match exacto, usar la sección padre para mapear (ej: SUPERVISORES → Supervisor)
       const posicion = esDOI
         ? (() => {
-            // Siempre intentar mapear el subPuesto primero para posiciones específicas
+            const secEsSupervisor = sec.toUpperCase().includes('SUPERVIS');
+            const subUp = subPuesto.toUpperCase();
+            // VIP dentro de SUPERVISORES → Supervisor VIP
+            if (subUp.includes('VIP') && secEsSupervisor)
+              return APP.tarifario.find(t => t.posicion === `Supervisor VIP DOI ${esFinde?'FDS':'DS'} 6hs`)?.posicion || subPuesto;
+            // Coordinador tiene mapeo propio siempre
+            if (subUp.includes('COORDINAD'))
+              return mapTarifarioDOI(subPuesto);
+            // Si la sección padre es SUPERVISORES, mapear siempre a Supervisor DOI (no Staff)
+            if (secEsSupervisor)
+              return APP.tarifario.find(t => t.posicion === `Supervisor DOI ${esFinde?'FDS':'DS'} ${esFinde?(turnoManana?'8hs':'7hs'):'9hs'}`)?.posicion || subPuesto;
+            // Para otras secciones, intentar mapear el subPuesto primero
             const mappedSub = mapTarifarioDOI(subPuesto);
-            if (mappedSub !== subPuesto) return mappedSub; // subPuesto tiene mapeo DOI específico
+            if (mappedSub !== subPuesto) return mappedSub;
             const mappedSec = mapTarifarioDOI(sec);
             return mappedSec !== sec ? mappedSec : subPuesto;
           })()
