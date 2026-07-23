@@ -2161,6 +2161,48 @@ window.actualizarFechas = function() {
   selFecha.innerHTML = `<option value="">— elegir fecha —</option>` +
     fechas.map(f => `<option value="${f.id}">${f.fecha}${f.nombre?' · '+f.nombre:''}</option>`).join('') +
     `<option value="__nueva__">+ Crear nueva fecha</option>`;
+  selFecha.onchange = function() { recalcularDOIsiCorresponde(); };
+};
+
+// Recalcula posiciones DOI cuando se elige la fecha del show
+window.recalcularDOIsiCorresponde = function() {
+  const d = APP.draft;
+  if (!d || !d.esDOI) return;
+  const fechaId = document.getElementById('sel-fecha')?.value;
+  if (!fechaId || fechaId === '__nueva__') return;
+  const evId = document.getElementById('sel-show')?.value;
+  const ev = APP.eventos.find(e => e.id === evId);
+  const fecha = ev?.fechas?.find(f => f.id === fechaId);
+  if (!fecha?.fecha) return;
+  const dow = new Date(fecha.fecha + 'T12:00:00').getDay();
+  const nuevoEsFinde = dow === 0 || dow === 6;
+  if (nuevoEsFinde === d.esFinde) return; // no cambió, no hace falta recalcular
+  d.esFinde = nuevoEsFinde;
+  // Reasignar posiciones DOI a todas las filas
+  const { esFinde, turnoManana } = d;
+  const tipo = esFinde ? 'FDS' : 'DS';
+  const hs = esFinde ? (turnoManana ? '8hs' : '7hs') : '9hs';
+  d.filas.forEach(f => {
+    const s = f.posicionOriginal?.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'') || '';
+    // Reasignar según la sección original guardada
+    let nueva = null;
+    if (s.includes('SUPERVIS') && s.includes('VIP')) nueva = `Supervisor VIP DOI ${tipo} 6hs`;
+    else if (s.includes('COORDINAD')) nueva = !esFinde ? 'Coordinador DOI DS 9hs' : 'Coordinador';
+    else if (s.includes('SUPERVIS')) nueva = `Supervisor DOI ${tipo} ${hs}`;
+    else if (s.includes('STAFF') || s.includes('ORIENTAD') || s.includes('BOWL') || s.includes('PLATEA') || s.includes('BACK') || s.includes('ANILLO') || s.includes('CALLE') || s.includes('CORTA') || s.includes('TICKET') || s.includes('SIN SECCI')) nueva = `Staff DOI ${tipo} ${hs}`;
+    else if (s.includes('FIRMA')) nueva = !esFinde ? 'Firmas DOI DS' : null;
+    else if (s.includes('RECEP') || s.includes('POINT')) nueva = !esFinde ? 'Recepcion DOI DS' : 'Recepcion';
+    else if (s.includes('VIP')) nueva = `VIP DOI ${tipo} 6hs`;
+    if (nueva) {
+      const tarifa = APP.tarifario.find(t => t.posicion === nueva);
+      f.posicion = tarifa ? nueva : f.posicion;
+    }
+  });
+  // Actualizar el banner
+  const banner = document.querySelector('.alert.alert-info');
+  if (banner) banner.innerHTML = `<i class="ti ti-building-stadium"></i> <strong>Planilla DOI detectada</strong> — Turno ${turnoManana?'mañana':'tarde'} · ${esFinde?'Fin de semana':'Día de semana'}. Posiciones DOI actualizadas.`;
+  // Refrescar la tabla
+  go('verificar');
 };
 
 window.selFila = function(fid, val) {
