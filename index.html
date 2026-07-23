@@ -2199,8 +2199,15 @@ window.recalcularDOIsiCorresponde = function() {
   // Actualizar el banner
   const banner = document.querySelector('.alert.alert-info');
   if (banner) banner.innerHTML = `<i class="ti ti-building-stadium"></i> <strong>Planilla DOI detectada</strong> — Turno ${turnoManana?'mañana':'tarde'} · ${esFinde?'Fin de semana':'Día de semana'}. Posiciones DOI actualizadas.`;
-  // Refrescar la tabla
-  go('verificar');
+  // Actualizar los dropdowns de posición en el DOM directamente
+  d.filas.forEach(f => {
+    const sel = document.getElementById('pos-' + f._id);
+    if (sel && f.posicion) sel.value = f.posicion;
+    // Actualizar el monto mostrado en el encabezado de sección
+    const tar = APP.tarifario.find(t => t.posicion === f.posicion);
+    const montoEl = document.querySelector(`[data-posicion="${f.posicion}"] .monto-jornada`);
+    if (montoEl && tar) montoEl.textContent = `$ ${tar.monto.toLocaleString('es-AR')}/jornada`;
+  });
 };
 
 window.selFila = function(fid, val) {
