@@ -2064,7 +2064,22 @@ function pgVerificar(el, ac) {
         <div><strong>${filas.filter(f=>f.cuil.length!==11&&f.presente).length} CUIL inválido${filas.filter(f=>f.cuil.length!==11&&f.presente).length>1?'s':''}.</strong>
         Un CUIL tiene exactamente 11 dígitos. Corregílos antes de confirmar — están marcados en rojo en la tabla.</div>
       </div>` : ''}
-    <div class="card" style="padding:0;overflow:hidden">
+    <div id="secciones-ver"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:13px">
+      <button class="btn" onclick="cancelarDraft()">Cancelar</button>
+      <button class="btn btn-success" onclick="confirmarImport()"><i class="ti ti-check"></i> Confirmar e importar</button>
+    </div>`;
+
+  renderSeccionesVerificar();
+}
+
+function renderSeccionesVerificar() {
+  const cont = document.getElementById('secciones-ver');
+  if (!cont) return;
+  const d = APP.draft;
+  const filas = d.filas;
+  const secs = [...new Set(filas.map(f => f.posicion))];
+  cont.innerHTML = `<div class="card" style="padding:0;overflow:hidden">
       <div style="padding:8px 13px;background:var(--bg3);border-bottom:1px solid var(--border);font-size:12px;color:var(--text2)">
         <i class="ti ti-pencil" style="font-size:12px"></i>
         Editá cualquier celda directamente ·
@@ -2073,7 +2088,6 @@ function pgVerificar(el, ac) {
       ${secs.map(sec => {
         const sf  = filas.filter(f => f.posicion === sec);
         const tar = getTarifa(sec, d.area);
-        // Detectar si el nombre de la sección fue mapeado (distinto al original)
         const originalSec = sf[0]?.posicionOriginal || sec;
         const fueMapeado  = originalSec !== sec;
         return `<div>
@@ -2103,7 +2117,6 @@ function pgVerificar(el, ac) {
                   const posOpts = tarifasArea.map(t =>
                     `<option value="${t.posicion}" ${f.posicion===t.posicion?'selected':''}>${t.posicion}</option>`
                   ).join('');
-                  // Si la posición detectada no está en el tarifario de esta área, agregar como opción extra
                   const enTarifario = tarifasArea.some(t => t.posicion === f.posicion);
                   const extraOpt = !enTarifario ? `<option value="${f.posicion}" selected>${f.posicion}</option>` : '';
                   return `<tr id="fr-${f._id}" class="${f.sel?'sel':f.presente?'':'ausente'}">
@@ -2124,11 +2137,8 @@ function pgVerificar(el, ac) {
           </div>
         </div>`;
       }).join('')}
-    </div>
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:13px">
-      <button class="btn" onclick="cancelarDraft()">Cancelar</button>
-      <button class="btn btn-success" onclick="confirmarImport()"><i class="ti ti-check"></i> Confirmar e importar</button>
     </div>`;
+  refreshBulk();
 }
 
 window.actualizarSelectores = function() {
@@ -2199,15 +2209,8 @@ window.recalcularDOIsiCorresponde = function() {
   // Actualizar el banner
   const banner = document.querySelector('.alert.alert-info');
   if (banner) banner.innerHTML = `<i class="ti ti-building-stadium"></i> <strong>Planilla DOI detectada</strong> — Turno ${turnoManana?'mañana':'tarde'} · ${esFinde?'Fin de semana':'Día de semana'}. Posiciones DOI actualizadas.`;
-  // Actualizar los dropdowns de posición en el DOM directamente
-  d.filas.forEach(f => {
-    const sel = document.getElementById('pos-' + f._id);
-    if (sel && f.posicion) sel.value = f.posicion;
-    // Actualizar el monto mostrado en el encabezado de sección
-    const tar = APP.tarifario.find(t => t.posicion === f.posicion);
-    const montoEl = document.querySelector(`[data-posicion="${f.posicion}"] .monto-jornada`);
-    if (montoEl && tar) montoEl.textContent = `$ ${tar.monto.toLocaleString('es-AR')}/jornada`;
-  });
+  // Re-renderizar la tabla completa para reflejar los nuevos encabezados y montos
+  renderSeccionesVerificar();
 };
 
 window.selFila = function(fid, val) {
