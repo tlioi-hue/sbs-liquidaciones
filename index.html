@@ -1880,23 +1880,12 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
   const turnoManana = esDOI && (fnLower.includes('mana') || fnLower.includes('am') || fnLower.includes('turno 1') || fnLower.includes('manana') || fnLower.includes('morning') || fnLower.includes(' tm'));
   const turnoTarde  = esDOI && !turnoManana;
 
-  // Si es DOI pero el turno no está claro en el nombre, preguntar al usuario
+  // Si es DOI y el turno no está claro, lo guardaremos para preguntar solo si es fin de semana
+  // (al día de semana siempre aplica DS 9hs sin necesidad de turno)
   if (esDOI && !turnoClaro) {
-    // Guardar parámetros temporalmente para usarlos cuando el usuario elija el turno
-    window._doiPendiente = { rows, filename, evId, fechaId, modo };
-    showModal(`<div class="modal">
-      <div class="modal-t">Planilla DOI — ¿Qué turno es?</div>
-      <div class="modal-s">No se pudo detectar el turno en el nombre del archivo. Seleccioná el turno para aplicar las tarifas correctas.</div>
-      <div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">
-        <button class="btn btn-primary" style="justify-content:center;padding:14px" onclick="elegirTurnoDOI(true)">
-          <i class="ti ti-sun"></i> Turno mañana
-        </button>
-        <button class="btn" style="justify-content:center;padding:14px" onclick="elegirTurnoDOI(false)">
-          <i class="ti ti-moon"></i> Turno tarde
-        </button>
-      </div>
-    </div>`);
-    return;
+    window._doiSinTurno = true; // flag: necesitamos preguntar turno si resulta ser finde
+  } else {
+    window._doiSinTurno = false;
   }
 
   // Determinar si la fecha del show es fin de semana
@@ -2210,17 +2199,37 @@ window.actualizarFechas = function() {
 };
 
 // Recalcula posiciones DOI cuando se elige el show
-window.recalcularDOIsiCorresponde = function() {
+window.recalcularDOIsiCorresponde = function(turnoForzado) {
   const d = APP.draft;
   if (!d || !d.esDOI) return;
   const evId = document.getElementById('sel-show')?.value;
   if (!evId) return;
   const ev = APP.eventos.find(e => e.id === evId);
-  const fechaStr = ev?.fecha; // formato YYYY-MM-DD
+  const fechaStr = ev?.fecha;
   if (!fechaStr) return;
   const dow = new Date(fechaStr + 'T12:00:00').getDay();
   const nuevoEsFinde = dow === 0 || dow === 6;
   d.esFinde = nuevoEsFinde;
+
+  // Si es fin de semana y el turno no estaba claro en el nombre, preguntar turno ahora
+  if (nuevoEsFinde && window._doiSinTurno && turnoForzado === undefined) {
+    showModal(`<div class="modal">
+      <div class="modal-t">Planilla DOI — ¿Qué turno es?</div>
+      <div class="modal-s">Es fin de semana. Seleccioná el turno para aplicar las tarifas correctas.</div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin:16px 0">
+        <button class="btn btn-primary" style="justify-content:center;padding:14px" onclick="closeModal();recalcularDOIsiCorresponde(true)">
+          <i class="ti ti-sun"></i> Turno mañana
+        </button>
+        <button class="btn" style="justify-content:center;padding:14px" onclick="closeModal();recalcularDOIsiCorresponde(false)">
+          <i class="ti ti-moon"></i> Turno tarde
+        </button>
+      </div>
+    </div>`);
+    return;
+  }
+
+  // Aplicar turno: si se forzó uno usarlo, sino usar el del draft
+  if (turnoForzado !== undefined) d.turnoManana = turnoForzado;
   const { esFinde, turnoManana } = d;
   const tipo = esFinde ? 'FDS' : 'DS';
   const hs = esFinde ? (turnoManana ? '8hs' : '7hs') : '9hs';
