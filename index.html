@@ -2877,18 +2877,20 @@ window.toggleCerradosFijos = function() {
   go('fijos');
 };
 
-// Un mes se considera cerrado cuando todos los lugares que tienen gente cargada están cerrados.
-// Se deriva del estado por lugar en vez de un flag aparte, así el badge nunca queda desincronizado.
-function mesEstaCerrado(mes) {
+// Todos los lugares que tienen gente cargada están cerrados → el mes está listo para el cierre final.
+function mesTodoCerrado(mes) {
   const conGente = LUGARES_FIJOS.filter(l => (mes.presentes?.[l.id] || []).length);
-  if (!conGente.length) return false; // mes vacío = abierto
+  if (!conGente.length) return false; // mes vacío: nada para cerrar
   return conGente.every(l => !!(mes.cerradoPorLugar?.[l.id]));
 }
+// El cierre final del mes es explícito (mes.cerrado), y solo se habilita cuando todos los lugares cerraron.
+function mesEstaCerrado(mes) { return !!mes.cerrado; }
 
 function renderMesFijo(mes, isRRHH) {
   const liqMes = APP.liquidaciones.filter(l => l.area === 'Servicios Fijos' && l.mes_id === mes.id);
   const totalMes = liqMes.reduce((s,l) => s+(l.total||0), 0);
   const cerrado = mesEstaCerrado(mes);
+  const listoParaCerrar = !cerrado && mesTodoCerrado(mes);
 
   return `<div class="ev-card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
@@ -2897,8 +2899,8 @@ function renderMesFijo(mes, isRRHH) {
         <div style="font-size:11.5px;color:var(--text2);margin-top:2px">${mes.periodo||''}</div>
       </div>
       <div style="display:flex;gap:7px;align-items:center">
-        <span class="badge ${cerrado?'bs':'bw'}">${cerrado?'cerrado':'abierto'}</span>
-        ${isRRHH ? `<button class="btn btn-sm btn-danger" onclick="delMesFijo('${mes.id}')"><i class="ti ti-trash"></i></button>` : ''}
+        <span class="badge ${cerrado?'bs':listoParaCerrar?'bi':'bw'}">${cerrado?'cerrado':listoParaCerrar?'listo para cerrar':'abierto'}</span>
+        ${isRRHH && !cerrado ? `<button class="btn btn-sm btn-danger" onclick="delMesFijo('${mes.id}')"><i class="ti ti-trash"></i></button>` : ''}
       </div>
     </div>
     <div style="display:flex;gap:13px;font-size:11.5px;margin-bottom:12px;flex-wrap:wrap">
@@ -2924,18 +2926,22 @@ function renderMesFijo(mes, isRRHH) {
           <span class="pill">${pres.reduce((s,p)=>s+(p.jornadas||0),0)} jornadas</span>
           <span class="fb ${estadoChip}">${estadoTxt}</span>
           <div style="display:flex;gap:5px;flex-shrink:0">
-            ${!lugarCerrado && !liqL.length && isRRHH ? `<button class="btn btn-sm" onclick="importarPlanillaFija('${mes.id}','${l.id}')"><i class="ti ti-file-upload"></i></button>` : ''}
-            ${pres.length ? `<button class="btn btn-sm" onclick="verDetalleLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-eye"></i></button>` : ''}
-            ${pres.length && !liqL.length && !lugarCerrado && isRRHH ? `<button class="btn btn-sm btn-success" onclick="liquidarLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
-            ${liqL.length && !lugarCerrado && isRRHH ? `<button class="btn btn-sm btn-success" onclick="cerrarLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-lock"></i> Cerrar</button>` : ''}
-            ${liqL.length && lugarCerrado && isRRHH ? `<button class="btn btn-sm" onclick="reabrirLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-lock-open"></i> Reabrir</button>` : ''}
+            ${!cerrado && !lugarCerrado && !liqL.length && isRRHH ? `<button class="btn btn-sm" onclick="importarPlanillaFija('${mes.id}','${l.id}')" title="Importar planilla"><i class="ti ti-file-upload"></i></button>` : ''}
+            ${pres.length ? `<button class="btn btn-sm" onclick="verDetalleLugarFijo('${mes.id}','${l.id}')" title="Ver detalle"><i class="ti ti-eye"></i></button>` : ''}
+            ${pres.length ? `<button class="btn btn-sm" onclick="exportDetalleLugarFijo('${mes.id}','${l.id}')" title="Exportar Excel de ${l.nombre}"><i class="ti ti-file-spreadsheet"></i></button>` : ''}
+            ${!cerrado && pres.length && !liqL.length && !lugarCerrado && isRRHH ? `<button class="btn btn-sm btn-success" onclick="liquidarLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
+            ${!cerrado && liqL.length && !lugarCerrado && isRRHH ? `<button class="btn btn-sm btn-success" onclick="cerrarLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-lock"></i> Cerrar</button>` : ''}
+            ${!cerrado && liqL.length && lugarCerrado && isRRHH ? `<button class="btn btn-sm" onclick="reabrirLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-lock-open"></i> Reabrir</button>` : ''}
           </div>
         </div>`;
       }).join('')}
     </div>
     <div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center">
-      ${totalMes ? `<button class="btn btn-sm" onclick="exportMesFijo('${mes.id}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>` : ''}
-      ${totalMes && isRRHH ? `<button class="btn btn-sm" onclick="previaMesFijo('${mes.id}')"><i class="ti ti-eye"></i> Vista previa liquidación</button>` : ''}
+      ${totalMes && isRRHH && !cerrado ? `<button class="btn btn-sm" onclick="previaMesFijo('${mes.id}')"><i class="ti ti-eye"></i> Vista previa liquidación</button>` : ''}
+      ${totalMes ? `<button class="btn btn-sm" onclick="exportMesFijo('${mes.id}')"><i class="ti ti-file-spreadsheet"></i> Exportar consolidado</button>` : ''}
+      ${listoParaCerrar && isRRHH ? `<button class="btn btn-sm btn-success" onclick="cerrarMesFijo('${mes.id}')"><i class="ti ti-lock"></i> Cerrar mes definitivamente</button>` : ''}
+      ${cerrado && isRRHH ? `<button class="btn btn-sm" onclick="reabrirMesFijo('${mes.id}')"><i class="ti ti-lock-open"></i> Reabrir mes</button>` : ''}
+      ${!listoParaCerrar && !cerrado && totalMes ? `<span style="font-size:11px;color:var(--text2)"><i class="ti ti-info-circle"></i> Cerrá los 3 lugares para poder cerrar el mes</span>` : ''}
     </div>
   </div>`;
 }
@@ -3647,7 +3653,8 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
   const mes = getMesesFijos().find(m => m.id === mesId);
   const pres = mes?.presentes?.[lugarId] || [];
   const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId && l.lugar_fijo === lugarId);
-  const lugarCerrado = !!(mes?.cerradoPorLugar?.[lugarId]);
+  // Solo lectura si el lugar está cerrado O si el mes tuvo su cierre final
+  const lugarCerrado = !!(mes?.cerradoPorLugar?.[lugarId]) || !!mes?.cerrado;
   showModal(`<div class="modal modal-lg">
     <div class="modal-t">${lugar.nombre} — ${mes.nombre}</div>
     <div class="modal-s">${pres.length} personas · ${pres.reduce((s,p)=>s+(p.jornadas||0)+(p.jornadasFinde||0),0)} jornadas totales</div>
@@ -3831,19 +3838,41 @@ window.cerrarLugarFijo = async function(mesId, lugarId) {
 };
 
 window.cerrarMesFijo = async function(mesId) {
-  if (!confirm('¿Cerrar este mes definitivamente? Todas las liquidaciones pendientes pasarán a estado "aprobado".')) return;
+  const meses = getMesesFijos();
+  const idx = meses.findIndex(m => m.id === mesId);
+  if (idx < 0) return;
+  const mes = meses[idx];
+  // Solo se puede cerrar el mes cuando los 3 lugares con gente ya están cerrados
+  if (!mesTodoCerrado(mes)) {
+    const faltan = LUGARES_FIJOS
+      .filter(l => (mes.presentes?.[l.id] || []).length && !mes.cerradoPorLugar?.[l.id])
+      .map(l => l.nombre);
+    alert(`Falta cerrar: ${faltan.join(', ')}.\nCerrá cada lugar antes del cierre final del mes.`);
+    return;
+  }
+  if (!confirm(`¿Cerrar ${mes.nombre} definitivamente?\nLas liquidaciones pendientes pasarán a "aprobado" y el mes queda bloqueado.`)) return;
   loading(true);
   const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId && l.estado === 'pendiente');
   for (const l of liqs) {
     await sb.from('liquidaciones').update({ estado: 'aprobado' }).eq('id', l.id);
   }
-  // Marcar el mes como cerrado en localStorage
+  meses[idx].cerrado = true;
+  saveMesesFijos(meses);
+  await fetchAll();
+  loading(false);
+  toast(`${mes.nombre} cerrado${liqs.length ? ` — ${liqs.length} liquidaciones aprobadas` : ''}`, 'ok');
+  await go('fijos');
+};
+
+window.reabrirMesFijo = function(mesId) {
   const meses = getMesesFijos();
   const idx = meses.findIndex(m => m.id === mesId);
-  if (idx >= 0) { meses[idx].cerrado = true; saveMesesFijos(meses); }
-  loading(false);
-  toast(`Mes cerrado — ${liqs.length} liquidaciones aprobadas`, 'ok');
-  await go('fijos');
+  if (idx < 0) return;
+  if (!confirm(`¿Reabrir ${meses[idx].nombre}? Vas a poder volver a editar y reabrir lugares.`)) return;
+  meses[idx].cerrado = false;
+  saveMesesFijos(meses);
+  toast('Mes reabierto', 'ok');
+  go('fijos');
 };
 
 window.exportMesFijo = function(mesId) {
