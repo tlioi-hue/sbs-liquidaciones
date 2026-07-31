@@ -2847,6 +2847,10 @@ async function pgFijos(el, ac) {
 
   if (isRRHH) ac.innerHTML = `<button class="btn btn-primary" onclick="modalNuevoMesFijo()"><i class="ti ti-plus"></i> Nuevo mes</button>`;
 
+  const mostrarCerrados = localStorage.getItem('fijos_mostrar_cerrados') !== 'no';
+  const cerradosCount = meses.filter(m => mesEstaCerrado(m)).length;
+  const visibles = meses.filter(m => mostrarCerrados || !mesEstaCerrado(m));
+
   el.innerHTML = `
     <div class="grid4" style="margin-bottom:18px">
       <div class="metric"><div class="metric-l">Ecoparque</div><div class="metric-v" style="font-size:17px">${fmt(APP.liquidaciones.filter(l=>l.area==='Servicios Fijos'&&l.lugar_fijo==='ecoparque').reduce((s,l)=>s+(l.total||0),0))}</div><div class="metric-s">Total liquidado</div></div>
@@ -2854,14 +2858,37 @@ async function pgFijos(el, ac) {
       <div class="metric"><div class="metric-l">Campo de Polo</div><div class="metric-v" style="font-size:17px">${fmt(APP.liquidaciones.filter(l=>l.area==='Servicios Fijos'&&l.lugar_fijo==='campo-de-polo').reduce((s,l)=>s+(l.total||0),0))}</div><div class="metric-s">Total liquidado</div></div>
       <div class="metric"><div class="metric-l">Total general</div><div class="metric-v" style="font-size:17px">${fmt(totalLiq)}</div><div class="metric-s">${meses.length} mes${meses.length!==1?'es':''} · ${APP.personal.filter(p=>p.area==='Servicios Fijos').length} personas</div></div>
     </div>
+    ${cerradosCount ? `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+      <button class="btn btn-sm" onclick="toggleCerradosFijos()">
+        <i class="ti ti-${mostrarCerrados?'eye-off':'eye'}"></i>
+        ${mostrarCerrados?'Ocultar':'Mostrar'} meses cerrados (${cerradosCount})
+      </button>
+    </div>` : ''}
     ${!meses.length
       ? '<div class="empty-state"><i class="ti ti-calendar-off"></i><p>Sin meses. Creá el primero.</p></div>'
-      : meses.map(m => renderMesFijo(m, isRRHH)).join('')}`;
+      : visibles.map(m => renderMesFijo(m, isRRHH)).join('')
+        || '<div class="empty-state"><i class="ti ti-calendar-off"></i><p>No hay meses abiertos. <a href="#" onclick="toggleCerradosFijos()">Mostrar cerrados</a></p></div>'
+    }`;
+}
+
+window.toggleCerradosFijos = function() {
+  const actual = localStorage.getItem('fijos_mostrar_cerrados') !== 'no';
+  localStorage.setItem('fijos_mostrar_cerrados', actual ? 'no' : 'si');
+  go('fijos');
+};
+
+// Un mes se considera cerrado cuando todos los lugares que tienen gente cargada están cerrados.
+// Se deriva del estado por lugar en vez de un flag aparte, así el badge nunca queda desincronizado.
+function mesEstaCerrado(mes) {
+  const conGente = LUGARES_FIJOS.filter(l => (mes.presentes?.[l.id] || []).length);
+  if (!conGente.length) return false; // mes vacío = abierto
+  return conGente.every(l => !!(mes.cerradoPorLugar?.[l.id]));
 }
 
 function renderMesFijo(mes, isRRHH) {
   const liqMes = APP.liquidaciones.filter(l => l.area === 'Servicios Fijos' && l.mes_id === mes.id);
   const totalMes = liqMes.reduce((s,l) => s+(l.total||0), 0);
+  const cerrado = mesEstaCerrado(mes);
 
   return `<div class="ev-card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
@@ -2870,7 +2897,7 @@ function renderMesFijo(mes, isRRHH) {
         <div style="font-size:11.5px;color:var(--text2);margin-top:2px">${mes.periodo||''}</div>
       </div>
       <div style="display:flex;gap:7px;align-items:center">
-        <span class="badge ${mes.cerrado?'bs':'bw'}">${mes.cerrado?'cerrado':'abierto'}</span>
+        <span class="badge ${cerrado?'bs':'bw'}">${cerrado?'cerrado':'abierto'}</span>
         ${isRRHH ? `<button class="btn btn-sm btn-danger" onclick="delMesFijo('${mes.id}')"><i class="ti ti-trash"></i></button>` : ''}
       </div>
     </div>
