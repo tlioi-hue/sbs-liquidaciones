@@ -292,6 +292,8 @@ const APP = {
   eventos: [],
   quincenas: [],
   liquidaciones: [],
+  mesesFijos: null,  // null = todavía no se cargó desde Supabase
+  mesesFijosCargados: false, // true una vez que fetchAll leyó la tabla meses_fijos
 };
 
 // ══════════════════════════════════════════════
@@ -423,18 +425,39 @@ async function render() {
 // DATA LAYER — Supabase
 // ══════════════════════════════════════════════
 async function fetchAll() {
-  const [p, t, ev, q, liq] = await Promise.all([
+  const [p, t, ev, q, liq, mf] = await Promise.all([
     sb.from('personal').select('*').order('apellido'),
     sb.from('tarifario').select('*').order('posicion'),
     sb.from('eventos').select('*, fechas(*, presentismo(*))').order('created_at'),
     sb.from('quincenas').select('*').order('fecha_inicio'),
     sb.from('liquidaciones').select('*').order('created_at', { ascending: false }),
+    sb.from('meses_fijos').select('*').order('updated_at', { ascending: false }),
   ]);
   APP.personal      = p.data  || [];
   APP.tarifario     = t.data  || [];
   APP.eventos       = ev.data || [];
   APP.quincenas     = q.data  || [];
   APP.liquidaciones = liq.data || [];
+
+  // Meses de Servicios Fijos: Supabase es la fuente de verdad; localStorage queda como caché local
+  const localesGuardados = JSON.parse(localStorage.getItem('sbs_meses_fijos') || '[]');
+  if (!mf.error && mf.data) {
+    APP.mesesFijosCargados = true; // ya sabemos qué hay en Supabase: el borrado es seguro
+    const desdeSb = mf.data.map(r => r.data).filter(Boolean);
+    if (desdeSb.length) {
+      APP.mesesFijos = desdeSb;
+      localStorage.setItem('sbs_meses_fijos', JSON.stringify(desdeSb));
+    } else if (localesGuardados.length) {
+      // Supabase vacío pero hay datos locales: migrarlos una única vez
+      APP.mesesFijos = localesGuardados;
+      syncMesesFijos(localesGuardados);
+    } else {
+      APP.mesesFijos = [];
+    }
+  } else {
+    // Sin tabla en Supabase todavía: seguir funcionando con localStorage
+    APP.mesesFijos = localesGuardados;
+  }
 }
 
 // ── helpers de acceso local (post-fetch) ──
@@ -2786,8 +2809,34 @@ const LUGARES_FIJOS = [
   { id: 'campo-de-polo', nombre: 'Campo de Polo',   posiciones: ['Franquero'] },
 ];
 
-function getMesesFijos()    { return JSON.parse(localStorage.getItem('sbs_meses_fijos') || '[]'); }
-function saveMesesFijos(m)  { localStorage.setItem('sbs_meses_fijos', JSON.stringify(m)); }
+function getMesesFijos() {
+  // Preferir lo que vino de Supabase; si no está cargado todavía, usar el caché local
+  if (Array.isArray(APP.mesesFijos)) return APP.mesesFijos;
+  return JSON.parse(localStorage.getItem('sbs_meses_fijos') || '[]');
+}
+
+function saveMesesFijos(m) {
+  APP.mesesFijos = m;
+  localStorage.setItem('sbs_meses_fijos', JSON.stringify(m));
+  syncMesesFijos(m); // persistir en Supabase (fire-and-forget)
+}
+
+// Sube los meses a Supabase. No bloquea la UI: si falla, los datos quedan en localStorage.
+async function syncMesesFijos(meses) {
+  try {
+    const rows = meses.map(mes => ({ id: mes.id, data: mes, updated_at: new Date().toISOString() }));
+    if (rows.length) await sb.from('meses_fijos').upsert(rows, { onConflict: 'id' });
+    // Borrar meses eliminados localmente — solo si ya sincronizamos al menos una vez desde Supabase.
+    // Sin esta guarda, un save antes del primer fetchAll podría borrar meses de otras PCs.
+    if (!APP.mesesFijosCargados) return;
+    const { data: enSb } = await sb.from('meses_fijos').select('id');
+    const idsLocales = new Set(meses.map(m => m.id));
+    const aBorrar = (enSb || []).map(r => r.id).filter(id => !idsLocales.has(id));
+    for (const id of aBorrar) await sb.from('meses_fijos').delete().eq('id', id);
+  } catch (e) {
+    console.warn('No se pudo sincronizar meses_fijos con Supabase:', e.message);
+  }
+}
 
 async function pgFijos(el, ac) {
   await fetchAll();
