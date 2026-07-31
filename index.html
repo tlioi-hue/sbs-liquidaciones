@@ -3695,16 +3695,16 @@ window.exportDetalleLugarFijo = function(mesId, lugarId) {
   const pres = mes?.presentes?.[lugarId] || [];
   const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId && l.lugar_fijo === lugarId);
   if (!pres.length) { alert('Sin personas cargadas para exportar'); return; }
+  const esColon = lugarId === 'teatro-colon';
   const rows = pres.map(p => {
     const liq = liqs.find(l => l.persona_id === p.personaId);
     const per = APP.personal.find(x => x.id === p.personaId)
       || APP.personal.find(x => x.id === liq?.persona_id);
     const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
     const cuil = p.cuil || ''; // siempre del localStorage, igual que el ojo
-    const esColon = lugarId === 'teatro-colon';
     const row = {
-      'Apellido y nombre': normExport(`${p.apellido} ${p.nombre}`),
       'CUIL': cuil,
+      'Apellido y nombre': normExport(`${p.apellido} ${p.nombre}`),
       'CBU':  per?.cbu || '',
     };
     if (esColon) row['Alias'] = per?.alias || '';
@@ -3720,8 +3720,13 @@ window.exportDetalleLugarFijo = function(mesId, lugarId) {
     row['Total ($)'] = sub;
     return row;
   });
-  const ws = XLSX.utils.json_to_sheet(rows);
-  ws['!cols'] = [22,16,26,14,14,14,14,10,10,12,12].map(w => ({ wch:w }));
+  // Header explícito (varía según lugar) + aoa_to_sheet para garantizar el orden
+  const header = esColon
+    ? ['CUIL','Apellido y nombre','CBU','Alias','Lugar','Período','Posición','Jornadas 6hs','Jornadas 8hs','Total ($)']
+    : ['CUIL','Apellido y nombre','CBU','Lugar','Período','Posición','Jornadas','Total ($)'];
+  const aoa = [header, ...rows.map(r => header.map(h => r[h] ?? ''))];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = header.map(h => ({ wch: h === 'CBU' ? 26 : h === 'Apellido y nombre' ? 22 : h === 'CUIL' ? 16 : 14 }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Presentes');
   XLSX.writeFile(wb, `presentes_${normExport(lugar.nombre).replace(/\s+/g,'_')}_${normExport(mes.nombre).replace(/\s+/g,'_')}.xlsx`);
@@ -3845,13 +3850,12 @@ window.exportMesFijo = function(mesId) {
   const mes = getMesesFijos().find(m => m.id === mesId);
   const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId);
   if (!liqs.length) { alert('Sin liquidaciones para exportar'); return; }
-  // Usar buildExportRows para formato estándar igual que Arena
   const rows = liqs.map(l => {
     const p = APP.personal.find(x => x.id === l.persona_id);
     const nombre = p ? nombreExport(p.apellido, p.nombre) : normExport(l.persona_nombre||'');
     return {
-      'Apellido y nombre': nombre,
       'CUIL':  p?.cuil  || '',
+      'Apellido y nombre': nombre,
       'CBU':   p?.cbu   || '',
       'Alias': p?.alias || '',
       'Área':  'Servicios Fijos',
@@ -3864,12 +3868,15 @@ window.exportMesFijo = function(mesId) {
       'Valor jornada ($)': l.valor_jornada || '',
       'Valor jornada finde ($)': l.valor_jornada_finde || '',
       'Total ($)': l.total,
-      'Estado': l.estado,
       'Fecha creación': l.created_at ? new Date(l.created_at).toLocaleDateString('es-AR') : '',
     };
   });
-  const ws = XLSX.utils.json_to_sheet(rows);
-  ws['!cols'] = [22,16,26,14,14,14,14,14,10,10,10,16,16,12,12,14].map(w => ({ wch:w }));
+  // aoa_to_sheet garantiza el orden de columnas (json_to_sheet no lo respeta)
+  const header = ['CUIL','Apellido y nombre','CBU','Alias','Área','Lugar','Período','Posición',
+                  'Jornadas','Jornadas semana','Jornadas finde','Valor jornada ($)','Valor jornada finde ($)','Total ($)','Fecha creación'];
+  const aoa = [header, ...rows.map(r => header.map(h => r[h] ?? ''))];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [16,22,26,14,14,14,14,14,10,10,10,16,16,12,14].map(w => ({ wch:w }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Liquidaciones');
   XLSX.writeFile(wb, `liquidaciones_fijos_${normExport(mes.nombre).replace(/\s+/g,'_')}.xlsx`);
