@@ -3040,23 +3040,48 @@ async function extraerFilasPDF(arrayBuffer) {
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const content = await page.getTextContent();
-    // Agrupar items por posición Y (misma fila si están a menos de 3px de diferencia)
-    const items = content.items.map(it => ({ text: it.str, x: it.transform[4], y: Math.round(it.transform[5]) }));
+    // Se usa la Y sin redondear y una tolerancia chica: los items de una misma fila del PDF
+    // comparten Y exacta. Con tolerancia grande, dos filas contiguas se fusionaban y mezclaban
+    // los datos de dos personas distintas en un solo registro.
+    const items = content.items.map(it => ({ text: it.str, x: it.transform[4], y: it.transform[5] }));
     const byY = {};
     items.forEach(it => {
       if (!it.text.trim()) return;
-      const yKey = Object.keys(byY).find(k => Math.abs(parseFloat(k) - it.y) <= 3) || it.y;
+      const yKey = Object.keys(byY).find(k => Math.abs(parseFloat(k) - it.y) <= 1.2) || String(it.y);
       if (!byY[yKey]) byY[yKey] = [];
       byY[yKey].push(it);
     });
-    // Ordenar filas de arriba a abajo (Y descendente en coords PDF), y dentro de cada fila por X
     const ys = Object.keys(byY).map(parseFloat).sort((a,b) => b - a);
     ys.forEach(y => {
-      const row = byY[y].sort((a,b) => a.x - b.x);
-      allRows.push(row);
+      const row = byY[String(y)] || byY[y];
+      if (row) allRows.push(row.sort((a,b) => a.x - b.x));
     });
   }
   return allRows;
+}
+
+// Red de seguridad: si una fila quedó con más de un CUIL, son varias personas fusionadas.
+// Se re-separan por su Y exacta, que es la que distingue una fila de otra en el PDF.
+function separarFilasFusionadas(rows) {
+  const esCuil = t => t.replace(/\D/g,'').length === 11;
+  const out = [];
+  rows.forEach(row => {
+    const cuils = row.filter(it => esCuil(it.text));
+    if (cuils.length <= 1) { out.push(row); return; }
+    const porY = {};
+    row.forEach(it => {
+      const k = String(it.y);
+      if (!porY[k]) porY[k] = [];
+      porY[k].push(it);
+    });
+    const claves = Object.keys(porY).sort((a,b) => parseFloat(b) - parseFloat(a));
+    if (claves.length > 1) {
+      claves.forEach(k => out.push(porY[k].sort((a,b) => a.x - b.x)));
+    } else {
+      out.push(row); // misma Y exacta con 2 CUILs: no se puede separar de forma confiable
+    }
+  });
+  return out;
 }
 
 // Parsea filas extraídas del PDF de Teatro Colón.
@@ -3247,9 +3272,11 @@ function parsePlanillaFijaPDF_Polo(pdfRows, mesId, lugarId) {
 
 // Router: decide qué parser de PDF usar según el lugar
 function parsePlanillaFijaPDF(pdfRows, mesId, lugarId) {
-  if (lugarId === 'teatro-colon') return parsePlanillaFijaPDF_Colon(pdfRows, mesId, lugarId);
-  if (lugarId === 'campo-de-polo') return parsePlanillaFijaPDF_Polo(pdfRows, mesId, lugarId);
-  return parsePlanillaFijaPDF_SinCuil(pdfRows, mesId, lugarId);
+  // Separar filas que hayan quedado fusionadas antes de parsear (2 personas en un mismo registro)
+  const rows = separarFilasFusionadas(pdfRows);
+  if (lugarId === 'teatro-colon') return parsePlanillaFijaPDF_Colon(rows, mesId, lugarId);
+  if (lugarId === 'campo-de-polo') return parsePlanillaFijaPDF_Polo(rows, mesId, lugarId);
+  return parsePlanillaFijaPDF_SinCuil(rows, mesId, lugarId);
 }
 
 function parsePlanillaFija(rows, mesId, lugarId) {
@@ -3397,41 +3424,51 @@ function parsePlanillaFija(rows, mesId, lugarId) {
 }
 
 function mostrarVerificacionFija(personas, mesId, lugarId) {
+  window._fijoDraft = { personas, mesId, lugarId };
+  renderTablaVerificacionFija();
+}
+
+function renderTablaVerificacionFija() {
+  const { personas, mesId, lugarId } = window._fijoDraft;
   const lugar = LUGARES_FIJOS.find(l => l.id === lugarId);
   const meses = getMesesFijos();
   const mes = meses.find(m => m.id === mesId);
 
-  // Mostrar en pantalla de verificación
   const el = document.getElementById('content');
   const ac = document.getElementById('topbar-ac');
   ac.innerHTML = `
     <button class="btn" onclick="go('fijos')"><i class="ti ti-x"></i> Cancelar</button>
     <button class="btn btn-success" onclick="confirmarPlanillaFija('${mesId}','${lugarId}')"><i class="ti ti-check"></i> Confirmar</button>`;
 
+  const areaLugarVer = lugar?.nombre;
+  const posicionesBase = lugarId === 'teatro-colon'
+    ? [...new Set(APP.tarifario
+        .filter(t => t.area === 'Teatro Colón')
+        .map(t => t.posicion.replace(/\s*\[Jornada [68] hs\.\]\s*$/i, '')))]
+    : [...new Set(APP.tarifario.filter(t => t.area === areaLugarVer || t.area === 'General').map(t => t.posicion))];
+
+  const sinJornadas = personas.filter(p => !(p.jornadas||0) && !(p.jornadasFinde||0)).length;
+
   el.innerHTML = `
     <div class="alert alert-info" style="padding:8px 12px"><i class="ti ti-eye"></i>
       Verificá las jornadas y posiciones antes de confirmar. <strong>${mes.nombre} — ${lugar.nombre}</strong>
     </div>
     ${personas.filter(p=>p.esNuevo).length ? `<div class="alert alert-warn"><i class="ti ti-user-plus"></i> ${personas.filter(p=>p.esNuevo).length} personas nuevas se agregarán al sistema.</div>` : ''}
+    ${sinJornadas ? `<div class="alert alert-warn" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <span><i class="ti ti-user-off"></i> <strong>${sinJornadas}</strong> ${sinJornadas===1?'persona no tiene':'personas no tienen'} jornadas cargadas.</span>
+      <button class="btn btn-sm" onclick="quitarSinJornadasFija()"><i class="ti ti-trash"></i> Quitar ${sinJornadas===1?'esa persona':'esas personas'}</button>
+    </div>` : ''}
     <div class="card" style="padding:0;overflow:hidden">
       <table><thead><tr>
         <th>Apellido y nombre</th><th>CUIL</th><th>Posición</th>
-        <th style="text-align:center">Jornadas 6 hs.</th>${lugarId==='teatro-colon'?'<th style="text-align:center">Jornadas 8 hs.</th>':''}<th style="text-align:right">Subtotal</th><th>Estado</th>
+        <th style="text-align:center">Jornadas 6 hs.</th>${lugarId==='teatro-colon'?'<th style="text-align:center">Jornadas 8 hs.</th>':''}<th style="text-align:right">Subtotal</th><th>Estado</th><th style="width:34px"></th>
       </tr></thead>
       <tbody>${personas.map(p => {
-        // Las opciones de posición se filtran siempre por el área del lugar (Ecoparque/Colón/Polo),
-        // nunca se muestra el tarifario completo de otras áreas.
-        const areaLugarVer = LUGARES_FIJOS.find(l => l.id === lugarId)?.nombre;
-        const posicionesBase = lugarId === 'teatro-colon'
-          ? [...new Set(APP.tarifario
-              .filter(t => t.area === 'Teatro Colón')
-              .map(t => t.posicion.replace(/\s*\[Jornada [68] hs\.\]\s*$/i, '')))]
-          : [...new Set(APP.tarifario.filter(t => t.area === areaLugarVer || t.area === 'General').map(t => t.posicion))];
-        // Si la persona no tiene posición asignada (nueva), usar la primera disponible como default
         const posicionEfectiva = p.posicion || posicionesBase[0] || '';
         const subtotal = calcSubtotalFijo(posicionEfectiva, p.jornadas, p.jornadasFinde||0);
         const allPosOpts = posicionesBase.map(pb => `<option value="${pb}" ${pb===posicionEfectiva?'selected':''}>${pb}</option>`).join('');
-        return `<tr id="pfrow-${p._id}">
+        const vacia = !(p.jornadas||0) && !(p.jornadasFinde||0);
+        return `<tr id="pfrow-${p._id}" ${vacia?'style="opacity:.55"':''}>
           <td><strong>${p.apellido}, ${p.nombre}</strong></td>
           <td style="font-family:monospace;font-size:11.5px">${p.cuil||'—'}</td>
           <td><select id="pfpos-${p._id}" onchange="calcFilaFijaVer('${p._id}','${lugarId}')" style="font-size:12px;padding:3px 6px">${allPosOpts}</select></td>
@@ -3439,33 +3476,46 @@ function mostrarVerificacionFija(personas, mesId, lugarId) {
           ${lugarId==='teatro-colon'?`<td style="text-align:center"><input type="number" id="pfjorf-${p._id}" value="${p.jornadasFinde||0}" min="0" max="31" oninput="calcFilaFijaVer('${p._id}','${lugarId}')" style="width:60px;text-align:center"></td>`:''}
           <td style="text-align:right;font-weight:500" id="pfsub-${p._id}">${fmt(subtotal)}</td>
           <td>${p.esNuevo ? '<span class="badge bn" style="font-size:10px">nuevo</span>' : '<span class="badge bs" style="font-size:10px">registrado</span>'}</td>
+          <td><button class="btn btn-sm btn-danger" onclick="quitarPersonaFija('${p._id}')" title="Quitar de esta liquidación"><i class="ti ti-trash"></i></button></td>
         </tr>`;
       }).join('')}</tbody>
       <tfoot><tr>
-        <td colspan="${lugarId==='teatro-colon'?5:4}" style="font-weight:600;padding:10px;border-top:2px solid var(--border)">Total estimado</td>
+        <td colspan="${lugarId==='teatro-colon'?5:4}" style="font-weight:600;padding:10px;border-top:2px solid var(--border)">Total estimado · ${personas.length} ${personas.length===1?'persona':'personas'}</td>
         <td style="text-align:right;font-size:16px;font-weight:700;padding:10px;border-top:2px solid var(--border)" id="pf-total">
-          ${fmt(personas.reduce((s,p) => {
-            const areaLugarVer2 = LUGARES_FIJOS.find(l => l.id === lugarId)?.nombre;
-            const posicionesBase2 = lugarId === 'teatro-colon'
-              ? [...new Set(APP.tarifario.filter(t => t.area === 'Teatro Colón').map(t => t.posicion.replace(/\s*\[Jornada [68] hs\.\]\s*$/i, '')))]
-              : [...new Set(APP.tarifario.filter(t => t.area === areaLugarVer2 || t.area === 'General').map(t => t.posicion))];
-            const posEf = p.posicion || posicionesBase2[0] || '';
-            return s+calcSubtotalFijo(posEf, p.jornadas, p.jornadasFinde||0);
-          }, 0))}
+          ${fmt(personas.reduce((s,p) => s + calcSubtotalFijo(p.posicion || posicionesBase[0] || '', p.jornadas, p.jornadasFinde||0), 0))}
         </td>
-        <td style="border-top:2px solid var(--border)"></td>
+        <td colspan="2" style="border-top:2px solid var(--border)"></td>
       </tr></tfoot>
       </table>
     </div>`;
-
-  // Guardar draft en window
-  window._fijoDraft = { personas, mesId, lugarId };
 }
+
+// Quita una persona de la liquidación en curso (no borra nada del sistema)
+window.quitarPersonaFija = function(id) {
+  const d = window._fijoDraft; if (!d) return;
+  d.personas = d.personas.filter(p => p._id !== id);
+  if (!d.personas.length) { alert('No quedan personas en la planilla.'); go('fijos'); return; }
+  renderTablaVerificacionFija();
+};
+
+// Quita de una todas las personas que quedaron sin jornadas
+window.quitarSinJornadasFija = function() {
+  const d = window._fijoDraft; if (!d) return;
+  const aQuitar = d.personas.filter(p => !(p.jornadas||0) && !(p.jornadasFinde||0));
+  if (!aQuitar.length) return;
+  if (!confirm(`¿Quitar ${aQuitar.length} persona${aQuitar.length>1?'s':''} sin jornadas de esta liquidación?\nNo se elimina nada del sistema, solo no se incluyen en este mes.`)) return;
+  d.personas = d.personas.filter(p => (p.jornadas||0) || (p.jornadasFinde||0));
+  if (!d.personas.length) { alert('No quedan personas con jornadas en la planilla.'); go('fijos'); return; }
+  renderTablaVerificacionFija();
+};
 
 window.calcFilaFijaVer = function(id, lugarId) {
   const jornadas = parseInt(document.getElementById('pfjor-'+id)?.value) || 0;
   const jornadasFinde = lugarId==='teatro-colon' ? (parseInt(document.getElementById('pfjorf-'+id)?.value) || 0) : 0;
   const posicion  = document.getElementById('pfpos-'+id)?.value;
+  // Guardar en el draft para que las ediciones sobrevivan a un re-render (ej: al quitar una fila)
+  const p = window._fijoDraft?.personas.find(x => x._id === id);
+  if (p) { p.jornadas = jornadas; p.jornadasFinde = jornadasFinde; p.posicion = posicion; }
   const sub = calcSubtotalFijo(posicion, jornadas, jornadasFinde);
   const subEl = document.getElementById('pfsub-'+id); if (subEl) subEl.textContent = fmt(sub);
   // Recalcular total
