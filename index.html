@@ -3428,6 +3428,16 @@ function mostrarVerificacionFija(personas, mesId, lugarId) {
   renderTablaVerificacionFija();
 }
 
+// Aviso de personas sin jornadas. Se recalcula en vivo al editar para no quedar desactualizado.
+function renderAvisoSinJornadas(personas) {
+  const n = personas.filter(p => !(p.jornadas||0) && !(p.jornadasFinde||0)).length;
+  if (!n) return '';
+  return `<div class="alert alert-warn" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+    <span><i class="ti ti-user-off"></i> <strong>${n}</strong> ${n===1?'persona no tiene':'personas no tienen'} jornadas cargadas.</span>
+    <button class="btn btn-sm" onclick="quitarSinJornadasFija()"><i class="ti ti-trash"></i> Quitar ${n===1?'esa persona':'esas personas'}</button>
+  </div>`;
+}
+
 function renderTablaVerificacionFija() {
   const { personas, mesId, lugarId } = window._fijoDraft;
   const lugar = LUGARES_FIJOS.find(l => l.id === lugarId);
@@ -3447,17 +3457,12 @@ function renderTablaVerificacionFija() {
         .map(t => t.posicion.replace(/\s*\[Jornada [68] hs\.\]\s*$/i, '')))]
     : [...new Set(APP.tarifario.filter(t => t.area === areaLugarVer || t.area === 'General').map(t => t.posicion))];
 
-  const sinJornadas = personas.filter(p => !(p.jornadas||0) && !(p.jornadasFinde||0)).length;
-
   el.innerHTML = `
     <div class="alert alert-info" style="padding:8px 12px"><i class="ti ti-eye"></i>
       Verificá las jornadas y posiciones antes de confirmar. <strong>${mes.nombre} — ${lugar.nombre}</strong>
     </div>
     ${personas.filter(p=>p.esNuevo).length ? `<div class="alert alert-warn"><i class="ti ti-user-plus"></i> ${personas.filter(p=>p.esNuevo).length} personas nuevas se agregarán al sistema.</div>` : ''}
-    ${sinJornadas ? `<div class="alert alert-warn" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
-      <span><i class="ti ti-user-off"></i> <strong>${sinJornadas}</strong> ${sinJornadas===1?'persona no tiene':'personas no tienen'} jornadas cargadas.</span>
-      <button class="btn btn-sm" onclick="quitarSinJornadasFija()"><i class="ti ti-trash"></i> Quitar ${sinJornadas===1?'esa persona':'esas personas'}</button>
-    </div>` : ''}
+    <div id="pf-aviso-sin">${renderAvisoSinJornadas(personas)}</div>
     <div class="card" style="padding:0;overflow:hidden">
       <table><thead><tr>
         <th>Apellido y nombre</th><th>CUIL</th><th>Posición</th>
@@ -3518,6 +3523,12 @@ window.calcFilaFijaVer = function(id, lugarId) {
   if (p) { p.jornadas = jornadas; p.jornadasFinde = jornadasFinde; p.posicion = posicion; }
   const sub = calcSubtotalFijo(posicion, jornadas, jornadasFinde);
   const subEl = document.getElementById('pfsub-'+id); if (subEl) subEl.textContent = fmt(sub);
+  // La fila se atenúa solo mientras no tenga jornadas: al cargarle una, vuelve a normal
+  const rowEl = document.getElementById('pfrow-'+id);
+  if (rowEl) rowEl.style.opacity = (jornadas || jornadasFinde) ? '' : '.55';
+  // Recalcular el aviso de "sin jornadas" con los valores actuales
+  const avisoEl = document.getElementById('pf-aviso-sin');
+  if (avisoEl && window._fijoDraft) avisoEl.innerHTML = renderAvisoSinJornadas(window._fijoDraft.personas);
   // Recalcular total
   let total = 0;
   document.querySelectorAll('[id^="pfsub-"]').forEach(el => {
