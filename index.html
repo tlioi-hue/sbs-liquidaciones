@@ -296,6 +296,10 @@ const APP = {
   mesesFijosCargados: false, // true una vez que fetchAll leyó la tabla meses_fijos
 };
 
+// Promesa del último guardado de meses a Supabase. fetchAll la espera antes de leer, para que
+// una escritura en vuelo no sea pisada por una lectura con datos viejos.
+let _syncMesesPending = null;
+
 // ══════════════════════════════════════════════
 // AUTH
 // ══════════════════════════════════════════════
@@ -425,6 +429,12 @@ async function render() {
 // DATA LAYER — Supabase
 // ══════════════════════════════════════════════
 async function fetchAll() {
+  // Esperar que termine cualquier guardado de meses en curso, si no la lectura
+  // podría traer datos viejos y pisar lo recién importado.
+  if (_syncMesesPending) {
+    try { await _syncMesesPending; } catch (e) { /* ya se loguea en syncMesesFijos */ }
+    _syncMesesPending = null;
+  }
   const [p, t, ev, q, liq, mf] = await Promise.all([
     sb.from('personal').select('*').order('apellido'),
     sb.from('tarifario').select('*').order('posicion'),
@@ -485,10 +495,16 @@ function chipClaseArea(area) {
 // Busca en el tarifario dos posiciones derivadas de `posBase`:
 //   "<posBase> [Jornada 6 hs.]" y "<posBase> [Jornada 8 hs.]"
 // Si no existen esas variantes, usa una sola tarifa (tar) para todas las jornadas.
+// Busca las tarifas de 6hs y 8hs de una posición base.
+// La comparación se hace normalizada (sin mayúsculas, espacios, puntos ni corchetes) para que
+// "Boletero [Jornada 8 hs.]", "Boletero [Jornada 8 hs]" o "Boletero [Jornada 8hs.]" coincidan igual.
 function getTarifaSemanaFinde(posBase) {
-  const tSemana = APP.tarifario.find(t => t.posicion === `${posBase} [Jornada 6 hs.]`);
-  const tFinde  = APP.tarifario.find(t => t.posicion === `${posBase} [Jornada 8 hs.]`);
-  return { tSemana, tFinde };
+  const norm = s => String(s||'').toLowerCase().normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+  const base = norm(posBase);
+  if (!base) return { tSemana: undefined, tFinde: undefined };
+  const buscar = n => APP.tarifario.find(t => norm(t.posicion) === `${base}jornada${n}hs`);
+  return { tSemana: buscar(6), tFinde: buscar(8) };
 }
 function calcSubtotalFijo(posBaseOTar, jornadasSemana, jornadasFinde) {
   // Acepta posicion (string) o un objeto tarifario ya resuelto (compatibilidad)
@@ -2818,7 +2834,8 @@ function getMesesFijos() {
 function saveMesesFijos(m) {
   APP.mesesFijos = m;
   localStorage.setItem('sbs_meses_fijos', JSON.stringify(m));
-  syncMesesFijos(m); // persistir en Supabase (fire-and-forget)
+  _syncMesesPending = syncMesesFijos(m);
+  return _syncMesesPending;
 }
 
 // Sube los meses a Supabase. No bloquea la UI: si falla, los datos quedan en localStorage.
@@ -3716,9 +3733,31 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
   const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId && l.lugar_fijo === lugarId);
   // Solo lectura si el lugar está cerrado O si el mes tuvo su cierre final
   const lugarCerrado = !!(mes?.cerradoPorLugar?.[lugarId]) || !!mes?.cerrado;
+
+  // Detectar jornadas que no tienen tarifa cargada: sin esto sumarían $0 en silencio
+  const faltantes = [];
+  if (lugarId === 'teatro-colon') {
+    [...new Set(pres.map(p => p.posicion).filter(Boolean))].forEach(pos => {
+      const { tSemana, tFinde } = getTarifaSemanaFinde(pos);
+      const usa6 = pres.some(p => p.posicion === pos && (p.jornadas||0));
+      const usa8 = pres.some(p => p.posicion === pos && (p.jornadasFinde||0));
+      if (usa6 && !tSemana) faltantes.push(`${pos} [Jornada 6 hs.]`);
+      if (usa8 && !tFinde)  faltantes.push(`${pos} [Jornada 8 hs.]`);
+    });
+  } else {
+    [...new Set(pres.map(p => p.posicion).filter(Boolean))].forEach(pos => {
+      if (!APP.tarifario.find(t => t.posicion === pos)) faltantes.push(pos);
+    });
+  }
+
   showModal(`<div class="modal modal-lg">
     <div class="modal-t">${lugar.nombre} — ${mes.nombre}</div>
     <div class="modal-s">${pres.length} personas · ${pres.reduce((s,p)=>s+(p.jornadas||0)+(p.jornadasFinde||0),0)} jornadas totales</div>
+    ${faltantes.length ? `<div class="alert alert-warn" style="padding:8px 12px">
+      <i class="ti ti-alert-triangle"></i>
+      <div><strong>Falta${faltantes.length>1?'n':''} en el tarifario:</strong> ${faltantes.join(' · ')}.
+      Esas jornadas están sumando $0. Cargá la posición en Tarifario (área ${lugar.nombre}) con ese nombre exacto.</div>
+    </div>` : ''}
     <div style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px">
       <table style="width:100%"><thead><tr style="font-size:11px;color:var(--text2)">
         <th style="padding:6px 10px;text-align:left">Apellido y nombre</th>
@@ -3728,20 +3767,34 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
         ${lugarId==='teatro-colon'?'<th style="padding:6px 10px;text-align:center">Jornadas 8hs</th>':''}
         <th style="padding:6px 10px;text-align:right">Subtotal</th>
       </tr></thead><tbody>
-      ${pres.map(p => {
+      ${pres.map((p, idx) => {
         const liq = liqs.find(l => l.persona_id === p.personaId);
         const per = APP.personal.find(x => x.id === p.personaId)
           || APP.personal.find(x => x.id === liq?.persona_id);
         const cuil = p.cuil || per?.cuil || '—';
         const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
-        const editable = liq && !lugarCerrado;
+        // Dos modos de edición: si ya se liquidó se edita la liquidación; si todavía no,
+        // se editan los presentes cargados. En ambos casos solo si el lugar no está cerrado.
+        const editaLiq  = !!liq && !lugarCerrado;
+        const editaPres = !liq && !lugarCerrado;
+        const jorVal  = liq ? (liq.jornadas||0) : (p.jornadas||0);
+        const jorFVal = p.jornadasFinde||0;
         return `<tr style="font-size:12px;border-top:1px solid var(--border)">
           <td style="padding:6px 10px"><strong>${p.apellido}, ${p.nombre}</strong></td>
-          <td style="padding:6px 10px;font-family:monospace;font-size:11px">${!lugarCerrado ? `<input type="text" value="${cuil!=='—'?cuil:''}" placeholder="CUIL" style="width:110px;font-family:monospace;font-size:11px" onchange="editarCuilPresente('${mesId}','${lugarId}','${p.apellido}',this.value)">` : cuil}</td>
+          <td style="padding:6px 10px;font-family:monospace;font-size:11px">${!lugarCerrado
+            ? `<input type="text" value="${cuil!=='—'?cuil:''}" placeholder="CUIL" style="width:110px;font-family:monospace;font-size:11px" onchange="editarPresenteFijo('${mesId}','${lugarId}',${idx},'cuil',this.value)">`
+            : cuil}</td>
           <td style="padding:6px 10px">${p.posicion||'—'}</td>
-          <td style="padding:6px 10px;text-align:center">${editable ? `<input type="number" value="${liq.jornadas||0}" min="0" style="width:55px;text-align:center" onchange="editarLiquidacion('${liq.id}','jornadas',this.value)">` : (liq?.jornadas||p.jornadas||0)}</td>
-          ${lugarId==='teatro-colon'?`<td style="padding:6px 10px;text-align:center">${p.jornadasFinde||0}</td>`:''}
-          <td style="padding:6px 10px;text-align:right;font-weight:600">${editable ? `<input type="number" id="liq-total-${liq.id}" value="${sub}" min="0" style="width:110px;font-weight:600;text-align:right" onchange="editarLiquidacion('${liq.id}','total',this.value)">` : fmt(sub)}</td>
+          <td style="padding:6px 10px;text-align:center">${
+            editaLiq  ? `<input type="number" value="${jorVal}" min="0" style="width:55px;text-align:center" onchange="editarLiquidacion('${liq.id}','jornadas',this.value)">` :
+            editaPres ? `<input type="number" value="${jorVal}" min="0" max="31" style="width:55px;text-align:center" onchange="editarPresenteFijo('${mesId}','${lugarId}',${idx},'jornadas',this.value)">` :
+            jorVal}</td>
+          ${lugarId==='teatro-colon'?`<td style="padding:6px 10px;text-align:center">${
+            editaPres ? `<input type="number" value="${jorFVal}" min="0" max="31" style="width:55px;text-align:center" onchange="editarPresenteFijo('${mesId}','${lugarId}',${idx},'jornadasFinde',this.value)">` :
+            jorFVal}</td>`:''}
+          <td style="padding:6px 10px;text-align:right;font-weight:600">${
+            editaLiq ? `<input type="number" id="liq-total-${liq.id}" value="${sub}" min="0" style="width:110px;font-weight:600;text-align:right" onchange="editarLiquidacion('${liq.id}','total',this.value)">` :
+            fmt(sub)}</td>
         </tr>`;
       }).join('')}
       </tbody><tfoot><tr style="border-top:2px solid var(--border);font-weight:700">
@@ -3844,23 +3897,31 @@ window.previaMesFijo = function(mesId) {
 };
 
 // ── CERRAR MES DEFINITIVAMENTE ──
-window.editarCuilPresente = async function(mesId, lugarId, apellido, nuevoCuil) {
-  const cuil = nuevoCuil.replace(/\D/g,'');
-  if (cuil.length < 10) return;
-  // Actualizar en localStorage
+// Edita un campo de una persona en los presentes cargados (antes de liquidar).
+// Se identifica por índice y no por apellido, porque puede haber apellidos repetidos.
+window.editarPresenteFijo = async function(mesId, lugarId, idx, campo, valor) {
   const meses = getMesesFijos();
   const mes = meses.find(m => m.id === mesId);
-  if (mes?.presentes?.[lugarId]) {
-    const p = mes.presentes[lugarId].find(x => x.apellido === apellido);
-    if (p) { p.cuil = cuil; saveMesesFijos(meses); }
+  const p = mes?.presentes?.[lugarId]?.[idx];
+  if (!p) return;
+
+  if (campo === 'cuil') {
+    const cuil = String(valor).replace(/\D/g,'');
+    if (cuil && cuil.length !== 11) { alert('El CUIL debe tener 11 dígitos.'); return; }
+    p.cuil = cuil;
+    // Reflejarlo también en la ficha de la persona si está identificada
+    if (p.personaId && cuil) {
+      await sb.from('personal').update({ cuil }).eq('id', p.personaId);
+      const per = APP.personal.find(x => x.id === p.personaId);
+      if (per) per.cuil = cuil;
+    }
+  } else {
+    p[campo] = parseInt(valor) || 0;
   }
-  // Actualizar en Supabase personal si encontramos la persona
-  const per = APP.personal.find(x => x.apellido.toLowerCase() === apellido.toLowerCase());
-  if (per) {
-    await sb.from('personal').update({ cuil }).eq('id', per.id);
-    await fetchAll();
-  }
-  toast('CUIL actualizado', 'ok');
+
+  saveMesesFijos(meses);
+  toast('Guardado', 'ok');
+  verDetalleLugarFijo(mesId, lugarId); // refrescar para recalcular subtotales y total
 };
 
 window.reabrirLugarFijo = function(mesId, lugarId) {
