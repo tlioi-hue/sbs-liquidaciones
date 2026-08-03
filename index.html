@@ -2943,12 +2943,13 @@ function renderMesFijo(mes, isRRHH) {
           <span class="pill">${pres.reduce((s,p)=>s+(p.jornadas||0),0)} jornadas</span>
           <span class="fb ${estadoChip}">${estadoTxt}</span>
           <div style="display:flex;gap:5px;flex-shrink:0">
-            ${!cerrado && !lugarCerrado && !liqL.length && isRRHH ? `<button class="btn btn-sm" onclick="importarPlanillaFija('${mes.id}','${l.id}')" title="Importar planilla"><i class="ti ti-file-upload"></i></button>` : ''}
-            ${pres.length ? `<button class="btn btn-sm" onclick="verDetalleLugarFijo('${mes.id}','${l.id}')" title="Ver detalle"><i class="ti ti-eye"></i></button>` : ''}
+            ${!lugarCerrado && !liqL.length && isRRHH ? `<button class="btn btn-sm" onclick="importarPlanillaFija('${mes.id}','${l.id}')" title="Importar planilla"><i class="ti ti-file-upload"></i></button>` : ''}
+            ${pres.length ? `<button class="btn btn-sm" onclick="verDetalleLugarFijo('${mes.id}','${l.id}')" title="Ver / editar detalle"><i class="ti ti-eye"></i></button>` : ''}
             ${pres.length ? `<button class="btn btn-sm" onclick="exportDetalleLugarFijo('${mes.id}','${l.id}')" title="Exportar Excel de ${l.nombre}"><i class="ti ti-file-spreadsheet"></i></button>` : ''}
-            ${!cerrado && pres.length && !liqL.length && !lugarCerrado && isRRHH ? `<button class="btn btn-sm btn-success" onclick="liquidarLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
-            ${!cerrado && liqL.length && !lugarCerrado && isRRHH ? `<button class="btn btn-sm btn-success" onclick="cerrarLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-lock"></i> Cerrar</button>` : ''}
-            ${!cerrado && liqL.length && lugarCerrado && isRRHH ? `<button class="btn btn-sm" onclick="reabrirLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-lock-open"></i> Reabrir</button>` : ''}
+            ${pres.length && !liqL.length && !lugarCerrado && isRRHH ? `<button class="btn btn-sm btn-success" onclick="liquidarLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
+            ${liqL.length && !lugarCerrado && isRRHH ? `<button class="btn btn-sm btn-success" onclick="cerrarLugarFijo('${mes.id}','${l.id}')"><i class="ti ti-lock"></i> Cerrar</button>` : ''}
+            ${liqL.length && lugarCerrado && isRRHH ? `<button class="btn btn-sm" onclick="reabrirLugarFijo('${mes.id}','${l.id}')" title="Sacar el candado para poder editar"><i class="ti ti-lock-open"></i> Reabrir</button>` : ''}
+            ${liqL.length && !lugarCerrado && isRRHH ? `<button class="btn btn-sm btn-danger" onclick="deshacerLiquidacionFijo('${mes.id}','${l.id}')" title="Borrar la liquidación y volver a editar/importar"><i class="ti ti-arrow-back-up"></i></button>` : ''}
           </div>
         </div>`;
       }).join('')}
@@ -3777,8 +3778,8 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
         // se editan los presentes cargados. En ambos casos solo si el lugar no está cerrado.
         const editaLiq  = !!liq && !lugarCerrado;
         const editaPres = !liq && !lugarCerrado;
-        const jorVal  = liq ? (liq.jornadas||0) : (p.jornadas||0);
-        const jorFVal = p.jornadasFinde||0;
+        const jorVal  = liq ? (liq.jornadas_semana ?? liq.jornadas ?? 0) : (p.jornadas||0);
+        const jorFVal = liq ? (liq.jornadas_finde ?? 0) : (p.jornadasFinde||0);
         return `<tr style="font-size:12px;border-top:1px solid var(--border)">
           <td style="padding:6px 10px"><strong>${p.apellido}, ${p.nombre}</strong></td>
           <td style="padding:6px 10px;font-family:monospace;font-size:11px">${!lugarCerrado
@@ -3786,10 +3787,11 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
             : cuil}</td>
           <td style="padding:6px 10px">${p.posicion||'—'}</td>
           <td style="padding:6px 10px;text-align:center">${
-            editaLiq  ? `<input type="number" value="${jorVal}" min="0" style="width:55px;text-align:center" onchange="editarLiquidacion('${liq.id}','jornadas',this.value)">` :
+            editaLiq  ? `<input type="number" value="${jorVal}" min="0" max="31" style="width:55px;text-align:center" onchange="editarJornadasFijo('${liq.id}','${mesId}','${lugarId}','semana',this.value)">` :
             editaPres ? `<input type="number" value="${jorVal}" min="0" max="31" style="width:55px;text-align:center" onchange="editarPresenteFijo('${mesId}','${lugarId}',${idx},'jornadas',this.value)">` :
             jorVal}</td>
           ${lugarId==='teatro-colon'?`<td style="padding:6px 10px;text-align:center">${
+            editaLiq  ? `<input type="number" value="${jorFVal}" min="0" max="31" style="width:55px;text-align:center" onchange="editarJornadasFijo('${liq.id}','${mesId}','${lugarId}','finde',this.value)">` :
             editaPres ? `<input type="number" value="${jorFVal}" min="0" max="31" style="width:55px;text-align:center" onchange="editarPresenteFijo('${mesId}','${lugarId}',${idx},'jornadasFinde',this.value)">` :
             jorFVal}</td>`:''}
           <td style="padding:6px 10px;text-align:right;font-weight:600">${
@@ -3805,6 +3807,7 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
     </div>
     <div class="modal-f">
       <button class="btn" onclick="closeModal()">Cerrar</button>
+      ${liqs.length && !lugarCerrado ? `<button class="btn" onclick="recalcularLiqsFijo('${mesId}','${lugarId}')" title="Recalcular contra el tarifario actual"><i class="ti ti-refresh"></i> Recalcular totales</button>` : ''}
       <button class="btn btn-sm" onclick="closeModal();exportDetalleLugarFijo('${mesId}','${lugarId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
     </div>
   </div>`);
@@ -3897,6 +3900,71 @@ window.previaMesFijo = function(mesId) {
 };
 
 // ── CERRAR MES DEFINITIVAMENTE ──
+// Edita las jornadas de una liquidación de Servicios Fijos recalculando el total con AMBOS
+// componentes (6hs y 8hs). `editarLiquidacion` no sirve acá porque hace jornadas × valor_jornada
+// y se perdería la parte de 8hs.
+window.editarJornadasFijo = async function(liqId, mesId, lugarId, campo, valor) {
+  const liq = APP.liquidaciones.find(l => l.id === liqId);
+  if (!liq) return;
+  const n = parseInt(valor) || 0;
+
+  let semana = liq.jornadas_semana ?? liq.jornadas ?? 0;
+  let finde  = liq.jornadas_finde ?? 0;
+  if (campo === 'semana') semana = n; else finde = n;
+
+  const { tSemana, tFinde } = getTarifaSemanaFinde(liq.posicion);
+  const total = calcSubtotalFijo(liq.posicion, semana, finde);
+
+  const upd = {
+    jornadas_semana: semana,
+    jornadas_finde: finde,
+    jornadas: semana + finde,
+    valor_jornada: tSemana?.monto ?? liq.valor_jornada ?? 0,
+    valor_jornada_finde: tFinde?.monto ?? null,
+    total,
+  };
+  await sb.from('liquidaciones').update(upd).eq('id', liqId);
+  const i = APP.liquidaciones.findIndex(l => l.id === liqId);
+  if (i >= 0) APP.liquidaciones[i] = { ...APP.liquidaciones[i], ...upd };
+
+  // Mantener los presentes en sincronía para que el ojo y el Excel muestren lo mismo
+  const meses = getMesesFijos();
+  const mes = meses.find(m => m.id === mesId);
+  const p = mes?.presentes?.[lugarId]?.find(x => x.personaId === liq.persona_id);
+  if (p) { p.jornadas = semana; p.jornadasFinde = finde; saveMesesFijos(meses); }
+
+  toast('Guardado', 'ok');
+  verDetalleLugarFijo(mesId, lugarId);
+};
+
+// Recalcula todas las liquidaciones del lugar contra el tarifario actual.
+// Sirve para arreglar totales que quedaron mal por una tarifa que no existía al liquidar.
+window.recalcularLiqsFijo = async function(mesId, lugarId) {
+  const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId && l.lugar_fijo === lugarId);
+  if (!liqs.length) return;
+  const cambios = [];
+  liqs.forEach(l => {
+    const semana = l.jornadas_semana ?? l.jornadas ?? 0;
+    const finde  = l.jornadas_finde ?? 0;
+    const nuevo  = calcSubtotalFijo(l.posicion, semana, finde);
+    if (nuevo !== (l.total||0)) cambios.push({ liq: l, semana, finde, nuevo });
+  });
+  if (!cambios.length) { alert('Todos los totales ya coinciden con el tarifario actual.'); return; }
+  const detalle = cambios.map(c => `• ${c.liq.persona_nombre}: ${fmt(c.liq.total)} → ${fmt(c.nuevo)}`).join('\n');
+  if (!confirm(`Se van a recalcular ${cambios.length} liquidación${cambios.length>1?'es':''}:\n\n${detalle}\n\n¿Confirmás?`)) return;
+  loading(true);
+  for (const c of cambios) {
+    const { tSemana, tFinde } = getTarifaSemanaFinde(c.liq.posicion);
+    const upd = { total: c.nuevo, valor_jornada: tSemana?.monto ?? c.liq.valor_jornada ?? 0, valor_jornada_finde: tFinde?.monto ?? null };
+    await sb.from('liquidaciones').update(upd).eq('id', c.liq.id);
+    const i = APP.liquidaciones.findIndex(l => l.id === c.liq.id);
+    if (i >= 0) APP.liquidaciones[i] = { ...APP.liquidaciones[i], ...upd };
+  }
+  loading(false);
+  toast(`${cambios.length} liquidaciones recalculadas`, 'ok');
+  verDetalleLugarFijo(mesId, lugarId);
+};
+
 // Edita un campo de una persona en los presentes cargados (antes de liquidar).
 // Se identifica por índice y no por apellido, porque puede haber apellidos repetidos.
 window.editarPresenteFijo = async function(mesId, lugarId, idx, campo, valor) {
@@ -3924,6 +3992,35 @@ window.editarPresenteFijo = async function(mesId, lugarId, idx, campo, valor) {
   verDetalleLugarFijo(mesId, lugarId); // refrescar para recalcular subtotales y total
 };
 
+// Deshace la liquidación de un lugar: borra sus liquidaciones y lo devuelve al estado
+// "sin liquidar", donde se puede volver a importar la planilla y editar libremente.
+window.deshacerLiquidacionFijo = async function(mesId, lugarId) {
+  const lugar = LUGARES_FIJOS.find(l => l.id === lugarId);
+  const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId && l.lugar_fijo === lugarId);
+  if (!liqs.length) return;
+  const total = liqs.reduce((s,l) => s+(l.total||0), 0);
+  const pagadas = liqs.filter(l => l.estado === 'pagado').length;
+  let msg = `¿Deshacer la liquidación de ${lugar.nombre}?\n\n`
+    + `Se van a borrar ${liqs.length} liquidacion${liqs.length>1?'es':''} por ${fmt(total)}.\n`
+    + `Las jornadas cargadas se mantienen, así que podés corregirlas y volver a liquidar.`;
+  if (pagadas) msg += `\n\nATENCIÓN: ${pagadas} ${pagadas>1?'están marcadas':'está marcada'} como PAGADA.`;
+  if (!confirm(msg)) return;
+  loading(true);
+  for (const l of liqs) await sb.from('liquidaciones').delete().eq('id', l.id);
+  // Si estaba cerrado, destrabarlo también: sin liquidaciones no tiene sentido el candado
+  const meses = getMesesFijos();
+  const idx = meses.findIndex(m => m.id === mesId);
+  if (idx >= 0) {
+    if (meses[idx].cerradoPorLugar) meses[idx].cerradoPorLugar[lugarId] = false;
+    meses[idx].cerrado = false; // el mes ya no puede estar cerrado si un lugar volvió atrás
+    saveMesesFijos(meses);
+  }
+  await fetchAll();
+  loading(false);
+  toast(`Liquidación de ${lugar.nombre} deshecha`, 'ok');
+  await go('fijos');
+};
+
 window.reabrirLugarFijo = function(mesId, lugarId) {
   const lugar = LUGARES_FIJOS.find(l => l.id === lugarId);
   if (!confirm(`¿Reabrir ${lugar.nombre}? Podrás editar las liquidaciones nuevamente.`)) return;
@@ -3931,6 +4028,8 @@ window.reabrirLugarFijo = function(mesId, lugarId) {
   const idx = meses.findIndex(m => m.id === mesId);
   if (idx >= 0) {
     if (meses[idx].cerradoPorLugar) meses[idx].cerradoPorLugar[lugarId] = false;
+    // El mes no puede seguir cerrado si uno de sus lugares volvió a estar abierto
+    meses[idx].cerrado = false;
     saveMesesFijos(meses);
   }
   toast(`${lugar.nombre} reabierto`, 'ok');
