@@ -3645,8 +3645,8 @@ window.liquidarLugarFijo = async function(mesId, lugarId) {
     if (!p.jornadas && !jf) continue;
     const { tSemana, tFinde } = getTarifaSemanaFinde(p.posicion, lugarId);
     const tarUnico = lugarId==='ecoparque' ? null : APP.tarifario.find(t => t.posicion === p.posicion);
-    if (!tSemana && !tFinde && !tarUnico) { sinTarifa.push(`${p.apellido} (${p.posicion})`); continue; }
-    const total = calcSubtotalFijo(p.posicion, p.jornadas||0, jf, lugarId);
+    if (!tSemana && !tFinde && !tarUnico && p.totalManual == null) { sinTarifa.push(`${p.apellido} (${p.posicion})`); continue; }
+    const total = p.totalManual != null ? p.totalManual : calcSubtotalFijo(p.posicion, p.jornadas||0, jf, lugarId);
     // Ecoparque: la posición de la liquidación refleja en qué rol trabajó (o ambos)
     const posLiq = lugarId==='ecoparque'
       ? ((p.jornadas||0) && jf ? 'Orientador / Supervisor' : jf ? 'Supervisor' : 'Orientador')
@@ -3825,7 +3825,9 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
         const per = APP.personal.find(x => x.id === p.personaId)
           || APP.personal.find(x => x.id === liq?.persona_id);
         const cuil = p.cuil || per?.cuil || '—';
-        const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0, lugarId);
+        const subCalc = calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0, lugarId);
+        // Antes de liquidar se puede fijar un total manual (ej: alguien que hizo media jornada).
+        const sub = liq ? liq.total : (p.totalManual != null ? p.totalManual : subCalc);
         // Dos modos de edición: si ya se liquidó se edita la liquidación; si todavía no,
         // se editan los presentes cargados. En ambos casos solo si el lugar no está cerrado.
         const editaLiq  = !!liq && !lugarCerrado;
@@ -3848,12 +3850,13 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
             jorFVal}</td>`:''}
           <td style="padding:6px 10px;text-align:right;font-weight:600">${
             editaLiq ? `<input type="number" id="liq-total-${liq.id}" value="${sub}" min="0" style="width:110px;font-weight:600;text-align:right" onchange="editarLiquidacion('${liq.id}','total',this.value)">` :
+            editaPres ? `<input type="number" value="${sub}" min="0" step="0.01" title="${p.totalManual != null ? 'Total editado a mano' : 'Total calculado — editable'}" style="width:120px;font-weight:600;text-align:right${p.totalManual != null ? ';color:var(--primary)' : ''}" onchange="editarTotalPresenteFijo('${mesId}','${lugarId}',${idx},this.value)">` :
             fmt(sub)}</td>
         </tr>`;
       }).join('')}
       </tbody><tfoot><tr style="border-top:2px solid var(--border);font-weight:700">
         <td colspan="${dosCol?5:4}" style="padding:8px 10px">Total</td>
-        <td style="padding:8px 10px;text-align:right">${fmt(liqs.length ? liqs.reduce((s,l)=>s+(l.total||0),0) : pres.reduce((s,p)=>s+calcSubtotalFijo(p.posicion,p.jornadas||0,p.jornadasFinde||0,lugarId),0))}</td>
+        <td style="padding:8px 10px;text-align:right">${fmt(liqs.length ? liqs.reduce((s,l)=>s+(l.total||0),0) : pres.reduce((s,p)=>s+(p.totalManual != null ? p.totalManual : calcSubtotalFijo(p.posicion,p.jornadas||0,p.jornadasFinde||0,lugarId)),0))}</td>
       </tr></tfoot>
       </table>
     </div>
@@ -3877,7 +3880,7 @@ window.exportDetalleLugarFijo = function(mesId, lugarId) {
     const liq = liqs.find(l => l.persona_id === p.personaId);
     const per = APP.personal.find(x => x.id === p.personaId)
       || APP.personal.find(x => x.id === liq?.persona_id);
-    const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0, lugarId);
+    const sub = liq ? liq.total : (p.totalManual != null ? p.totalManual : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0, lugarId));
     const cuil = p.cuil || ''; // siempre del localStorage, igual que el ojo
     const row = {
       'CUIL': cuil,
@@ -4043,11 +4046,29 @@ window.editarPresenteFijo = async function(mesId, lugarId, idx, campo, valor) {
     }
   } else {
     p[campo] = parseInt(valor) || 0;
+    // Si se reeditan las jornadas, el total vuelve a calcularse (se descarta el manual)
+    if (campo === 'jornadas' || campo === 'jornadasFinde') delete p.totalManual;
   }
 
   saveMesesFijos(meses);
   toast('Guardado', 'ok');
   verDetalleLugarFijo(mesId, lugarId); // refrescar para recalcular subtotales y total
+};
+
+// Fija (o borra) el total de una persona a mano, antes de liquidar. Sirve para casos que el
+// cálculo por jornadas no cubre, ej: media jornada. Dejar el campo vacío vuelve al cálculo.
+window.editarTotalPresenteFijo = async function(mesId, lugarId, idx, valor) {
+  const meses = getMesesFijos();
+  const mes = meses.find(m => m.id === mesId);
+  const p = mes?.presentes?.[lugarId]?.[idx];
+  if (!p) return;
+  const limpio = String(valor).replace(/[^0-9.,-]/g,'').replace(',','.');
+  const num = parseFloat(limpio);
+  if (limpio === '' || isNaN(num)) delete p.totalManual;
+  else p.totalManual = num;
+  saveMesesFijos(meses);
+  toast('Total actualizado', 'ok');
+  verDetalleLugarFijo(mesId, lugarId);
 };
 
 // Deshace la liquidación de un lugar: borra sus liquidaciones y lo devuelve al estado
