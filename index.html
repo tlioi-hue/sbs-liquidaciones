@@ -498,37 +498,19 @@ function chipClaseArea(area) {
 // Busca las tarifas de 6hs y 8hs de una posición base.
 // La comparación se hace normalizada (sin mayúsculas, espacios, puntos ni corchetes) para que
 // "Boletero [Jornada 8 hs.]", "Boletero [Jornada 8 hs]" o "Boletero [Jornada 8hs.]" coincidan igual.
-function _normPos(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,''); }
-
-// Ecoparque liquida por DOS posiciones con tarifa distinta (Orientador / Supervisor), no por
-// duración de jornada. Reutilizamos el par de columnas jornadas/jornadasFinde:
-//   columna 1 (jornadas)      -> Orientador
-//   columna 2 (jornadasFinde) -> Supervisor
-const ECO_POS_1 = 'Orientador';   // columna 1
-const ECO_POS_2 = 'Supervisor';   // columna 2
-function getTarifaEco() {
-  const buscar = nombre => APP.tarifario.find(t =>
-    (t.area === 'Ecoparque' || t.area === 'General') && _normPos(t.posicion) === _normPos(nombre));
-  return { tSemana: buscar(ECO_POS_1), tFinde: buscar(ECO_POS_2) };
-}
-function getTarifaSemanaFinde(posBase, lugarId) {
-  // Ecoparque: las dos columnas son posiciones (Orientador/Supervisor), no 6/8 hs
-  if (lugarId === 'ecoparque') return getTarifaEco();
-  const base = _normPos(posBase);
+function getTarifaSemanaFinde(posBase) {
+  const norm = s => String(s||'').toLowerCase().normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
+  const base = norm(posBase);
   if (!base) return { tSemana: undefined, tFinde: undefined };
-  const buscar = n => APP.tarifario.find(t => _normPos(t.posicion) === `${base}jornada${n}hs`);
+  const buscar = n => APP.tarifario.find(t => norm(t.posicion) === `${base}jornada${n}hs`);
   return { tSemana: buscar(6), tFinde: buscar(8) };
 }
-function calcSubtotalFijo(posBaseOTar, jornadasSemana, jornadasFinde, lugarId) {
+function calcSubtotalFijo(posBaseOTar, jornadasSemana, jornadasFinde) {
   // Acepta posicion (string) o un objeto tarifario ya resuelto (compatibilidad)
   const posBase = typeof posBaseOTar === 'string' ? posBaseOTar : posBaseOTar?.posicion;
-  // Ecoparque: subtotal = jornadas Orientador × tarifa Orientador + jornadas Supervisor × tarifa Supervisor
-  if (lugarId === 'ecoparque') {
-    const { tSemana, tFinde } = getTarifaEco();
-    return (tSemana?.monto||0)*(jornadasSemana||0) + (tFinde?.monto||0)*(jornadasFinde||0);
-  }
   if (!posBase) return 0;
-  const { tSemana, tFinde } = getTarifaSemanaFinde(posBase, lugarId);
+  const { tSemana, tFinde } = getTarifaSemanaFinde(posBase);
   if (tSemana || tFinde) {
     return (tSemana?.monto||0)*jornadasSemana + (tFinde?.monto||0)*jornadasFinde;
   }
@@ -892,7 +874,7 @@ window.modalTarifa = function(id) {
       <input id="tm" type="number" min="0" step="1" value="${t?.monto||''}" placeholder="Ej: 15000">
     </div>
     <div id="avisoColon" style="display:${t?.area==='Teatro Colón'?'block':'none'}">
-      <div class="alert alert-info" style="padding:8px 12px;font-size:11.5px"><i class="ti ti-info-circle"></i> Para Teatro Colón, cargá una posición por cada duración de jornada, ej: "Boletero [Jornada 6 hs.]" y "Boletero [Jornada 8 hs.]". Para Ecoparque, cargá "Orientador" y "Supervisor" (área Ecoparque): cada uno liquida su columna de jornadas.</div>
+      <div class="alert alert-info" style="padding:8px 12px;font-size:11.5px"><i class="ti ti-info-circle"></i> Para Teatro Colón, cargá una posición por cada duración de jornada, ej: "Boletero [Jornada 6 hs.]" y "Boletero [Jornada 8 hs.]".</div>
     </div>
     <div class="modal-f">
       <button class="btn" onclick="closeModal()">Cancelar</button>
@@ -1799,9 +1781,9 @@ async function pgImportar(el, ac) {
       <div class="drop-zone" id="dz" onclick="document.getElementById('fi').click()">
         <i class="ti ti-table-import" style="font-size:36px;color:var(--text2);display:block;margin-bottom:10px"></i>
         <div style="font-size:14px;font-weight:600;margin-bottom:4px">Arrastrá el archivo acá o hacé clic</div>
-        <div style="font-size:12px;color:var(--text2)">.xlsx · .xls · .csv — Columnas: Nº · Apellido · Nombre · CUIL · Teléfono · Presentes (P)</div>
+        <div style="font-size:12px;color:var(--text2)">.xlsx · .xls · .csv · .pdf — Columnas: Nº · Apellido · Nombre · CUIL · Teléfono · Presentes (P)</div>
       </div>
-      <input type="file" id="fi" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFileCtx(this.files[0],null,null,'arena')">
+      <input type="file" id="fi" accept=".xlsx,.xls,.csv,.pdf" style="display:none" onchange="handleFileCtx(this.files[0],null,null,'arena')">
     </div>`;
 
   const dz = document.getElementById('dz');
@@ -1822,9 +1804,9 @@ window.importarFechaCtx = async function(evId, fechaId, modo) {
     <div class="drop-zone" id="dz-m" onclick="document.getElementById('fi-m').click()">
       <i class="ti ti-table-import" style="font-size:30px;color:var(--text2);display:block;margin-bottom:7px"></i>
       <div style="font-size:13px;font-weight:600;margin-bottom:3px">Arrastrá acá o hacé clic</div>
-      <div style="font-size:11.5px;color:var(--text2)">.xlsx · .xls · .csv</div>
+      <div style="font-size:11.5px;color:var(--text2)">.xlsx · .xls · .csv · .pdf</div>
     </div>
-    <input type="file" id="fi-m" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleFileCtx(this.files[0],'${evId}','${fechaId}','${modo}')">
+    <input type="file" id="fi-m" accept=".xlsx,.xls,.csv,.pdf" style="display:none" onchange="handleFileCtx(this.files[0],'${evId}','${fechaId}','${modo}')">
     <div class="modal-f"><button class="btn" onclick="closeModal()">Cancelar</button></div>
   </div>`);
   setTimeout(() => {
@@ -1837,9 +1819,58 @@ window.importarFechaCtx = async function(evId, fechaId, modo) {
   }, 80);
 };
 
+// Convierte las filas posicionadas de un PDF en una matriz de celdas equivalente a la que
+// devuelve XLSX, usando las X del encabezado como anclas de columna. Así el PDF puede pasar
+// por el mismo parseDraft que el Excel, sin duplicar la lógica de secciones ni de tarifas.
+function pdfRowsToMatrix(pdfRows) {
+  let headerRow = null;
+  for (const row of pdfRows) {
+    if (row.some(it => it.text.trim().toUpperCase() === 'APELLIDO')) { headerRow = row; break; }
+  }
+  // Sin encabezado reconocible, se devuelve texto plano por fila y parseDraft avisará del error
+  if (!headerRow) return pdfRows.map(r => r.map(it => it.text.trim()));
+
+  const anchors = headerRow.map(it => it.x).sort((a,b) => a - b);
+  const colDe = x => {
+    let best = 0, dist = Infinity;
+    anchors.forEach((ax, i) => { const d = Math.abs(ax - x); if (d < dist) { dist = d; best = i; } });
+    return best;
+  };
+
+  return pdfRows.map(row => {
+    const cells = [];
+    row.forEach(it => {
+      const t = it.text.trim();
+      if (!t) return;
+      const c = colDe(it.x);
+      cells[c] = cells[c] ? `${cells[c]} ${t}` : t;
+    });
+    for (let i = 0; i < cells.length; i++) if (cells[i] === undefined) cells[i] = '';
+    return cells;
+  });
+}
+
 window.handleFileCtx = async function(file, evId, fechaId, modo) {
   if (!file) return;
   if (APP.personal.length === 0) await fetchAll();
+  const esPdf = file.name.toLowerCase().endsWith('.pdf');
+
+  if (esPdf) {
+    const r = new FileReader();
+    r.onload = async e => {
+      try {
+        loading(true);
+        const pdfRows = await extraerFilasPDF(e.target.result);
+        const rows = pdfRowsToMatrix(separarFilasFusionadas(pdfRows));
+        loading(false);
+        const mo = document.getElementById('mo'); if (mo) mo.style.display = 'none';
+        parseDraft(rows, file.name, evId, fechaId, modo);
+      } catch (err) { loading(false); alert('Error leyendo el PDF: ' + err.message); }
+    };
+    r.readAsArrayBuffer(file);
+    return;
+  }
+
   const r = new FileReader();
   r.onload = e => {
     try {
@@ -1995,7 +2026,43 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
   }
   if (hi === -1) { alert('No encontré encabezados.\nVerificá: APELLIDO · NOMBRE · CUIL · PRESENTES'); return; }
 
-  const filas = []; let sec = 'SIN SECCIÓN';
+  // Los tres ajustes que siguen aplican SOLO a Externos, cuyas planillas tienen otra estructura.
+  // Arena/DOI quedan con el comportamiento original a propósito.
+  const esExternos = modo === 'ext';
+
+  // Externos rotula la columna de presentismo con la fecha del evento (ej: 08/08/2026)
+  // en lugar de "PRESENTES".
+  if (esExternos && cP === -1) {
+    const hdr = rows[hi] || [];
+    for (let j = 0; j < hdr.length; j++) {
+      const v = hdr[j];
+      if (v instanceof Date) { cP = j; break; }
+      if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(String(v||'').trim())) { cP = j; break; }
+    }
+    // Último recurso: la columna que traiga "P" en varias filas de datos
+    if (cP === -1) {
+      const desde = Math.max(cA, cN, cC) + 1;
+      for (let j = desde; j < desde + 12; j++) {
+        let hits = 0;
+        for (let i = hi + 1; i < Math.min(rows.length, hi + 15); i++) {
+          if (String(rows[i]?.[j] || '').trim().toUpperCase() === 'P') hits++;
+        }
+        if (hits >= 2) { cP = j; break; }
+      }
+    }
+  }
+
+  const filas = [];
+  let sec = 'SIN SECCIÓN';
+  // En Externos la fila de encabezado trae además la primera sección en la columna A
+  // (ej: "COORDINADOR | APELLIDO | NOMBRE | ..."). En Arena esa celda es el nombre del lugar,
+  // por eso no se toma como sección: rompería el fallback de "SIN SECCIÓN" a Orientador.
+  if (esExternos) {
+    const a0Header = String(rows[hi]?.[0] || '').trim();
+    if (a0Header && !['APELLIDO','N°','Nº','NRO','#','POSICIÓN','POSICION'].includes(a0Header.toUpperCase()) && !/^\d+$/.test(a0Header)) {
+      sec = a0Header;
+    }
+  }
   for (let i = hi + 1; i < rows.length; i++) {
     const row = rows[i];
     const a0  = String(row[0]||'').trim();
@@ -2013,9 +2080,11 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
     const pres = String(row[cP]||'').trim().toUpperCase() === 'P';
     const tel  = String(row[cT]||'').trim();
 
-    // Formato 1: col A es número (fila normal de orientadores/staff)
+    // Formato 1: col A es número (fila normal de orientadores/staff).
+    // En Externos también vale la col A vacía: ahí solo se numeran algunos grupos y el resto
+    // queda en blanco. En Arena se mantiene la condición original.
     const num = parseFloat(a0);
-    if (!isNaN(num) && num > 0) {
+    if ((!isNaN(num) && num > 0) || (esExternos && !a0)) {
       // SIN SECCIÓN: filas antes del primer encabezado. Intentar mapear igual.
       const posSinSec = esDOI ? mapTarifarioDOI(sec) : mapToTarifario(sec, areaParaTarifa);
       const posicion = (sec === 'SIN SECCIÓN' && posSinSec === 'SIN SECCIÓN' && APP.tarifario.length)
@@ -2958,7 +3027,7 @@ function renderMesFijo(mes, isRRHH) {
             <span style="font-size:11px;color:var(--text2)"> · ${l.posiciones.join(', ')}</span>
           </div>
           <span class="pill">${pres.length} personas</span>
-          <span class="pill">${pres.reduce((s,p)=>s+(p.jornadas||0)+(p.jornadasFinde||0),0)} jornadas</span>
+          <span class="pill">${pres.reduce((s,p)=>s+(p.jornadas||0),0)} jornadas</span>
           <span class="fb ${estadoChip}">${estadoTxt}</span>
           <div style="display:flex;gap:5px;flex-shrink:0">
             ${!lugarCerrado && !liqL.length && isRRHH ? `<button class="btn btn-sm" onclick="importarPlanillaFija('${mes.id}','${l.id}')" title="Importar planilla"><i class="ti ti-file-upload"></i></button>` : ''}
@@ -3242,29 +3311,19 @@ function parsePlanillaFijaPDF_SinCuil(pdfRows, mesId, lugarId) {
       (!nombre || !p.nombre || p.nombre.toLowerCase().split(' ')[0] === nombre.toLowerCase().split(' ')[0])
     );
 
-    // Ecoparque: cada jornada va a la columna de su posición (Orientador col.1 / Supervisor col.2)
-    const esEco = lugarId === 'ecoparque';
-    const esSup = esEco && /supervisor/i.test(posicionDetectada || per?.posicion || '');
     personas.push({
       _id: uid(), apellido, nombre, cuil: '', posicion: posicionDetectada || per?.posicion || '',
-      jornadas: esSup ? 0 : jornadas, jornadasFinde: esSup ? jornadas : 0,
-      existeId: per?.id || null, esNuevo: !per
+      jornadas, jornadasFinde: 0, existeId: per?.id || null, esNuevo: !per
     });
   }
 
   if (!personas.length) { alert('No encontré personas en el PDF. Verificá el formato de la planilla.'); return; }
 
-  // Deduplicar: en Ecoparque una persona puede aparecer como Orientador y como Supervisor (cambió
-  // de rol en el mes) — se suman ambas columnas. En el resto, se queda con la de más jornadas.
+  // Deduplicar: si hay personas repetidas (apellido+nombre igual), quedarse con la que tenga más jornadas
   const dedup = {};
   personas.forEach(p => {
     const key = `${p.apellido}|${p.nombre}`.toLowerCase();
-    if (!dedup[key]) { dedup[key] = p; return; }
-    if (lugarId === 'ecoparque') {
-      dedup[key].jornadas += p.jornadas; dedup[key].jornadasFinde += p.jornadasFinde;
-    } else if (p.jornadas > dedup[key].jornadas) {
-      dedup[key] = p;
-    }
+    if (!dedup[key] || p.jornadas > dedup[key].jornadas) dedup[key] = p;
   });
   const personasDedup = Object.values(dedup);
 
@@ -3454,14 +3513,6 @@ function parsePlanillaFija(rows, mesId, lugarId) {
     if (!apellido) continue;
 
     const posicionMapeada = posicion ? mapToTarifario(posicion, areaLugar) : '';
-
-    // Ecoparque: las jornadas van a la columna de su posición (Orientador col.1 / Supervisor col.2).
-    // Si la planilla ya trae dos columnas separadas, jornadasFinde ya viene cargado y no se toca.
-    if (lugarId === 'ecoparque' && !jornadasFinde) {
-      const esSup = /supervisor/i.test(posicionMapeada || posicion || '');
-      if (esSup) { jornadasFinde = jornadas; jornadas = 0; }
-    }
-
     const per = APP.personal.find(p =>
       (cuil && p.cuil && p.cuil.replace(/\D/g,'') === cuil) ||
       (p.apellido.toLowerCase() === apellido.toLowerCase() && (!nombre || p.nombre.toLowerCase().startsWith(nombre.toLowerCase().split(' ')[0].toLowerCase())))
@@ -3505,9 +3556,6 @@ function renderTablaVerificacionFija() {
     <button class="btn btn-success" onclick="confirmarPlanillaFija('${mesId}','${lugarId}')"><i class="ti ti-check"></i> Confirmar</button>`;
 
   const areaLugarVer = lugar?.nombre;
-  const dosCol = lugarId === 'teatro-colon' || lugarId === 'ecoparque';
-  const lbl1 = lugarId === 'ecoparque' ? 'Jorn. Orientador' : 'Jornadas 6 hs.';
-  const lbl2 = lugarId === 'ecoparque' ? 'Jorn. Supervisor' : 'Jornadas 8 hs.';
   const posicionesBase = lugarId === 'teatro-colon'
     ? [...new Set(APP.tarifario
         .filter(t => t.area === 'Teatro Colón')
@@ -3518,17 +3566,16 @@ function renderTablaVerificacionFija() {
     <div class="alert alert-info" style="padding:8px 12px"><i class="ti ti-eye"></i>
       Verificá las jornadas y posiciones antes de confirmar. <strong>${mes.nombre} — ${lugar.nombre}</strong>
     </div>
-    ${lugarId === 'ecoparque' ? `<div class="alert alert-info" style="padding:8px 12px;font-size:11.5px"><i class="ti ti-info-circle"></i> En Ecoparque las jornadas se dividen en <strong>Orientador</strong> y <strong>Supervisor</strong>, cada una con su tarifa. El importador las ubica según la posición de cada fila; si alguien trabajó en los dos roles, repartí las jornadas entre las dos columnas.</div>` : ''}
     ${personas.filter(p=>p.esNuevo).length ? `<div class="alert alert-warn"><i class="ti ti-user-plus"></i> ${personas.filter(p=>p.esNuevo).length} personas nuevas se agregarán al sistema.</div>` : ''}
     <div id="pf-aviso-sin">${renderAvisoSinJornadas(personas)}</div>
     <div class="card" style="padding:0;overflow:hidden">
       <table><thead><tr>
         <th>Apellido y nombre</th><th>CUIL</th><th>Posición</th>
-        <th style="text-align:center">${lbl1}</th>${dosCol?`<th style="text-align:center">${lbl2}</th>`:''}<th style="text-align:right">Subtotal</th><th>Estado</th><th style="width:34px"></th>
+        <th style="text-align:center">Jornadas 6 hs.</th>${lugarId==='teatro-colon'?'<th style="text-align:center">Jornadas 8 hs.</th>':''}<th style="text-align:right">Subtotal</th><th>Estado</th><th style="width:34px"></th>
       </tr></thead>
       <tbody>${personas.map(p => {
         const posicionEfectiva = p.posicion || posicionesBase[0] || '';
-        const subtotal = calcSubtotalFijo(posicionEfectiva, p.jornadas, p.jornadasFinde||0, lugarId);
+        const subtotal = calcSubtotalFijo(posicionEfectiva, p.jornadas, p.jornadasFinde||0);
         const allPosOpts = posicionesBase.map(pb => `<option value="${pb}" ${pb===posicionEfectiva?'selected':''}>${pb}</option>`).join('');
         const vacia = !(p.jornadas||0) && !(p.jornadasFinde||0);
         return `<tr id="pfrow-${p._id}" ${vacia?'style="opacity:.55"':''}>
@@ -3536,16 +3583,16 @@ function renderTablaVerificacionFija() {
           <td style="font-family:monospace;font-size:11.5px">${p.cuil||'—'}</td>
           <td><select id="pfpos-${p._id}" onchange="calcFilaFijaVer('${p._id}','${lugarId}')" style="font-size:12px;padding:3px 6px">${allPosOpts}</select></td>
           <td style="text-align:center"><input type="number" id="pfjor-${p._id}" value="${p.jornadas}" min="0" max="31" oninput="calcFilaFijaVer('${p._id}','${lugarId}')" style="width:60px;text-align:center"></td>
-          ${dosCol?`<td style="text-align:center"><input type="number" id="pfjorf-${p._id}" value="${p.jornadasFinde||0}" min="0" max="31" oninput="calcFilaFijaVer('${p._id}','${lugarId}')" style="width:60px;text-align:center"></td>`:''}
+          ${lugarId==='teatro-colon'?`<td style="text-align:center"><input type="number" id="pfjorf-${p._id}" value="${p.jornadasFinde||0}" min="0" max="31" oninput="calcFilaFijaVer('${p._id}','${lugarId}')" style="width:60px;text-align:center"></td>`:''}
           <td style="text-align:right;font-weight:500" id="pfsub-${p._id}">${fmt(subtotal)}</td>
           <td>${p.esNuevo ? '<span class="badge bn" style="font-size:10px">nuevo</span>' : '<span class="badge bs" style="font-size:10px">registrado</span>'}</td>
           <td><button class="btn btn-sm btn-danger" onclick="quitarPersonaFija('${p._id}')" title="Quitar de esta liquidación"><i class="ti ti-trash"></i></button></td>
         </tr>`;
       }).join('')}</tbody>
       <tfoot><tr>
-        <td colspan="${dosCol?5:4}" style="font-weight:600;padding:10px;border-top:2px solid var(--border)">Total estimado · ${personas.length} ${personas.length===1?'persona':'personas'}</td>
+        <td colspan="${lugarId==='teatro-colon'?5:4}" style="font-weight:600;padding:10px;border-top:2px solid var(--border)">Total estimado · ${personas.length} ${personas.length===1?'persona':'personas'}</td>
         <td style="text-align:right;font-size:16px;font-weight:700;padding:10px;border-top:2px solid var(--border)" id="pf-total">
-          ${fmt(personas.reduce((s,p) => s + calcSubtotalFijo(p.posicion || posicionesBase[0] || '', p.jornadas, p.jornadasFinde||0, lugarId), 0))}
+          ${fmt(personas.reduce((s,p) => s + calcSubtotalFijo(p.posicion || posicionesBase[0] || '', p.jornadas, p.jornadasFinde||0), 0))}
         </td>
         <td colspan="2" style="border-top:2px solid var(--border)"></td>
       </tr></tfoot>
@@ -3574,13 +3621,12 @@ window.quitarSinJornadasFija = function() {
 
 window.calcFilaFijaVer = function(id, lugarId) {
   const jornadas = parseInt(document.getElementById('pfjor-'+id)?.value) || 0;
-  const dosCol = lugarId==='teatro-colon' || lugarId==='ecoparque';
-  const jornadasFinde = dosCol ? (parseInt(document.getElementById('pfjorf-'+id)?.value) || 0) : 0;
+  const jornadasFinde = lugarId==='teatro-colon' ? (parseInt(document.getElementById('pfjorf-'+id)?.value) || 0) : 0;
   const posicion  = document.getElementById('pfpos-'+id)?.value;
   // Guardar en el draft para que las ediciones sobrevivan a un re-render (ej: al quitar una fila)
   const p = window._fijoDraft?.personas.find(x => x._id === id);
   if (p) { p.jornadas = jornadas; p.jornadasFinde = jornadasFinde; p.posicion = posicion; }
-  const sub = calcSubtotalFijo(posicion, jornadas, jornadasFinde, lugarId);
+  const sub = calcSubtotalFijo(posicion, jornadas, jornadasFinde);
   const subEl = document.getElementById('pfsub-'+id); if (subEl) subEl.textContent = fmt(sub);
   // La fila se atenúa solo mientras no tenga jornadas: al cargarle una, vuelve a normal
   const rowEl = document.getElementById('pfrow-'+id);
@@ -3608,7 +3654,7 @@ window.confirmarPlanillaFija = async function(mesId, lugarId) {
   const presentesLugar = [];
   for (const p of draft.personas) {
     const jornadas = parseInt(document.getElementById('pfjor-'+p._id)?.value) || 0;
-    const jornadasFinde = (lugarId==='teatro-colon'||lugarId==='ecoparque') ? (parseInt(document.getElementById('pfjorf-'+p._id)?.value) || 0) : 0;
+    const jornadasFinde = lugarId==='teatro-colon' ? (parseInt(document.getElementById('pfjorf-'+p._id)?.value) || 0) : 0;
     const posicion  = document.getElementById('pfpos-'+p._id)?.value;
 
     // Agregar persona nueva si no existe
@@ -3643,18 +3689,14 @@ window.liquidarLugarFijo = async function(mesId, lugarId) {
   for (const p of presentes) {
     const jf = p.jornadasFinde || 0;
     if (!p.jornadas && !jf) continue;
-    const { tSemana, tFinde } = getTarifaSemanaFinde(p.posicion, lugarId);
-    const tarUnico = lugarId==='ecoparque' ? null : APP.tarifario.find(t => t.posicion === p.posicion);
-    if (!tSemana && !tFinde && !tarUnico && p.totalManual == null) { sinTarifa.push(`${p.apellido} (${p.posicion})`); continue; }
-    const total = p.totalManual != null ? p.totalManual : calcSubtotalFijo(p.posicion, p.jornadas||0, jf, lugarId);
-    // Ecoparque: la posición de la liquidación refleja en qué rol trabajó (o ambos)
-    const posLiq = lugarId==='ecoparque'
-      ? ((p.jornadas||0) && jf ? 'Orientador / Supervisor' : jf ? 'Supervisor' : 'Orientador')
-      : p.posicion;
+    const { tSemana, tFinde } = getTarifaSemanaFinde(p.posicion);
+    const tarUnico = APP.tarifario.find(t => t.posicion === p.posicion);
+    if (!tSemana && !tFinde && !tarUnico) { sinTarifa.push(`${p.apellido} (${p.posicion})`); continue; }
+    const total = calcSubtotalFijo(p.posicion, p.jornadas||0, jf);
     rows.push({
       persona_id: p.personaId, persona_nombre: `${p.apellido}, ${p.nombre}`,
       area: 'Servicios Fijos', lugar_fijo: lugarId, lugar_nombre: lugar.nombre,
-      mes_id: mesId, periodo: mes.nombre, posicion: posLiq,
+      mes_id: mesId, periodo: mes.nombre, posicion: p.posicion,
       jornadas: (p.jornadas||0) + jf, jornadas_semana: p.jornadas||0, jornadas_finde: jf,
       valor_jornada: tSemana?.monto || tarUnico?.monto || 0,
       valor_jornada_finde: tFinde?.monto || null,
@@ -3672,7 +3714,7 @@ window.liquidarLugarFijo = async function(mesId, lugarId) {
       ${rows.map(r => `<div style="display:flex;justify-content:space-between;padding:7px 11px;border-bottom:1px solid var(--border);font-size:12.5px">
         <span>${r.persona_nombre}</span>
         <span style="display:flex;gap:9px">
-          <span style="color:var(--text2)">${r.posicion} · ${r.jornadas_finde ? (lugarId==='ecoparque'?`${r.jornadas_semana} Ori + ${r.jornadas_finde} Sup`:`${r.jornadas_semana} L-V + ${r.jornadas_finde} S/D`) : `${r.jornadas} jornadas`}</span>
+          <span style="color:var(--text2)">${r.posicion} · ${r.jornadas_finde ? `${r.jornadas_semana} L-V + ${r.jornadas_finde} S/D` : `${r.jornadas} jornadas`}</span>
           <strong>${fmt(r.total)}</strong>
         </span>
       </div>`).join('')}
@@ -3779,9 +3821,6 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
   const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId && l.lugar_fijo === lugarId);
   // Solo lectura si el lugar está cerrado O si el mes tuvo su cierre final
   const lugarCerrado = !!(mes?.cerradoPorLugar?.[lugarId]) || !!mes?.cerrado;
-  const dosCol = lugarId === 'teatro-colon' || lugarId === 'ecoparque';
-  const lbl1 = lugarId === 'ecoparque' ? 'Jorn. Orientador' : (lugarId === 'teatro-colon' ? 'Jornadas 6hs' : 'Jornadas');
-  const lbl2 = lugarId === 'ecoparque' ? 'Jorn. Supervisor' : 'Jornadas 8hs';
 
   // Detectar jornadas que no tienen tarifa cargada: sin esto sumarían $0 en silencio
   const faltantes = [];
@@ -3793,10 +3832,6 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
       if (usa6 && !tSemana) faltantes.push(`${pos} [Jornada 6 hs.]`);
       if (usa8 && !tFinde)  faltantes.push(`${pos} [Jornada 8 hs.]`);
     });
-  } else if (lugarId === 'ecoparque') {
-    const { tSemana, tFinde } = getTarifaEco();
-    if (pres.some(p => p.jornadas||0)     && !tSemana) faltantes.push('Orientador');
-    if (pres.some(p => p.jornadasFinde||0) && !tFinde) faltantes.push('Supervisor');
   } else {
     [...new Set(pres.map(p => p.posicion).filter(Boolean))].forEach(pos => {
       if (!APP.tarifario.find(t => t.posicion === pos)) faltantes.push(pos);
@@ -3816,8 +3851,8 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
         <th style="padding:6px 10px;text-align:left">Apellido y nombre</th>
         <th style="padding:6px 10px;text-align:left">CUIL</th>
         <th style="padding:6px 10px;text-align:left">Posición</th>
-        <th style="padding:6px 10px;text-align:center">${lbl1}</th>
-        ${dosCol?`<th style="padding:6px 10px;text-align:center">${lbl2}</th>`:''}
+        <th style="padding:6px 10px;text-align:center">${lugarId==='teatro-colon'?'Jornadas 6hs':'Jornadas'}</th>
+        ${lugarId==='teatro-colon'?'<th style="padding:6px 10px;text-align:center">Jornadas 8hs</th>':''}
         <th style="padding:6px 10px;text-align:right">Subtotal</th>
       </tr></thead><tbody>
       ${pres.map((p, idx) => {
@@ -3825,9 +3860,7 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
         const per = APP.personal.find(x => x.id === p.personaId)
           || APP.personal.find(x => x.id === liq?.persona_id);
         const cuil = p.cuil || per?.cuil || '—';
-        const subCalc = calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0, lugarId);
-        // Antes de liquidar se puede fijar un total manual (ej: alguien que hizo media jornada).
-        const sub = liq ? liq.total : (p.totalManual != null ? p.totalManual : subCalc);
+        const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
         // Dos modos de edición: si ya se liquidó se edita la liquidación; si todavía no,
         // se editan los presentes cargados. En ambos casos solo si el lugar no está cerrado.
         const editaLiq  = !!liq && !lugarCerrado;
@@ -3844,19 +3877,18 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
             editaLiq  ? `<input type="number" value="${jorVal}" min="0" max="31" style="width:55px;text-align:center" onchange="editarJornadasFijo('${liq.id}','${mesId}','${lugarId}','semana',this.value)">` :
             editaPres ? `<input type="number" value="${jorVal}" min="0" max="31" style="width:55px;text-align:center" onchange="editarPresenteFijo('${mesId}','${lugarId}',${idx},'jornadas',this.value)">` :
             jorVal}</td>
-          ${dosCol?`<td style="padding:6px 10px;text-align:center">${
+          ${lugarId==='teatro-colon'?`<td style="padding:6px 10px;text-align:center">${
             editaLiq  ? `<input type="number" value="${jorFVal}" min="0" max="31" style="width:55px;text-align:center" onchange="editarJornadasFijo('${liq.id}','${mesId}','${lugarId}','finde',this.value)">` :
             editaPres ? `<input type="number" value="${jorFVal}" min="0" max="31" style="width:55px;text-align:center" onchange="editarPresenteFijo('${mesId}','${lugarId}',${idx},'jornadasFinde',this.value)">` :
             jorFVal}</td>`:''}
           <td style="padding:6px 10px;text-align:right;font-weight:600">${
             editaLiq ? `<input type="number" id="liq-total-${liq.id}" value="${sub}" min="0" style="width:110px;font-weight:600;text-align:right" onchange="editarLiquidacion('${liq.id}','total',this.value)">` :
-            editaPres ? `<input type="number" value="${sub}" min="0" step="0.01" title="${p.totalManual != null ? 'Total editado a mano' : 'Total calculado — editable'}" style="width:120px;font-weight:600;text-align:right${p.totalManual != null ? ';color:var(--primary)' : ''}" onchange="editarTotalPresenteFijo('${mesId}','${lugarId}',${idx},this.value)">` :
             fmt(sub)}</td>
         </tr>`;
       }).join('')}
       </tbody><tfoot><tr style="border-top:2px solid var(--border);font-weight:700">
-        <td colspan="${dosCol?5:4}" style="padding:8px 10px">Total</td>
-        <td style="padding:8px 10px;text-align:right">${fmt(liqs.length ? liqs.reduce((s,l)=>s+(l.total||0),0) : pres.reduce((s,p)=>s+(p.totalManual != null ? p.totalManual : calcSubtotalFijo(p.posicion,p.jornadas||0,p.jornadasFinde||0,lugarId)),0))}</td>
+        <td colspan="${lugarId==='teatro-colon'?5:4}" style="padding:8px 10px">Total</td>
+        <td style="padding:8px 10px;text-align:right">${fmt(liqs.length ? liqs.reduce((s,l)=>s+(l.total||0),0) : pres.reduce((s,p)=>s+calcSubtotalFijo(p.posicion,p.jornadas||0,p.jornadasFinde||0),0))}</td>
       </tr></tfoot>
       </table>
     </div>
@@ -3875,12 +3907,11 @@ window.exportDetalleLugarFijo = function(mesId, lugarId) {
   const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId && l.lugar_fijo === lugarId);
   if (!pres.length) { alert('Sin personas cargadas para exportar'); return; }
   const esColon = lugarId === 'teatro-colon';
-  const esEco   = lugarId === 'ecoparque';
   const rows = pres.map(p => {
     const liq = liqs.find(l => l.persona_id === p.personaId);
     const per = APP.personal.find(x => x.id === p.personaId)
       || APP.personal.find(x => x.id === liq?.persona_id);
-    const sub = liq ? liq.total : (p.totalManual != null ? p.totalManual : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0, lugarId));
+    const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
     const cuil = p.cuil || ''; // siempre del localStorage, igual que el ojo
     const row = {
       'CUIL': cuil,
@@ -3894,9 +3925,6 @@ window.exportDetalleLugarFijo = function(mesId, lugarId) {
     if (esColon) {
       row['Jornadas 6hs'] = p.jornadas||0;
       row['Jornadas 8hs'] = p.jornadasFinde||0;
-    } else if (esEco) {
-      row['Jornadas Orientador'] = p.jornadas||0;
-      row['Jornadas Supervisor'] = p.jornadasFinde||0;
     } else {
       row['Jornadas'] = (p.jornadas||0) + (p.jornadasFinde||0);
     }
@@ -3906,8 +3934,6 @@ window.exportDetalleLugarFijo = function(mesId, lugarId) {
   // Header explícito (varía según lugar) + aoa_to_sheet para garantizar el orden
   const header = esColon
     ? ['CUIL','Apellido y nombre','CBU','Alias','Lugar','Período','Posición','Jornadas 6hs','Jornadas 8hs','Total ($)']
-    : esEco
-    ? ['CUIL','Apellido y nombre','CBU','Lugar','Período','Posición','Jornadas Orientador','Jornadas Supervisor','Total ($)']
     : ['CUIL','Apellido y nombre','CBU','Lugar','Período','Posición','Jornadas','Total ($)'];
   const aoa = [header, ...rows.map(r => header.map(h => r[h] ?? ''))];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -3973,8 +3999,8 @@ window.editarJornadasFijo = async function(liqId, mesId, lugarId, campo, valor) 
   let finde  = liq.jornadas_finde ?? 0;
   if (campo === 'semana') semana = n; else finde = n;
 
-  const { tSemana, tFinde } = getTarifaSemanaFinde(liq.posicion, lugarId);
-  const total = calcSubtotalFijo(liq.posicion, semana, finde, lugarId);
+  const { tSemana, tFinde } = getTarifaSemanaFinde(liq.posicion);
+  const total = calcSubtotalFijo(liq.posicion, semana, finde);
 
   const upd = {
     jornadas_semana: semana,
@@ -4007,7 +4033,7 @@ window.recalcularLiqsFijo = async function(mesId, lugarId) {
   liqs.forEach(l => {
     const semana = l.jornadas_semana ?? l.jornadas ?? 0;
     const finde  = l.jornadas_finde ?? 0;
-    const nuevo  = calcSubtotalFijo(l.posicion, semana, finde, lugarId);
+    const nuevo  = calcSubtotalFijo(l.posicion, semana, finde);
     if (nuevo !== (l.total||0)) cambios.push({ liq: l, semana, finde, nuevo });
   });
   if (!cambios.length) { alert('Todos los totales ya coinciden con el tarifario actual.'); return; }
@@ -4015,7 +4041,7 @@ window.recalcularLiqsFijo = async function(mesId, lugarId) {
   if (!confirm(`Se van a recalcular ${cambios.length} liquidación${cambios.length>1?'es':''}:\n\n${detalle}\n\n¿Confirmás?`)) return;
   loading(true);
   for (const c of cambios) {
-    const { tSemana, tFinde } = getTarifaSemanaFinde(c.liq.posicion, lugarId);
+    const { tSemana, tFinde } = getTarifaSemanaFinde(c.liq.posicion);
     const upd = { total: c.nuevo, valor_jornada: tSemana?.monto ?? c.liq.valor_jornada ?? 0, valor_jornada_finde: tFinde?.monto ?? null };
     await sb.from('liquidaciones').update(upd).eq('id', c.liq.id);
     const i = APP.liquidaciones.findIndex(l => l.id === c.liq.id);
@@ -4046,29 +4072,11 @@ window.editarPresenteFijo = async function(mesId, lugarId, idx, campo, valor) {
     }
   } else {
     p[campo] = parseInt(valor) || 0;
-    // Si se reeditan las jornadas, el total vuelve a calcularse (se descarta el manual)
-    if (campo === 'jornadas' || campo === 'jornadasFinde') delete p.totalManual;
   }
 
   saveMesesFijos(meses);
   toast('Guardado', 'ok');
   verDetalleLugarFijo(mesId, lugarId); // refrescar para recalcular subtotales y total
-};
-
-// Fija (o borra) el total de una persona a mano, antes de liquidar. Sirve para casos que el
-// cálculo por jornadas no cubre, ej: media jornada. Dejar el campo vacío vuelve al cálculo.
-window.editarTotalPresenteFijo = async function(mesId, lugarId, idx, valor) {
-  const meses = getMesesFijos();
-  const mes = meses.find(m => m.id === mesId);
-  const p = mes?.presentes?.[lugarId]?.[idx];
-  if (!p) return;
-  const limpio = String(valor).replace(/[^0-9.,-]/g,'').replace(',','.');
-  const num = parseFloat(limpio);
-  if (limpio === '' || isNaN(num)) delete p.totalManual;
-  else p.totalManual = num;
-  saveMesesFijos(meses);
-  toast('Total actualizado', 'ok');
-  verDetalleLugarFijo(mesId, lugarId);
 };
 
 // Deshace la liquidación de un lugar: borra sus liquidaciones y lo devuelve al estado
