@@ -982,8 +982,9 @@ function renderEvExt(ev, isRRHH) {
               <span class="pill">${fmt(fl.reduce((s,l)=>s+(l.total||0),0))}</span>
               <span class="fb ${st==='o'?'fb-o':st==='p'?'fb-p':'fb-c'}">${st==='o'?'sin liquidar':st==='p'?'parcial':'cerrada'}</span>
               <div style="display:flex;gap:5px;flex-shrink:0">
-                ${pres.length ? `<button class="btn btn-sm" onclick="verFechaExt('${ev.id}','${f.id}')"><i class="ti ti-eye"></i></button>` : ''}
+                ${pres.length ? `<button class="btn btn-sm" onclick="verFechaExt('${ev.id}','${f.id}')" title="Ver / editar detalle"><i class="ti ti-eye"></i></button>` : ''}
                 ${isRRHH ? `<button class="btn btn-sm" onclick="importarFechaCtx('${ev.id}','${f.id}','ext')" title="Subir planilla"><i class="ti ti-file-upload"></i></button>` : ''}
+                ${isRRHH && st !== 'c' ? `<button class="btn btn-sm" onclick="modalAgregarPersonaExt('${ev.id}','${f.id}')" title="Agregar persona a mano"><i class="ti ti-user-plus"></i></button>` : ''}
                 ${isRRHH && pres.length && st !== 'c' ? `<button class="btn btn-sm btn-success" onclick="liquidarFechaExt('${ev.id}','${f.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
                 ${fl.length ? `<button class="btn btn-sm" onclick="exportLiqsFecha('${ev.id}','${f.id}')"><i class="ti ti-file-spreadsheet"></i> Excel</button>` : ''}
               </div>
@@ -1047,28 +1048,178 @@ window.saveFechaExt = async function(evId) {
   closeModal(); toast('Fecha agregada', 'ok'); await go('externos');
 };
 
+// Agrega a mano una persona que no vino en la planilla, con un monto puesto por el usuario.
+// El monto va directo a la liquidación (presentismo no tiene columna de importe), así que
+// esta persona queda liquidada al instante y no se toca al liquidar el resto de la fecha.
+window.modalAgregarPersonaExt = function(evId, fechaId) {
+  const ev = getEvento(evId);
+  const f  = (ev?.fechas||[]).find(x => x.id === fechaId);
+  const yaEnFecha = new Set((f?.presentismo||[]).map(p => p.persona_id));
+  const disponibles = APP.personal.filter(p => !yaEnFecha.has(p.id));
+  const posExt = APP.tarifario.filter(t => t.area === 'Externos' || t.area === 'General');
+
+  showModal(`<div class="modal">
+    <div class="modal-t">Agregar persona — ${fd(f.fecha)}</div>
+    <div class="modal-s">${ev.nombre} · se agrega con el monto que indiques</div>
+
+    <div class="fg"><label class="fl">Buscar persona ya registrada</label>
+      <input list="dl-pers-ext" id="ape-ext" placeholder="Empezá a escribir el apellido..." autocomplete="off">
+      <datalist id="dl-pers-ext">
+        ${disponibles.map(p => `<option value="${p.apellido}, ${p.nombre}${p.cuil?' — '+p.cuil:''}"></option>`).join('')}
+      </datalist>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">Si no está en el sistema, dejá esto vacío y completá los datos de abajo.</div>
+    </div>
+
+    <div style="border-top:1px solid var(--border);margin:12px 0;padding-top:12px">
+      <div style="font-size:10.5px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">O crear nueva</div>
+      <div class="fr">
+        <div class="fg"><label class="fl">Apellido</label><input id="nue-ape-ext"></div>
+        <div class="fg"><label class="fl">Nombre</label><input id="nue-nom-ext"></div>
+      </div>
+      <div class="fg"><label class="fl">CUIL</label><input id="nue-cuil-ext" placeholder="11 dígitos"></div>
+    </div>
+
+    <div class="fr" style="border-top:1px solid var(--border);padding-top:12px">
+      <div class="fg"><label class="fl">Posición / concepto *</label>
+        <input list="dl-pos-ext" id="pos-ext" placeholder="Ej: Acomodador">
+        <datalist id="dl-pos-ext">${posExt.map(t => `<option value="${t.posicion}"></option>`).join('')}</datalist>
+      </div>
+      <div class="fg"><label class="fl">Monto a liquidar ($) *</label>
+        <input type="number" id="monto-ext" min="0" step="1" placeholder="Ej: 30284"></div>
+    </div>
+
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-success" onclick="guardarPersonaManualExt('${evId}','${fechaId}')"><i class="ti ti-plus"></i> Agregar</button>
+    </div>
+  </div>`);
+};
+
+window.guardarPersonaManualExt = async function(evId, fechaId) {
+  const ev = getEvento(evId);
+  const f  = (ev?.fechas||[]).find(x => x.id === fechaId);
+  const busq  = $v('ape-ext').trim();
+  const posicion = $v('pos-ext').trim();
+  const monto = parseFloat($v('monto-ext'));
+
+  if (!posicion) { alert('Completá la posición o concepto.'); return; }
+  if (isNaN(monto) || monto < 0) { alert('Completá un monto válido.'); return; }
+
+  let persona = null;
+
+  if (busq) {
+    // El datalist arma "Apellido, Nombre — CUIL": se resuelve primero por CUIL y si no por nombre
+    const cuilBusq = (busq.split('—')[1] || '').replace(/\D/g,'');
+    if (cuilBusq) persona = APP.personal.find(p => p.cuil && p.cuil.replace(/\D/g,'') === cuilBusq);
+    if (!persona) {
+      const sinCuil = busq.split('—')[0].trim();
+      const [ape, nom] = sinCuil.split(',').map(s => (s||'').trim().toLowerCase());
+      persona = APP.personal.find(p =>
+        p.apellido.toLowerCase() === ape && (!nom || p.nombre.toLowerCase() === nom));
+    }
+    if (!persona) { alert(`No encontré "${busq}" en el sistema.\nElegí una opción de la lista o dejá el buscador vacío y creá la persona abajo.`); return; }
+  } else {
+    const ape = $v('nue-ape-ext').trim(), nom = $v('nue-nom-ext').trim();
+    const cuil = $v('nue-cuil-ext').replace(/\D/g,'');
+    if (!ape || !nom) { alert('Para crear una persona nueva completá apellido y nombre.'); return; }
+    if (cuil && cuil.length !== 11) { alert('El CUIL debe tener 11 dígitos.'); return; }
+    // Si el CUIL ya existe, se reutiliza esa persona en lugar de duplicarla
+    if (cuil) persona = APP.personal.find(p => p.cuil && p.cuil.replace(/\D/g,'') === cuil);
+    if (!persona) {
+      loading(true);
+      const { data, error } = await sb.from('personal').insert({
+        apellido: ape, nombre: nom, cuil, area: 'Externos', posicion, activo: true
+      }).select().single();
+      loading(false);
+      if (error) { alert('Error creando la persona: ' + error.message); return; }
+      persona = data;
+    }
+  }
+
+  if ((f?.presentismo||[]).some(p => p.persona_id === persona.id)) {
+    alert(`${persona.apellido}, ${persona.nombre} ya está en esta fecha.`); return;
+  }
+
+  loading(true);
+  const { error: ePres } = await sb.from('presentismo').insert({ fecha_id: fechaId, persona_id: persona.id, posicion });
+  if (ePres) { loading(false); alert('Error agregando el presentismo: ' + ePres.message); return; }
+
+  const { error: eLiq } = await sb.from('liquidaciones').insert({
+    persona_id: persona.id, persona_nombre: `${persona.apellido}, ${persona.nombre}`,
+    evento_id: evId, fecha_id: fechaId, area: 'Externos', posicion,
+    periodo: fd(f.fecha), jornadas: 1, valor_jornada: monto, total: monto, estado: 'pendiente'
+  });
+  if (eLiq) { loading(false); alert('Error creando la liquidación: ' + eLiq.message); return; }
+
+  await fetchAll();
+  loading(false);
+  closeModal();
+  toast(`${persona.apellido} agregado por ${fmt(monto)}`, 'ok');
+  verFechaExt(evId, fechaId);
+};
+
 window.verFechaExt = function(evId, fechaId) {
   const ev   = getEvento(evId);
   const f    = (ev?.fechas||[]).find(x => x.id === fechaId);
   const pres = f?.presentismo || [];
   const liqs = liqsF(evId, fechaId);
+  const cerrada = stF(ev, fechaId) === 'c';
+  const puedeEditar = APP.rol === 'rrhh' && !cerrada;
+
+  const tarifasExt = APP.tarifario.filter(t => t.area === 'Externos' || t.area === 'General');
+
+  // Monto de cada persona: si ya se liquidó vale lo guardado; si no, lo que dice el tarifario
+  const filas = pres.map(p => {
+    const per = APP.personal.find(x => x.id === p.persona_id);
+    const liq = liqs.find(l => l.persona_id === p.persona_id);
+    const tar = getTarifa(p.posicion, 'Externos');
+    return { p, per, liq, tar, monto: liq ? (liq.total||0) : (tar?.monto||0), sinTarifa: !liq && !tar };
+  });
+  const total = filas.reduce((s,x) => s + x.monto, 0);
+  const sinTarifa = [...new Set(filas.filter(x => x.sinTarifa).map(x => x.p.posicion))];
+
   showModal(`<div class="modal modal-lg">
     <div class="modal-t">${ev.nombre} — ${fd(f.fecha)}</div>
-    <div class="modal-s">${pres.length} presentes${f.nombre?' · '+f.nombre:''}</div>
-    <table><thead><tr><th>Apellido y nombre</th><th>CUIL</th><th>Posición</th><th>Liquidación</th></tr></thead>
-    <tbody>${pres.map(p => {
-      const per = APP.personal.find(x => x.id === p.persona_id);
-      const liq = liqs.find(l => l.persona_id === p.persona_id);
+    <div class="modal-s">${pres.length} presentes${f.nombre?' · '+f.nombre:''} · <strong id="total-show-lbl">${fmt(total)}</strong></div>
+    ${sinTarifa.length ? `<div class="alert alert-warn" style="padding:8px 12px">
+      <i class="ti ti-alert-triangle"></i>
+      <div><strong>Sin tarifa en Externos:</strong> ${sinTarifa.join(' · ')}.
+      Esas personas quedan afuera al liquidar. Cargá la posición en Tarifario (área Externos) o cambiala acá abajo.</div>
+    </div>` : ''}
+    ${puedeEditar && !liqs.length ? `<div class="alert alert-info" style="padding:8px 12px">
+      <i class="ti ti-edit" style="font-size:13px"></i> Podés cambiar la posición de cada persona — el monto se actualiza solo.
+    </div>` : ''}
+    <table><thead><tr>
+      <th>Apellido y nombre</th><th>CUIL</th><th>Posición</th>
+      <th style="text-align:right">Monto</th><th>Estado</th>
+    </tr></thead>
+    <tbody>${filas.map(({p, per, liq, sinTarifa: st}) => {
+      const opts = tarifasExt.map(t => `<option value="${t.posicion}" ${t.posicion===p.posicion?'selected':''}>${t.posicion}</option>`).join('');
+      const enTarifario = tarifasExt.some(t => t.posicion === p.posicion);
+      const extra = !enTarifario ? `<option value="${p.posicion}" selected>${p.posicion} (sin tarifa)</option>` : '';
       return `<tr>
         <td><strong>${per?.apellido||'?'}, ${per?.nombre||'?'}</strong></td>
         <td style="font-family:monospace;font-size:11px">${per?.cuil||'—'}</td>
-        <td>${p.posicion}</td>
-        <td>${liq ? `<span class="badge ${liq.estado==='pagado'?'bs':liq.estado==='aprobado'?'bi':'bw'}">${fmt(liq.total)} · ${liq.estado}</span>` : '<span class="badge bg">sin liquidar</span>'}</td>
+        <td>${puedeEditar && !liq
+          ? `<select style="font-size:12px;padding:3px 6px" onchange="updatePresentismo('${fechaId}','${p.persona_id}',this.value,'Externos')">${extra}${opts}</select>`
+          : p.posicion}</td>
+        <td style="text-align:right;font-weight:500" id="monto-cell-${fechaId}-${p.persona_id}">${
+          st ? '<span style="color:var(--orange)">sin tarifa</span>' : fmt(liq ? liq.total : (getTarifa(p.posicion,'Externos')?.monto||0))}</td>
+        <td>${liq
+          ? `<span class="badge ${liq.estado==='pagado'?'bs':liq.estado==='aprobado'?'bi':'bw'}">${liq.estado}</span>`
+          : '<span class="badge bg">sin liquidar</span>'}</td>
       </tr>`;
-    }).join('')}</tbody></table>
+    }).join('')}</tbody>
+    <tfoot><tr>
+      <td colspan="3" style="font-weight:600;padding:10px;border-top:2px solid var(--border)">Total</td>
+      <td style="text-align:right;font-weight:700;font-size:15px;padding:10px;border-top:2px solid var(--border)" id="total-show-footer">${fmt(total)}</td>
+      <td style="border-top:2px solid var(--border)"></td>
+    </tr></tfoot>
+    </table>
     <div class="modal-f">
       <button class="btn" onclick="closeModal()">Cerrar</button>
-      ${APP.rol==='rrhh' && stF(ev,fechaId)!=='c' ? `<button class="btn btn-success" onclick="closeModal();liquidarFechaExt('${evId}','${fechaId}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
+      ${puedeEditar ? `<button class="btn" onclick="modalAgregarPersonaExt('${evId}','${fechaId}')"><i class="ti ti-user-plus"></i> Agregar persona</button>` : ''}
+      ${puedeEditar ? `<button class="btn btn-success" onclick="closeModal();liquidarFechaExt('${evId}','${fechaId}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
       ${liqs.length ? `<button class="btn" onclick="exportLiqsFecha('${evId}','${fechaId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>` : ''}
     </div>
   </div>`);
@@ -1094,6 +1245,19 @@ window.liquidarFechaExt = async function(evId, fechaId) {
     else if (per) sinTarifa.push(`${per.apellido} (${p.posicion})`);
   });
 
+  // Si no hay una sola persona con tarifa, avisar en claro en vez de abrir un modal vacío
+  if (!rows.length) {
+    const faltan = [...new Set(sinLiq.map(p => p.posicion))];
+    alert(`No se puede liquidar: ninguna posición tiene tarifa cargada en Externos.\n\n`
+      + `Posiciones de esta fecha:\n${faltan.map(p => '• ' + p).join('\n')}\n\n`
+      + `Cargalas en Tarifario con área Externos y volvé a intentar.`);
+    return;
+  }
+
+  // Los datos van en una variable temporal: serializarlos en el onclick rompía el botón
+  // cuando había apellidos con apóstrofo o muchas filas.
+  window._liqExtPendiente = rows;
+
   showModal(`<div class="modal">
     <div class="modal-t">Liquidar — ${fd(f.fecha)}</div><div class="modal-s">${ev.nombre}</div>
     <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px">
@@ -1105,16 +1269,23 @@ window.liquidarFechaExt = async function(evId, fechaId) {
         </span>
       </div>`).join('')}
     </div>
-    ${sinTarifa.length ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Sin tarifa: ${sinTarifa.join(', ')}</div>` : ''}
+    ${sinTarifa.length ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> <div><strong>Quedan afuera por no tener tarifa:</strong> ${sinTarifa.join(', ')}</div></div>` : ''}
     <div style="display:flex;justify-content:space-between;padding:10px 12px;background:var(--bg3);border-radius:var(--radius)">
-      <span style="font-weight:500">Total fecha</span>
+      <span style="font-weight:500">Total fecha · ${rows.length} ${rows.length===1?'persona':'personas'}</span>
       <span style="font-size:18px;font-weight:600">${fmt(rows.reduce((s,r)=>s+r.total,0))}</span>
     </div>
     <div class="modal-f">
       <button class="btn" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-success" onclick="confirmLiqsExt(${JSON.stringify(rows).replace(/"/g,'&quot;')})"><i class="ti ti-check"></i> Confirmar</button>
+      <button class="btn btn-success" onclick="confirmLiqsExtPendiente()"><i class="ti ti-check"></i> Confirmar</button>
     </div>
   </div>`);
+};
+
+window.confirmLiqsExtPendiente = function() {
+  const rows = window._liqExtPendiente;
+  if (!rows || !rows.length) { alert('No hay nada para liquidar.'); return; }
+  window._liqExtPendiente = null;
+  confirmLiqsExt(rows);
 };
 
 window.confirmLiqsExt = async function(rows) {
@@ -1505,7 +1676,8 @@ window.verShowArena = function(evId) {
   </div>`);
 };
 
-window.updatePresentismo = async function(fechaId, personaId, nuevaPosicion) {
+window.updatePresentismo = async function(fechaId, personaId, nuevaPosicion, area) {
+  const areaTar = area || 'Movistar Arena'; // por defecto Arena, para no cambiar su comportamiento
   await sb.from('presentismo').update({ posicion: nuevaPosicion }).eq('fecha_id', fechaId).eq('persona_id', personaId);
   // Actualizar cache local
   APP.eventos.forEach(ev => {
@@ -1517,7 +1689,7 @@ window.updatePresentismo = async function(fechaId, personaId, nuevaPosicion) {
     });
   });
   // Actualizar celda de monto
-  const tar = getTarifa(nuevaPosicion, 'Movistar Arena');
+  const tar = getTarifa(nuevaPosicion, areaTar);
   const cell = document.getElementById(`monto-cell-${fechaId}-${personaId}`);
   if (cell) cell.innerHTML = tar ? fmt(tar.monto) : '<span style="color:var(--orange)">sin tarifa</span>';
   // Recalcular total
@@ -2482,6 +2654,14 @@ window.cancelarDraft = () => { APP.draft = null; go('importar'); };
 window.confirmarImport = async function() {
   const d        = APP.draft;
   const presentes = d.filas.filter(f => f.presente);
+  // Sin presentes no se guarda nada y la fecha queda en "0 pres." sin explicación.
+  // Suele pasar cuando la columna de presentismo no se detectó bien en la planilla.
+  if (!presentes.length) {
+    alert(`Ninguna de las ${d.filas.length} personas quedó marcada como presente, así que no hay nada para importar.\n\n`
+      + `Revisá la columna de presentismo de la planilla: tiene que decir "P" en las filas de los que trabajaron.\n`
+      + `Podés marcarlos a mano con los interruptores de la columna "Pres." y volver a confirmar.`);
+    return;
+  }
 
   // Resolver evId y fechaId — pueden venir pre-asignados (desde Arena/Externos)
   // o elegidos en los selectores de la pantalla de verificación
@@ -2600,8 +2780,8 @@ function buildExportRows(liqs) {
     // nombre sin coma, sin tildes
     const nombre = p ? nombreExport(p.apellido, p.nombre) : normExport(l.persona_nombre||'');
     return {
-      'Apellido y nombre': nombre,
       'CUIL':  p?.cuil  || '',
+      'Apellido y nombre': nombre,
       'CBU':   p?.cbu   || '',
       'Área':  l.area   || '',
       'Evento / Quincena': l.quincena_nombre || l.evento_nombre || l.periodo || '',
@@ -2617,9 +2797,14 @@ function buildExportRows(liqs) {
 }
 
 function exportXLSX(rows, filename) {
-  const ws = XLSX.utils.json_to_sheet(rows);
+  // aoa_to_sheet con header explícito: json_to_sheet no garantiza el orden de las columnas
+  const header = rows.length ? Object.keys(rows[0]) : [];
+  const aoa = [header, ...rows.map(r => header.map(h => r[h] ?? ''))];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
   // Ancho de columnas
-  ws['!cols'] = [22,16,26,22,14,28,18,14,10,14,14,12,14].map(w => ({ wch:w }));
+  ws['!cols'] = header.map(h =>
+    ({ wch: h === 'CBU' ? 26 : h === 'Apellido y nombre' ? 22 : h === 'CUIL' ? 16
+      : h.includes('Evento') ? 28 : h.includes('Fecha') ? 14 : 14 }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Liquidaciones');
   XLSX.writeFile(wb, filename);
