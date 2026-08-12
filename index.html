@@ -1051,6 +1051,37 @@ window.saveFechaExt = async function(evId) {
 // Agrega a mano una persona que no vino en la planilla, con un monto puesto por el usuario.
 // El monto va directo a la liquidación (presentismo no tiene columna de importe), así que
 // esta persona queda liquidada al instante y no se toca al liquidar el resto de la fecha.
+// Quita a una persona de esta fecha: borra su presentismo y, si la tuviera, su liquidación.
+// No elimina a la persona del sistema, solo de esta fecha.
+window.quitarPersonaFechaExt = async function(evId, fechaId, personaId) {
+  const per = APP.personal.find(x => x.id === personaId);
+  const nombre = per ? `${per.apellido}, ${per.nombre}` : 'esta persona';
+  const liqs = liqsF(evId, fechaId).filter(l => l.persona_id === personaId);
+  const pagada = liqs.some(l => l.estado === 'pagado');
+
+  let msg = `¿Quitar a ${nombre} de esta fecha?\n\n`;
+  if (liqs.length) {
+    msg += `Se va a borrar también su liquidación de ${fmt(liqs.reduce((s,l)=>s+(l.total||0),0))}.\n`;
+    if (pagada) msg += `\nATENCIÓN: esa liquidación está marcada como PAGADA.\n`;
+  }
+  msg += `\nLa persona sigue existiendo en el sistema, solo se saca de esta fecha.`;
+  if (!confirm(msg)) return;
+
+  loading(true);
+  for (const l of liqs) await sb.from('liquidaciones').delete().eq('id', l.id);
+  const { error } = await sb.from('presentismo').delete().eq('fecha_id', fechaId).eq('persona_id', personaId);
+  if (error) { loading(false); alert('Error quitando el presentismo: ' + error.message); return; }
+  await fetchAll();
+  loading(false);
+  toast(`${nombre} quitado de la fecha`, 'ok');
+
+  // Si la fecha quedó sin nadie, no tiene sentido reabrir el detalle
+  const ev = getEvento(evId);
+  const f = (ev?.fechas||[]).find(x => x.id === fechaId);
+  if ((f?.presentismo||[]).length) verFechaExt(evId, fechaId);
+  else { closeModal(); go('externos'); }
+};
+
 window.modalAgregarPersonaExt = function(evId, fechaId) {
   const ev = getEvento(evId);
   const f  = (ev?.fechas||[]).find(x => x.id === fechaId);
@@ -1191,7 +1222,7 @@ window.verFechaExt = function(evId, fechaId) {
     </div>` : ''}
     <table><thead><tr>
       <th>Apellido y nombre</th><th>CUIL</th><th>Posición</th>
-      <th style="text-align:right">Monto</th><th>Estado</th>
+      <th style="text-align:right">Monto</th><th>Estado</th>${puedeEditar?'<th style="width:34px"></th>':''}
     </tr></thead>
     <tbody>${filas.map(({p, per, liq, sinTarifa: st}) => {
       const opts = tarifasExt.map(t => `<option value="${t.posicion}" ${t.posicion===p.posicion?'selected':''}>${t.posicion}</option>`).join('');
@@ -1208,12 +1239,13 @@ window.verFechaExt = function(evId, fechaId) {
         <td>${liq
           ? `<span class="badge ${liq.estado==='pagado'?'bs':liq.estado==='aprobado'?'bi':'bw'}">${liq.estado}</span>`
           : '<span class="badge bg">sin liquidar</span>'}</td>
+        ${puedeEditar ? `<td><button class="btn btn-sm btn-danger" onclick="quitarPersonaFechaExt('${evId}','${fechaId}','${p.persona_id}')" title="Quitar de esta fecha"><i class="ti ti-trash"></i></button></td>` : ''}
       </tr>`;
     }).join('')}</tbody>
     <tfoot><tr>
       <td colspan="3" style="font-weight:600;padding:10px;border-top:2px solid var(--border)">Total</td>
       <td style="text-align:right;font-weight:700;font-size:15px;padding:10px;border-top:2px solid var(--border)" id="total-show-footer">${fmt(total)}</td>
-      <td style="border-top:2px solid var(--border)"></td>
+      <td colspan="${puedeEditar?2:1}" style="border-top:2px solid var(--border)"></td>
     </tr></tfoot>
     </table>
     <div class="modal-f">
