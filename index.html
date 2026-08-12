@@ -520,14 +520,20 @@ function calcSubtotalFijo(posBaseOTar, jornadasSemana, jornadasFinde) {
 }
 function liqsF(evId, fechaId) { return APP.liquidaciones.filter(l => l.evento_id === evId && l.fecha_id === fechaId); }
 
+// Estado de una fecha de Externos:
+//   'o' sin liquidar · 'p' parcial (falta liquidar a alguien) · 'l' liquidada · 'c' pagada
+// Se distingue 'l' de 'c' a propósito: liquidar deja la fecha lista pero todavía editable;
+// recién cuando todo está pagado se considera cerrada y se bloquea.
 function stF(ev, fechaId) {
   const f = (ev.fechas||[]).find(f => f.id === fechaId);
   const pres = f?.presentismo || [];
   if (!pres.length) return 'o';
   const l = liqsF(ev.id, fechaId);
   if (!l.length) return 'o';
+  const liquidados = new Set(l.map(x => x.persona_id));
+  if (pres.some(p => !liquidados.has(p.persona_id))) return 'p';
   if (l.every(x => x.estado === 'pagado')) return 'c';
-  return 'p';
+  return 'l';
 }
 
 // ══════════════════════════════════════════════
@@ -980,12 +986,14 @@ function renderEvExt(ev, isRRHH) {
               </div>
               <span class="pill">${pres.length} pres.</span>
               <span class="pill">${fmt(fl.reduce((s,l)=>s+(l.total||0),0))}</span>
-              <span class="fb ${st==='o'?'fb-o':st==='p'?'fb-p':'fb-c'}">${st==='o'?'sin liquidar':st==='p'?'parcial':'cerrada'}</span>
+              <span class="fb ${st==='o'?'fb-o':st==='p'?'fb-p':'fb-c'}">${
+                st==='o'?'sin liquidar':st==='p'?'falta liquidar':st==='l'?'liquidada':'pagada'}</span>
               <div style="display:flex;gap:5px;flex-shrink:0">
                 ${pres.length ? `<button class="btn btn-sm" onclick="verFechaExt('${ev.id}','${f.id}')" title="Ver / editar detalle"><i class="ti ti-eye"></i></button>` : ''}
                 ${isRRHH ? `<button class="btn btn-sm" onclick="importarFechaCtx('${ev.id}','${f.id}','ext')" title="Subir planilla"><i class="ti ti-file-upload"></i></button>` : ''}
                 ${isRRHH && st !== 'c' ? `<button class="btn btn-sm" onclick="modalAgregarPersonaExt('${ev.id}','${f.id}')" title="Agregar persona a mano"><i class="ti ti-user-plus"></i></button>` : ''}
-                ${isRRHH && pres.length && st !== 'c' ? `<button class="btn btn-sm btn-success" onclick="liquidarFechaExt('${ev.id}','${f.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
+                ${isRRHH && pres.length && (st === 'o' || st === 'p') ? `<button class="btn btn-sm btn-success" onclick="liquidarFechaExt('${ev.id}','${f.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
+                ${isRRHH && st === 'l' ? `<button class="btn btn-sm btn-success" onclick="marcarPagadasFechaExt('${ev.id}','${f.id}')" title="Marcar todas como pagadas y cerrar la fecha"><i class="ti ti-cash"></i> Pagada</button>` : ''}
                 ${fl.length ? `<button class="btn btn-sm" onclick="exportLiqsFecha('${ev.id}','${f.id}')"><i class="ti ti-file-spreadsheet"></i> Excel</button>` : ''}
               </div>
             </div>`;
@@ -994,6 +1002,7 @@ function renderEvExt(ev, isRRHH) {
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       ${isRRHH ? `<button class="btn btn-sm" onclick="agregarFechaExt('${ev.id}')"><i class="ti ti-calendar-plus"></i> Agregar fecha</button>` : ''}
       ${liqs.length ? `<button class="btn btn-sm" onclick="verLiqsEv('${ev.id}')"><i class="ti ti-list"></i> Liquidaciones (${liqs.length})</button>` : ''}
+      ${isRRHH && liqs.some(l => l.estado !== 'pagado') ? `<button class="btn btn-sm btn-success" onclick="marcarPagadasEventoExt('${ev.id}')"><i class="ti ti-cash"></i> Marcar todo pagado</button>` : ''}
       ${liqs.length ? `<button class="btn btn-sm" onclick="exportLiqsEvento('${ev.id}')"><i class="ti ti-file-spreadsheet"></i> Exportar todo</button>` : ''}
     </div>
   </div>`;
@@ -1053,6 +1062,41 @@ window.saveFechaExt = async function(evId) {
 // esta persona queda liquidada al instante y no se toca al liquidar el resto de la fecha.
 // Quita a una persona de esta fecha: borra su presentismo y, si la tuviera, su liquidación.
 // No elimina a la persona del sistema, solo de esta fecha.
+// Marca como pagadas todas las liquidaciones aprobadas de una fecha.
+// Hacerlo de una por una es impracticable cuando hay decenas de personas.
+window.marcarPagadasFechaExt = async function(evId, fechaId) {
+  const ev = getEvento(evId);
+  const f  = (ev?.fechas||[]).find(x => x.id === fechaId);
+  const liqs = liqsF(evId, fechaId).filter(l => l.estado !== 'pagado');
+  if (!liqs.length) { alert('Todas las liquidaciones de esta fecha ya están pagadas.'); return; }
+  const total = liqs.reduce((s,l) => s+(l.total||0), 0);
+  if (!confirm(`¿Marcar como pagadas ${liqs.length} liquidacion${liqs.length>1?'es':''} de ${fd(f.fecha)}?\n\n`
+    + `Total: ${fmt(total)}\n\nLa fecha queda cerrada y no se podrá editar más.`)) return;
+  loading(true);
+  for (const l of liqs) await sb.from('liquidaciones').update({ estado: 'pagado' }).eq('id', l.id);
+  await fetchAll();
+  loading(false);
+  toast(`${liqs.length} liquidaciones marcadas como pagadas`, 'ok');
+  await go('externos');
+};
+
+// Igual que la anterior pero para todas las fechas del evento.
+window.marcarPagadasEventoExt = async function(evId) {
+  const ev = getEvento(evId);
+  const liqs = APP.liquidaciones.filter(l => l.evento_id === evId && l.estado !== 'pagado');
+  if (!liqs.length) { alert('Todas las liquidaciones de este evento ya están pagadas.'); return; }
+  const total = liqs.reduce((s,l) => s+(l.total||0), 0);
+  const fechas = [...new Set(liqs.map(l => l.periodo))].length;
+  if (!confirm(`¿Marcar como pagadas ${liqs.length} liquidaciones de ${ev.nombre}?\n\n`
+    + `${fechas} fecha${fechas>1?'s':''} · Total: ${fmt(total)}\n\nLas fechas quedan cerradas y no se podrán editar más.`)) return;
+  loading(true);
+  for (const l of liqs) await sb.from('liquidaciones').update({ estado: 'pagado' }).eq('id', l.id);
+  await fetchAll();
+  loading(false);
+  toast(`${liqs.length} liquidaciones marcadas como pagadas`, 'ok');
+  await go('externos');
+};
+
 window.quitarPersonaFechaExt = async function(evId, fechaId, personaId) {
   const per = APP.personal.find(x => x.id === personaId);
   const nombre = per ? `${per.apellido}, ${per.nombre}` : 'esta persona';
@@ -1178,7 +1222,7 @@ window.guardarPersonaManualExt = async function(evId, fechaId) {
   const { error: eLiq } = await sb.from('liquidaciones').insert({
     persona_id: persona.id, persona_nombre: `${persona.apellido}, ${persona.nombre}`,
     evento_id: evId, fecha_id: fechaId, area: 'Externos', posicion,
-    periodo: fd(f.fecha), jornadas: 1, valor_jornada: monto, total: monto, estado: 'pendiente'
+    periodo: fd(f.fecha), jornadas: 1, valor_jornada: monto, total: monto, estado: 'aprobado'
   });
   if (eLiq) { loading(false); alert('Error creando la liquidación: ' + eLiq.message); return; }
 
@@ -1251,7 +1295,8 @@ window.verFechaExt = function(evId, fechaId) {
     <div class="modal-f">
       <button class="btn" onclick="closeModal()">Cerrar</button>
       ${puedeEditar ? `<button class="btn" onclick="modalAgregarPersonaExt('${evId}','${fechaId}')"><i class="ti ti-user-plus"></i> Agregar persona</button>` : ''}
-      ${puedeEditar ? `<button class="btn btn-success" onclick="closeModal();liquidarFechaExt('${evId}','${fechaId}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
+      ${puedeEditar && filas.some(x => !x.liq) ? `<button class="btn btn-success" onclick="closeModal();liquidarFechaExt('${evId}','${fechaId}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
+      ${puedeEditar && liqs.length && !filas.some(x => !x.liq) ? `<button class="btn btn-success" onclick="marcarPagadasFechaExt('${evId}','${fechaId}')"><i class="ti ti-cash"></i> Marcar pagada</button>` : ''}
       ${liqs.length ? `<button class="btn" onclick="exportLiqsFecha('${evId}','${fechaId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>` : ''}
     </div>
   </div>`);
@@ -1272,7 +1317,7 @@ window.liquidarFechaExt = async function(evId, fechaId) {
     if (per && t) rows.push({
       persona_id: per.id, persona_nombre:`${per.apellido}, ${per.nombre}`,
       evento_id: evId, fecha_id: fechaId, area:'Externos', posicion: p.posicion,
-      periodo: fd(f.fecha), jornadas:1, valor_jornada:t.monto, total:t.monto, estado:'pendiente'
+      periodo: fd(f.fecha), jornadas:1, valor_jornada:t.monto, total:t.monto, estado:'aprobado'
     });
     else if (per) sinTarifa.push(`${per.apellido} (${p.posicion})`);
   });
