@@ -936,9 +936,14 @@ async function pgExternos(el, ac) {
 
   if (isRRHH) ac.innerHTML = `<button class="btn btn-primary" onclick="modalNuevoEv()"><i class="ti ti-plus"></i> Nuevo evento</button>`;
 
+  const mostrarFinalizados = localStorage.getItem('ext_mostrar_finalizados') !== 'no';
+  const finalizadosCount = evs.filter(e => eventoPagado(e)).length;
+  const visibles = evs.filter(e => mostrarFinalizados || !eventoPagado(e));
+
   el.innerHTML = `
     <div class="grid4" style="margin-bottom:18px">
-      <div class="metric"><div class="metric-l">Eventos</div><div class="metric-v">${evs.length}</div></div>
+      <div class="metric"><div class="metric-l">Eventos</div><div class="metric-v">${evs.length}</div>
+        ${finalizadosCount ? `<div class="metric-s">${finalizadosCount} finalizado${finalizadosCount>1?'s':''}</div>` : ''}</div>
       <div class="metric"><div class="metric-l">Fechas totales</div><div class="metric-v">${evs.reduce((s,e)=>(e.fechas||[]).length+s,0)}</div>
         <div class="metric-s">${fechasPend} sin liquidar</div></div>
       <div class="metric"><div class="metric-l">Monto a liquidar</div><div class="metric-v" style="font-size:17px">${fmt(montoALiquidar)}</div>
@@ -946,15 +951,37 @@ async function pgExternos(el, ac) {
       <div class="metric"><div class="metric-l">Total liquidado</div><div class="metric-v" style="font-size:17px">${fmt(totalLiquidado)}</div>
         <div class="metric-s">${liqExt.length} liquidaciones</div></div>
     </div>
+    ${finalizadosCount ? `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+      <button class="btn btn-sm" onclick="toggleFinalizadosExt()">
+        <i class="ti ti-${mostrarFinalizados?'eye-off':'eye'}"></i>
+        ${mostrarFinalizados?'Ocultar':'Mostrar'} eventos finalizados (${finalizadosCount})
+      </button>
+    </div>` : ''}
     ${!evs.length
       ? '<div class="empty-state"><i class="ti ti-calendar-off"></i><p>Sin eventos.</p></div>'
-      : evs.map(ev => renderEvExt(ev, isRRHH)).join('')}`;
+      : visibles.map(ev => renderEvExt(ev, isRRHH)).join('')
+        || '<div class="empty-state"><i class="ti ti-calendar-off"></i><p>No hay eventos activos. <a href="#" onclick="toggleFinalizadosExt()">Mostrar finalizados</a></p></div>'
+    }`;
+}
+
+window.toggleFinalizadosExt = function() {
+  const actual = localStorage.getItem('ext_mostrar_finalizados') !== 'no';
+  localStorage.setItem('ext_mostrar_finalizados', actual ? 'no' : 'si');
+  go('externos');
+};
+
+// Un evento se considera finalizado cuando tiene liquidaciones y todas están pagadas.
+// A partir de ahí queda bloqueado: no se agregan fechas ni se editan importes.
+function eventoPagado(ev) {
+  const liqs = APP.liquidaciones.filter(l => l.evento_id === ev.id);
+  return liqs.length > 0 && liqs.every(l => l.estado === 'pagado');
 }
 
 function renderEvExt(ev, isRRHH) {
   const fechas = ev.fechas || [];
   const liqs   = APP.liquidaciones.filter(l => l.evento_id === ev.id);
   const pend   = fechas.filter(f => (f.presentismo||[]).length && !liqsF(ev.id, f.id).length).length;
+  const pagado = eventoPagado(ev);
 
   return `<div class="ev-card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
@@ -963,8 +990,9 @@ function renderEvExt(ev, isRRHH) {
         <div style="font-size:11.5px;color:var(--text2);margin-top:2px">${ev.lugar||''} · ${fd(ev.fecha_inicio)}${ev.fecha_fin?' — '+fd(ev.fecha_fin):''}</div>
       </div>
       <div style="display:flex;gap:7px;align-items:center">
-        ${pend && isRRHH ? `<span class="badge bw">${pend} fecha${pend>1?'s':''} sin liquidar</span>` : ''}
-        ${isRRHH ? `<button class="btn btn-sm btn-danger" onclick="delEv('${ev.id}')"><i class="ti ti-trash"></i></button>` : ''}
+        ${pagado ? `<span class="badge bs"><i class="ti ti-lock" style="font-size:11px"></i> finalizado</span>` : ''}
+        ${pend && isRRHH && !pagado ? `<span class="badge bw">${pend} fecha${pend>1?'s':''} sin liquidar</span>` : ''}
+        ${isRRHH && !pagado ? `<button class="btn btn-sm btn-danger" onclick="delEv('${ev.id}')"><i class="ti ti-trash"></i></button>` : ''}
       </div>
     </div>
     <div style="display:flex;gap:13px;font-size:11.5px;margin-bottom:12px;flex-wrap:wrap">
@@ -1000,7 +1028,7 @@ function renderEvExt(ev, isRRHH) {
           }).join('')}
     </div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
-      ${isRRHH ? `<button class="btn btn-sm" onclick="agregarFechaExt('${ev.id}')"><i class="ti ti-calendar-plus"></i> Agregar fecha</button>` : ''}
+      ${isRRHH && !pagado ? `<button class="btn btn-sm" onclick="agregarFechaExt('${ev.id}')"><i class="ti ti-calendar-plus"></i> Agregar fecha</button>` : ''}
       ${liqs.length ? `<button class="btn btn-sm" onclick="verLiqsEv('${ev.id}')"><i class="ti ti-list"></i> Liquidaciones (${liqs.length})</button>` : ''}
       ${isRRHH && liqs.some(l => l.estado !== 'pagado') ? `<button class="btn btn-sm btn-success" onclick="marcarPagadasEventoExt('${ev.id}')"><i class="ti ti-cash"></i> Marcar todo pagado</button>` : ''}
       ${liqs.length ? `<button class="btn btn-sm" onclick="exportLiqsEvento('${ev.id}')"><i class="ti ti-file-spreadsheet"></i> Exportar todo</button>` : ''}
@@ -1373,23 +1401,30 @@ window.confirmLiqsExt = async function(rows) {
 window.verLiqsEv = function(evId) {
   const ev   = getEvento(evId);
   const liqs = APP.liquidaciones.filter(l => l.evento_id === evId);
+  const pagado = eventoPagado(ev);
   showModal(`<div class="modal modal-lg">
     <div class="modal-t">Liquidaciones — ${ev.nombre}</div>
     <div class="modal-s">${fmt(liqs.reduce((s,l)=>s+(l.total||0),0))} total · ${liqs.length} liquidaciones</div>
+    ${pagado ? `<div class="alert alert-ok" style="padding:8px 12px"><i class="ti ti-lock"></i> Evento finalizado y pagado. Los importes quedan cerrados.</div>` : ''}
     <table><thead><tr><th>Fecha</th><th>Persona</th><th>Posición</th><th style="text-align:center">Jornadas</th><th>Total ($)</th><th>Estado</th><th></th></tr></thead>
-    <tbody>${liqs.map(l => `<tr>
+    <tbody>${liqs.map(l => {
+      // Una liquidación pagada no se edita ni se borra: la plata ya salió
+      const bloq = l.estado === 'pagado';
+      return `<tr>
       <td style="font-size:11.5px">${l.periodo}</td>
       <td><strong>${l.persona_nombre}</strong></td>
       <td style="font-size:11.5px">${l.posicion||'—'}</td>
-      <td style="text-align:center"><input type="number" value="${l.jornadas||1}" min="0" style="width:55px;text-align:center" onchange="editarLiquidacion('${l.id}','jornadas',this.value)"></td>
-      <td><input type="number" id="liq-total-${l.id}" value="${l.total||0}" min="0" style="width:100px;font-weight:600" onchange="editarLiquidacion('${l.id}','total',this.value)"></td>
+      <td style="text-align:center">${bloq ? (l.jornadas||1)
+        : `<input type="number" value="${l.jornadas||1}" min="0" style="width:55px;text-align:center" onchange="editarLiquidacion('${l.id}','jornadas',this.value)">`}</td>
+      <td>${bloq ? `<strong>${fmt(l.total)}</strong>`
+        : `<input type="number" id="liq-total-${l.id}" value="${l.total||0}" min="0" style="width:100px;font-weight:600" onchange="editarLiquidacion('${l.id}','total',this.value)">`}</td>
       <td><span class="badge ${l.estado==='pagado'?'bs':l.estado==='aprobado'?'bi':'bw'}">${l.estado}</span></td>
       <td style="display:flex;gap:4px">
         ${APP.rol==='rrhh' && l.estado==='pendiente' ? `<button class="btn btn-sm" onclick="aprobar('${l.id}')"><i class="ti ti-check"></i></button>` : ''}
-        ${l.estado==='aprobado' ? `<button class="btn btn-sm" onclick="pagar('${l.id}')"><i class="ti ti-cash"></i></button>` : ''}
-        ${APP.rol==='rrhh' ? `<button class="btn btn-sm btn-danger" onclick="delLiq('${l.id}')"><i class="ti ti-trash"></i></button>` : ''}
+        ${l.estado==='aprobado' ? `<button class="btn btn-sm" onclick="pagar('${l.id}')" title="Marcar pagada"><i class="ti ti-cash"></i></button>` : ''}
+        ${APP.rol==='rrhh' && !bloq ? `<button class="btn btn-sm btn-danger" onclick="delLiq('${l.id}')"><i class="ti ti-trash"></i></button>` : ''}
       </td>
-    </tr>`).join('')}</tbody></table>
+    </tr>`;}).join('')}</tbody></table>
     <div class="modal-f">
       <button class="btn" onclick="closeModal()">Cerrar</button>
       <button class="btn" onclick="exportLiqsEvento('${evId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
