@@ -294,6 +294,7 @@ const APP = {
   liquidaciones: [],
   mesesFijos: null,  // null = todavía no se cargó desde Supabase
   mesesFijosCargados: false, // true una vez que fetchAll leyó la tabla meses_fijos
+  mapeosExternos: {}, // { seccion_norm: posicion } — alias aprendidos SOLO para Externos
 };
 
 // Promesa del último guardado de meses a Supabase. fetchAll la espera antes de leer, para que
@@ -435,13 +436,14 @@ async function fetchAll() {
     try { await _syncMesesPending; } catch (e) { /* ya se loguea en syncMesesFijos */ }
     _syncMesesPending = null;
   }
-  const [p, t, ev, q, liq, mf] = await Promise.all([
+  const [p, t, ev, q, liq, mf, me] = await Promise.all([
     sb.from('personal').select('*').order('apellido'),
     sb.from('tarifario').select('*').order('posicion'),
     sb.from('eventos').select('*, fechas(*, presentismo(*))').order('created_at'),
     sb.from('quincenas').select('*').order('fecha_inicio'),
     sb.from('liquidaciones').select('*').order('created_at', { ascending: false }),
     sb.from('meses_fijos').select('*').order('updated_at', { ascending: false }),
+    sb.from('mapeos_externos').select('seccion_norm, posicion'),
   ]);
   APP.personal      = p.data  || [];
   APP.tarifario     = t.data  || [];
@@ -468,6 +470,16 @@ async function fetchAll() {
     // Sin tabla en Supabase todavía: seguir funcionando con localStorage
     APP.mesesFijos = localesGuardados;
   }
+
+  // Alias aprendidos de Externos. Si la tabla todavía no existe, me.error viene poblado
+  // y simplemente dejamos el diccionario vacío (la app sigue funcionando igual que antes).
+  if (!me.error && me.data) {
+    const dic = {};
+    me.data.forEach(r => { if (r.seccion_norm && r.posicion) dic[r.seccion_norm] = r.posicion; });
+    APP.mapeosExternos = dic;
+  } else {
+    APP.mapeosExternos = {};
+  }
 }
 
 // ── helpers de acceso local (post-fetch) ──
@@ -483,6 +495,49 @@ function getTarifa(pos, area) {
   }
   return APP.tarifario.find(t => t.posicion === pos);
 }
+
+// ── Alias aprendidos de Externos ──
+// Normalización "dura": minúsculas, sin acentos y sin nada que no sea alfanumérico.
+// Así "PULSERAS[6hs]", "PULSERAS 6hs" y "pulseras 6 hs." colapsan a la misma clave.
+function normAliasExt(s) {
+  return String(s || '').toLowerCase().normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+}
+// Devuelve la posición de tarifario aprendida para una sección de planilla de Externos,
+// solo si esa posición todavía existe en el tarifario (de Externos o General). Si no, null.
+function aliasExternos(seccion) {
+  const key = normAliasExt(seccion);
+  if (!key || key === 'sinseccion') return null;
+  const pos = (APP.mapeosExternos || {})[key];
+  if (pos && APP.tarifario.some(t => t.posicion === pos && (t.area === 'Externos' || t.area === 'General'))) return pos;
+  return null;
+}
+// Aprende los mapeos sección→posición de una importación de Externos y los guarda en Supabase.
+// No bloquea el éxito de la importación: si la tabla no existe todavía, solo avisa por consola.
+async function guardarMapeosExternos(filas) {
+  const porClave = {};
+  (filas || []).forEach(f => {
+    const orig = f.posicionOriginal, pos = f.posicion;
+    if (!orig || !pos) return;
+    const key = normAliasExt(orig);
+    if (!key || key === 'sinseccion') return;
+    // Solo si la posición final es una tarifa válida de Externos/General
+    if (!APP.tarifario.some(t => t.posicion === pos && (t.area === 'Externos' || t.area === 'General'))) return;
+    // No guardar identidades: el match exacto ya las resuelve solo
+    if (normAliasExt(pos) === key) return;
+    porClave[key] = { seccion_norm: key, posicion: pos, seccion_ejemplo: String(orig).slice(0, 120) };
+  });
+  const rows = Object.values(porClave);
+  if (!rows.length) return;
+  try {
+    const { error } = await sb.from('mapeos_externos').upsert(rows, { onConflict: 'seccion_norm' });
+    if (error) { console.warn('No se pudieron guardar los alias de Externos:', error.message); return; }
+    rows.forEach(r => { APP.mapeosExternos[r.seccion_norm] = r.posicion; }); // caché en memoria
+  } catch (e) {
+    console.warn('Alias de Externos: la tabla mapeos_externos todavía no existe.', e);
+  }
+}
+
 function chipClaseArea(area) {
   if (area === 'Externos') return 'chip-ext';
   if (area === 'Movistar Arena') return 'chip-arena';
@@ -2177,6 +2232,20 @@ function mapToTarifario(secPlanilla, area) {
   const universo = area ? APP.tarifario.filter(t => t.area === area || t.area === 'General') : APP.tarifario;
   if (!universo.length) return secPlanilla;
 
+  // ── Mejora SOLO para Externos: match exacto ignorando corchetes, espacios, puntos,
+  //    acentos y singular/plural. Engancha "PULSERAS 6hs" ↔ "PULSERAS[6hs]" y cualquier
+  //    tarifa nueva cuyo encabezado coincida salvo puntuación. Arena/DOI no pasan por acá.
+  if (area === 'Externos') {
+    const hard = s => String(s || '').toLowerCase().normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+    const nh = hard(secPlanilla);
+    if (nh) {
+      let ex = universo.find(t => hard(t.posicion) === nh);
+      if (!ex) ex = universo.find(t => hard(t.posicion).replace(/s$/, '') === nh.replace(/s$/, ''));
+      if (ex) return ex.posicion;
+    }
+  }
+
   const norm = s => s.toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/es$/, '').replace(/s$/, '').trim();
@@ -2378,9 +2447,11 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
              || APP.tarifario.find(t => t.area===areaParaTarifa||t.area==='General')?.posicion
              || APP.tarifario[0].posicion)
         : posSinSec;
+      // Externos: un alias aprendido para esta sección gana sobre el mapeo automático.
+      const posicionFinal = esExternos ? (aliasExternos(sec) || posicion) : posicion;
       const ex = APP.personal.find(p => p.cuil && p.cuil === cuil)
               || (b0 ? APP.personal.find(p => p.apellido.toLowerCase() === b0.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
-      filas.push({ _id:uid(), posicion, posicionOriginal:sec, apellido:b0, nombre:nom, cuil, tel,
+      filas.push({ _id:uid(), posicion:posicionFinal, posicionOriginal:sec, apellido:b0, nombre:nom, cuil, tel,
         presente:pres, existeId:ex?.id||null, esNuevo:!ex, sel:false });
       continue;
     }
@@ -2416,9 +2487,11 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
             return mappedSec !== sec ? mappedSec : subPuesto;
           })()
         : (matchExacto ? matchExacto.posicion : mapToTarifario(sec, areaParaTarifa));
+      // Externos: un alias aprendido para esta sección combinada gana sobre el mapeo automático.
+      const posicionFinal = esExternos ? (aliasExternos(secCombinada) || posicion) : posicion;
       const ex = APP.personal.find(p => p.cuil && p.cuil === cuil)
               || (b0 ? APP.personal.find(p => p.apellido.toLowerCase() === b0.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
-      filas.push({ _id:uid(), posicion, posicionOriginal:secCombinada, apellido:b0, nombre:nom, cuil, tel,
+      filas.push({ _id:uid(), posicion:posicionFinal, posicionOriginal:secCombinada, apellido:b0, nombre:nom, cuil, tel,
         presente:pres, existeId:ex?.id||null, esNuevo:!ex, sel:false });
     }
   }
@@ -2864,6 +2937,9 @@ window.confirmarImport = async function() {
       toast('No se encontraron personas para vincular', 'err');
     }
   }
+
+  // Externos: aprender los mapeos sección→posición para la próxima importación.
+  if (d.modo === 'ext' || d.area === 'Externos') { await guardarMapeosExternos(d.filas); }
 
   loading(false); APP.draft = null;
   const dest = d.area === 'Externos' ? 'externos' : 'arena';
