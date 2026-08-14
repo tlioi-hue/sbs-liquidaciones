@@ -104,7 +104,7 @@ tr:hover td { background: var(--bg3); }
 .chip-arena { background: #e8f0fa; color: #1a3a6e; border: 1px solid #a8c0e0; }
 .chip-fijos { background: #ebebeb; color: #444; border: 1px solid #c8c8c8; }
 .chip-polo  { background: #fae8f0; color: #7a1a4e; border: 1px solid #e0a0c0; }
-.chip-colon { background: #fdebe0; color: #8a3a00; border: 1px solid #e8b080; }
+.chip-colon { background: #efe6fb; color: #4a2178; border: 1px solid #c9aef0; }
 .chip-eco   { background: #e8f5e8; color: #1a5a2e; border: 1px solid #a0d0a8; }
 
 /* ── Inputs ── */
@@ -566,9 +566,9 @@ async function pgDB(el) {
   <div class="grid4" style="margin-bottom:14px">
     <div class="metric"><div class="metric-l">Personal</div><div class="metric-v">${APP.personal.length}</div>
       <div class="metric-s">${APP.personal.filter(p=>p.area==='Externos').length} ext · ${APP.personal.filter(p=>p.area==='Movistar Arena').length} arena · ${persFijos.length} fijos</div></div>
-    <div class="metric"><div class="metric-l">Externos</div><div class="metric-v">${extEvs.length}</div>
+    <div class="metric"><div class="metric-l"><span class="chip chip-ext" style="font-size:11px">Externos</span></div><div class="metric-v">${extEvs.length}</div>
       <div class="metric-s">${extEvs.length ? fmt(liqExt.reduce((s,l)=>s+(l.total||0),0)) + ' liquidado' : 'sin eventos'}</div></div>
-    <div class="metric"><div class="metric-l">Movistar Arena</div><div class="metric-v" style="font-size:17px">${fmt(liqArena.reduce((s,l)=>s+(l.total||0),0))}</div>
+    <div class="metric"><div class="metric-l"><span class="chip chip-arena" style="font-size:11px">Movistar Arena</span></div><div class="metric-v" style="font-size:17px">${fmt(liqArena.reduce((s,l)=>s+(l.total||0),0))}</div>
       <div class="metric-s">${arenaShows.length} shows</div></div>
     <div class="metric"><div class="metric-l">Total histórico</div><div class="metric-v" style="font-size:17px">${fmt(liqTotal)}</div>
       <div class="metric-s">${totalCerrados} liquidación${totalCerrados!==1?'es':''} cerrada${totalCerrados!==1?'s':''}</div></div>
