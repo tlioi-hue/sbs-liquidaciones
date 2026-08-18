@@ -1847,6 +1847,7 @@ function renderQCard(q, isRRHH) {
         <button class="btn btn-sm btn-success" onclick="previaCierre('${q.id}', true)"><i class="ti ti-lock"></i> Cerrar quincena definitivamente</button>
       ` : ''}
       ${q.cerrada ? `<span class="badge bs"><i class="ti ti-lock" style="font-size:11px"></i> Quincena cerrada</span>` : ''}
+      ${isRRHH && q.cerrada ? `<button class="btn btn-sm" onclick="reabrirQuincenaArena('${q.id}')"><i class="ti ti-lock-open"></i> Reabrir</button>` : ''}
       ${liqs.length ? `<button class="btn btn-sm" onclick="verLiqsQ('${q.id}')"><i class="ti ti-list"></i> Liquidaciones (${liqs.length})</button>` : ''}
       ${liqs.length ? `<button class="btn btn-sm" onclick="exportLiqsQuincena('${q.id}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>` : ''}
     </div>
@@ -2203,6 +2204,42 @@ window.confirmarCierre = async function(qId, cons) {
   await sb.from('quincenas').update({ cerrada:true }).eq('id', qId);
   loading(false);
   closeModal(); toast('Quincena cerrada y liquidaciones generadas', 'ok'); await go('arena');
+};
+
+// Reabrir una quincena cerrada de Arena: borra las liquidaciones generadas al cerrar
+// (se regeneran al volver a cerrar) y saca el candado. NO toca el presentismo.
+// Flujo típico: Reabrir → Combinar duplicados → volver a Cerrar.
+window.reabrirQuincenaArena = async function(qId) {
+  const q = APP.quincenas.find(x => x.id === qId); if (!q) return;
+  const liqs = APP.liquidaciones.filter(l => l.quincena_id === qId);
+  const pagadas = liqs.filter(l => l.estado === 'pagado');
+  if (pagadas.length) {
+    alert(`No se puede reabrir ${q.nombre}: ${pagadas.length} liquidación(es) ya están marcadas como pagadas.\n\n`
+      + `Reabrir borraría registros de un pago ya hecho. Revisá esas liquidaciones primero.`);
+    return;
+  }
+  if (!confirm(`¿Reabrir ${q.nombre}?\n\n`
+    + `Se eliminarán las ${liqs.length} liquidación(es) generadas al cerrar, para poder regenerarlas. `
+    + `El presentismo NO se toca.\n\nDespués combiná los duplicados y volvé a cerrar la quincena.`)) return;
+  loading(true);
+  let borradas = 0; const errores = [];
+  for (const l of liqs) {
+    const { data, error } = await sb.from('liquidaciones').delete().eq('id', l.id).select();
+    if (error) { errores.push(error.message); continue; }
+    if (!data || !data.length) { errores.push(`liq ${l.id}: no se borró (¿falta policy DELETE?)`); continue; }
+    borradas++;
+  }
+  if (errores.length) {
+    loading(false);
+    alert(`Se borraron ${borradas} de ${liqs.length} liquidaciones.\nProblemas:\n${errores.join('\n')}\n\n`
+      + `No se reabrió la quincena para no dejarla inconsistente.`);
+    return;
+  }
+  const { error: eq } = await sb.from('quincenas').update({ cerrada: false }).eq('id', qId);
+  loading(false);
+  if (eq) { toast('No se pudo reabrir: ' + eq.message, 'err'); return; }
+  toast('Quincena reabierta — combiná los duplicados y volvé a cerrar', 'ok');
+  await go('arena');
 };
 
 window.verLiqsQ = function(qId) {
