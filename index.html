@@ -691,7 +691,13 @@ function renderPersonalUI(el) {
   const areas = [...new Set(APP.personal.map(p =>
     p.area === 'Servicios Fijos' ? (LUGARES_FIJOS.find(l => l.id === p.lugar_fijo)?.nombre || 'Servicios Fijos') : p.area
   ))].sort();
+  const dups = gruposDuplicadosCuil();
   el.innerHTML = `
+    ${dups.length ? `<div class="alert alert-warn" style="display:flex;align-items:center;gap:10px">
+      <i class="ti ti-alert-triangle"></i>
+      <span style="flex:1">Hay <strong>${dups.length}</strong> CUIL con registros duplicados. Los duplicados pueden hacer fallar las liquidaciones.</span>
+      <button class="btn btn-sm btn-primary" onclick="modalDuplicados()"><i class="ti ti-git-merge"></i> Combinar duplicados</button>
+    </div>` : ''}
     <div style="margin-bottom:13px;display:flex;gap:9px;align-items:center;flex-wrap:wrap">
       <input type="text" id="buscar-p" placeholder="Buscar nombre, CUIL, posición..." style="max-width:280px" oninput="filtrarP()">
       <select id="filtro-area-p" onchange="filtrarP()" style="font-size:12.5px;padding:5px 9px">
@@ -758,14 +764,35 @@ window.selTodosPersonal = function(checked) {
 
 window.delSelPersonal = async function() {
   if (!selPersonal.size) return;
-  if (!confirm(`¿Eliminar ${selPersonal.size} persona${selPersonal.size>1?'s':''}? Esta acción no se puede deshacer.`)) return;
+  const ids = [...selPersonal];
+  // Separar las que tienen liquidaciones: esas no se borran (dejarían plata huérfana).
+  const conLiq = ids.filter(id => refsPersona(id).liq > 0);
+  if (conLiq.length) {
+    const nombres = conLiq.map(id => { const p = APP.personal.find(x => x.id === id); return p ? `${p.apellido}, ${p.nombre}` : id; });
+    if (!confirm(`${conLiq.length} de las seleccionadas tienen liquidaciones y NO se eliminarán:\n${nombres.join('\n')}\n\n`
+      + `Si son duplicados, usá "Combinar duplicados".\n\n¿Continuar y eliminar el resto?`)) return;
+  } else {
+    if (!confirm(`¿Eliminar ${ids.length} persona${ids.length > 1 ? 's' : ''}? Esta acción no se puede deshacer.`)) return;
+  }
   loading(true);
-  for (const id of selPersonal) {
-    await sb.from('personal').delete().eq('id', id);
+  let borradas = 0; const errores = [];
+  for (const id of ids) {
+    if (refsPersona(id).liq > 0) continue;
+    const p = APP.personal.find(x => x.id === id);
+    const nom = p ? `${p.apellido}, ${p.nombre}` : id;
+    if (refsPersona(id).pres > 0) {
+      const { error: ep } = await sb.from('presentismo').delete().eq('persona_id', id);
+      if (ep) { errores.push(`${nom}: presentismo — ${ep.message}`); continue; }
+    }
+    const { data, error } = await sb.from('personal').delete().eq('id', id).select();
+    if (error) { errores.push(`${nom}: ${error.message}`); continue; }
+    if (!data || !data.length) { errores.push(`${nom}: no se borró (¿falta policy DELETE?)`); continue; }
+    borradas++;
   }
   selPersonal.clear();
   loading(false);
-  toast(`${selPersonal.size || 'Personas'} eliminadas`, 'ok');
+  if (errores.length) alert(`Eliminadas: ${borradas}.\n\nProblemas:\n${errores.join('\n')}`);
+  else toast(`${borradas} eliminada${borradas === 1 ? '' : 's'}`, 'ok');
   await go('personal');
 };
 
@@ -870,20 +897,160 @@ window.toggleLugarFijo = function(area) {
 };
 
 window.savePersona = async function(id) {
-  const v = { nombre:$v('pn'), apellido:$v('pa'), cuil:$v('pc'), dni:$v('pd'), cbu:$v('pb'), alias:$v('pal'), area:$v('par'), posicion:$v('ppos'), email:$v('pem'), tel:$v('ptel'), activo:true };
+  const v = { nombre:$v('pn'), apellido:$v('pa'), cuil:normCuil($v('pc')), dni:$v('pd'), cbu:$v('pb'), alias:$v('pal'), area:$v('par'), posicion:$v('ppos'), email:$v('pem'), tel:$v('ptel'), activo:true };
   if (v.area === 'Servicios Fijos') v.lugar_fijo = $v('plugar') || null;
   else v.lugar_fijo = null;
   if (!v.nombre || !v.apellido) { alert('Nombre y apellido son obligatorios'); return; }
+  // Evitar crear/editar hacia un CUIL que ya usa otra persona (fuente de los duplicados).
+  if (v.cuil && v.cuil.length >= 8) {
+    const otra = APP.personal.find(p => normCuil(p.cuil) === v.cuil && p.id !== id);
+    if (otra) { alert(`Ya existe otra persona con ese CUIL: ${otra.apellido}, ${otra.nombre}.\nNo se guardó para evitar un duplicado.`); return; }
+  }
   loading(true);
   if (id) { await sb.from('personal').update(v).eq('id', id); }
   else    { await sb.from('personal').insert(v); }
   loading(false); closeModal(); toast('Persona guardada', 'ok'); await go('personal');
 };
 
+// ── Utilidades de CUIL / duplicados ──
+function normCuil(c) { return String(c || '').replace(/\D/g, ''); }
+
+// Cuenta las filas que dependen de una persona (para el borrado y para elegir el registro a conservar).
+function refsPersona(id) {
+  let pres = 0, liq = 0;
+  APP.eventos.forEach(e => (e.fechas || []).forEach(f => (f.presentismo || []).forEach(pr => { if (pr.persona_id === id) pres++; })));
+  APP.liquidaciones.forEach(l => { if (l.persona_id === id) liq++; });
+  return { pres, liq };
+}
+// Devuelve las filas de presentismo de una persona con su id y fecha_id.
+function presDePersona(id) {
+  const out = [];
+  APP.eventos.forEach(e => (e.fechas || []).forEach(f => (f.presentismo || []).forEach(pr => {
+    if (pr.persona_id === id) out.push({ id: pr.id, fecha_id: pr.fecha_id || f.id });
+  })));
+  return out;
+}
+// Agrupa el padrón por CUIL normalizado; devuelve solo los grupos con más de un registro.
+function gruposDuplicadosCuil() {
+  const map = {};
+  APP.personal.forEach(p => {
+    const c = normCuil(p.cuil);
+    if (c.length < 8) return; // CUIL vacío/incompleto no cuenta como duplicado confiable
+    (map[c] = map[c] || []).push(p);
+  });
+  return Object.entries(map)
+    .filter(([, arr]) => arr.length > 1)
+    .map(([cuil, personas]) => ({ cuil, personas }));
+}
+
 window.delP = async function(id) {
-  if (!confirm('¿Eliminar persona?')) return;
-  loading(true); await sb.from('personal').delete().eq('id', id); loading(false);
-  toast('Persona eliminada'); await go('personal');
+  const per = APP.personal.find(p => p.id === id);
+  const nombre = per ? `${per.apellido}, ${per.nombre}` : 'esta persona';
+  const r = refsPersona(id);
+  if (r.liq > 0) {
+    alert(`No se puede eliminar a ${nombre}: tiene ${r.liq} liquidación(es) asociadas.\n\n`
+      + `Borrarla dejaría esas liquidaciones sin dueño. Si es un duplicado, usá "Combinar duplicados" `
+      + `para fusionarla con el registro correcto sin perder historial.`);
+    return;
+  }
+  let msg = `¿Eliminar a ${nombre}?`;
+  if (r.pres > 0) msg += `\n\nTiene ${r.pres} presentismo(s) sin liquidar que también se eliminarán.`;
+  if (!confirm(msg)) return;
+  loading(true);
+  if (r.pres > 0) {
+    const { error: ep } = await sb.from('presentismo').delete().eq('persona_id', id);
+    if (ep) { loading(false); toast('No se pudo eliminar el presentismo: ' + ep.message, 'err'); return; }
+  }
+  const { data, error } = await sb.from('personal').delete().eq('id', id).select();
+  loading(false);
+  if (error) { toast('No se pudo eliminar: ' + error.message, 'err'); return; }
+  if (!data || !data.length) {
+    toast('El servidor no eliminó la persona. Probablemente falte la policy de DELETE en Supabase (RLS).', 'err');
+    return;
+  }
+  toast('Persona eliminada', 'ok'); await go('personal');
+};
+
+// ── Combinar duplicados por CUIL ──
+window.modalDuplicados = function() {
+  const grupos = gruposDuplicadosCuil();
+  if (!grupos.length) { toast('No hay registros duplicados por CUIL', 'ok'); return; }
+  const bloques = grupos.map(g => {
+    // Sugerir conservar el registro con más referencias; a igualdad, el de datos más completos.
+    const conRefs = g.personas.map(p => {
+      const r = refsPersona(p.id);
+      const completo = (p.cbu ? 1 : 0) + (p.dni ? 1 : 0) + (p.email ? 1 : 0) + (p.tel ? 1 : 0);
+      return { p, r, score: r.pres + r.liq * 2 + completo * 0.1 };
+    }).sort((a, b) => b.score - a.score);
+    const keepDefault = conRefs[0].p.id;
+    const filas = conRefs.map(({ p, r }) => `
+      <label style="display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;cursor:pointer">
+        <input type="radio" name="keep-${g.cuil}" value="${p.id}" ${p.id === keepDefault ? 'checked' : ''}>
+        <span style="flex:1">
+          <strong>${p.apellido}, ${p.nombre}</strong>
+          <span style="color:var(--text2);font-size:11.5px"> · ${p.area || '—'}${p.posicion ? ' · ' + p.posicion : ''}</span><br>
+          <span style="color:var(--text2);font-size:11px">CBU: ${p.cbu || '—'} · ${r.liq} liq. · ${r.pres} pres.</span>
+        </span>
+      </label>`).join('');
+    return `<div style="margin-bottom:14px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px">CUIL <strong style="font-family:monospace">${g.cuil}</strong> — elegí cuál conservar:</div>
+      <div style="display:flex;flex-direction:column;gap:6px">${filas}</div>
+    </div>`;
+  }).join('');
+  showModal(`<div class="modal" style="max-width:560px">
+    <div class="modal-t"><i class="ti ti-git-merge"></i> Combinar duplicados</div>
+    <div class="modal-s">${grupos.length} CUIL con más de un registro. Al combinar, el presentismo y las liquidaciones de los sobrantes pasan al registro elegido, y los sobrantes se eliminan.</div>
+    <div style="max-height:52vh;overflow:auto;margin:14px 0">${bloques}</div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="combinarDuplicados()"><i class="ti ti-git-merge"></i> Combinar</button>
+    </div>
+  </div>`);
+};
+
+window.combinarDuplicados = async function() {
+  const grupos = gruposDuplicadosCuil();
+  if (!grupos.length) { closeModal(); return; }
+  loading(true);
+  let fusionadas = 0; const errores = [];
+  for (const g of grupos) {
+    const keepId = document.querySelector(`input[name="keep-${g.cuil}"]:checked`)?.value;
+    if (!keepId) continue;
+    const keeper = g.personas.find(p => p.id === keepId);
+    const keeperNombre = `${keeper.apellido}, ${keeper.nombre}`;
+    const keeperFechas = new Set(presDePersona(keepId).map(x => x.fecha_id));
+    for (const dup of g.personas) {
+      if (dup.id === keepId) continue;
+      let fallo = false;
+      // 1. Presentismo: repuntar al keeper, salvo días que el keeper ya tiene (redundantes → borrar).
+      for (const pr of presDePersona(dup.id)) {
+        if (keeperFechas.has(pr.fecha_id)) {
+          const { error } = await sb.from('presentismo').delete().eq('id', pr.id);
+          if (error) { errores.push(`${dup.apellido}, ${dup.nombre}: presentismo — ${error.message}`); fallo = true; break; }
+        } else {
+          const { error } = await sb.from('presentismo').update({ persona_id: keepId }).eq('id', pr.id);
+          if (error) { errores.push(`${dup.apellido}, ${dup.nombre}: presentismo — ${error.message}`); fallo = true; break; }
+          keeperFechas.add(pr.fecha_id);
+        }
+      }
+      if (fallo) continue;
+      // 2. Liquidaciones: repuntar al keeper y actualizar el nombre denormalizado.
+      for (const l of APP.liquidaciones.filter(x => x.persona_id === dup.id)) {
+        const { error } = await sb.from('liquidaciones').update({ persona_id: keepId, persona_nombre: keeperNombre }).eq('id', l.id);
+        if (error) { errores.push(`${dup.apellido}, ${dup.nombre}: liquidación — ${error.message}`); fallo = true; break; }
+      }
+      if (fallo) continue;
+      // 3. Borrar el duplicado (verificando que el servidor efectivamente lo borró).
+      const { data, error } = await sb.from('personal').delete().eq('id', dup.id).select();
+      if (error) { errores.push(`${dup.apellido}, ${dup.nombre}: borrado — ${error.message}`); continue; }
+      if (!data || !data.length) { errores.push(`${dup.apellido}, ${dup.nombre}: el servidor no lo borró (¿falta policy DELETE?)`); continue; }
+      fusionadas++;
+    }
+  }
+  loading(false); closeModal();
+  if (errores.length) alert(`Se combinaron ${fusionadas} duplicado(s).\n\nProblemas:\n${errores.join('\n')}`);
+  else toast(`${fusionadas} duplicado(s) combinado(s)`, 'ok');
+  await go('personal');
 };
 
 // ══════════════════════════════════════════════
@@ -2887,8 +3054,13 @@ window.confirmarImport = async function() {
     if (f.existeId) {
       // sin cambios de CBU en importación
     } else if (f.esNuevo && f.presente) {
+      // Guard anti-duplicado: si ya existe alguien con ese CUIL (aunque el nombre esté escrito
+      // distinto), vincular a ese registro en vez de crear uno nuevo.
+      const cuilN = normCuil(f.cuil);
+      const yaExiste = cuilN.length >= 8 ? APP.personal.find(p => normCuil(p.cuil) === cuilN) : null;
+      if (yaExiste) { f.existeId = yaExiste.id; f.esNuevo = false; continue; }
       const { data: np } = await sb.from('personal').insert({
-        nombre:f.nombre, apellido:f.apellido, cuil:f.cuil, tel:f.tel,
+        nombre:f.nombre, apellido:f.apellido, cuil:cuilN, tel:f.tel,
         area:d.area, posicion:f.posicion, activo:true
       }).select().single();
       f.existeId = np?.id;
