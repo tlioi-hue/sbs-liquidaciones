@@ -4143,11 +4143,14 @@ function renderTablaVerificacionFija() {
     <button class="btn btn-success" onclick="confirmarPlanillaFija('${mesId}','${lugarId}')"><i class="ti ti-check"></i> Confirmar</button>`;
 
   const areaLugarVer = lugar?.nombre;
-  const posicionesBase = usaJornada8(lugarId)
-    ? [...new Set(APP.tarifario
-        .filter(t => t.area === areaLugarVer || t.area === 'General')
-        .map(t => t.posicion.replace(/\s*\[Jornada [68] hs\.\]\s*$/i, '')))]
-    : [...new Set(APP.tarifario.filter(t => t.area === areaLugarVer || t.area === 'General').map(t => t.posicion))];
+  const posLugarConocidas = LUGARES_FIJOS.find(l => l.id === lugarId)?.posiciones || [];
+  const posTarifario = usaJornada8(lugarId)
+    ? APP.tarifario.filter(t => t.area === areaLugarVer || t.area === 'General')
+        .map(t => t.posicion.replace(/\s*\[Jornada [68] hs\.\]\s*$/i, ''))
+    : APP.tarifario.filter(t => t.area === areaLugarVer || t.area === 'General').map(t => t.posicion);
+  // El dropdown ofrece las posiciones del tarifario + las conocidas del lugar, así nunca queda
+  // vacío aunque todavía no se hayan cargado las tarifas de ese lugar.
+  const posicionesBase = [...new Set([...posTarifario, ...posLugarConocidas])];
 
   el.innerHTML = `
     <div class="alert alert-info" style="padding:8px 12px"><i class="ti ti-eye"></i>
