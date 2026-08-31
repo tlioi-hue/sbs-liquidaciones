@@ -3500,6 +3500,10 @@ const LUGARES_FIJOS = [
 // con las variantes "[Jornada 6 hs.]" y "[Jornada 8 hs.]" del tarifario.
 function usaJornada8(lugarId) { return lugarId === 'teatro-colon' || lugarId === 'campo-de-polo' || lugarId === 'teatro-san-martin'; }
 
+// Lugares que muestran las jornadas en DOS columnas, una por posición (en vez de un dropdown de
+// posición + una sola columna). Cada persona va en la columna de la posición que trae la planilla.
+function dosPuestos(lugarId) { return lugarId === 'ecoparque' ? ['Orientador', 'Supervisor'] : null; }
+
 function getMesesFijos() {
   // Preferir lo que vino de Supabase; si no está cargado todavía, usar el caché local
   if (Array.isArray(APP.mesesFijos)) return APP.mesesFijos;
@@ -4177,20 +4181,31 @@ function renderTablaVerificacionFija() {
     <div id="pf-aviso-sin">${renderAvisoSinJornadas(personas)}</div>
     <div class="card" style="padding:0;overflow:hidden">
       <table><thead><tr>
-        <th>Apellido y nombre</th><th>CUIL</th><th>Posición</th>
-        <th style="text-align:center">Jornadas 6 hs.</th>${usaJornada8(lugarId)?'<th style="text-align:center">Jornadas 8 hs.</th>':''}<th style="text-align:right">Subtotal</th><th>Estado</th><th style="width:34px"></th>
+        <th>Apellido y nombre</th><th>CUIL</th>${dosPuestos(lugarId)
+          ? `<th style="text-align:center">${dosPuestos(lugarId)[0]}</th><th style="text-align:center">${dosPuestos(lugarId)[1]}</th>`
+          : `<th>Posición</th><th style="text-align:center">Jornadas 6 hs.</th>${usaJornada8(lugarId)?'<th style="text-align:center">Jornadas 8 hs.</th>':''}`}<th style="text-align:right">Subtotal</th><th>Estado</th><th style="width:34px"></th>
       </tr></thead>
       <tbody>${personas.map(p => {
-        const posicionEfectiva = p.posicion || posicionesBase[0] || '';
+        const posicionEfectiva = p.posicion || (dosPuestos(lugarId)?.[0]) || posicionesBase[0] || '';
         const subtotal = calcSubtotalFijo(posicionEfectiva, p.jornadas, p.jornadasFinde||0);
         const allPosOpts = posicionesBase.map(pb => `<option value="${pb}" ${pb===posicionEfectiva?'selected':''}>${pb}</option>`).join('');
         const vacia = !(p.jornadas||0) && !(p.jornadasFinde||0);
+        const dp = dosPuestos(lugarId);
+        const inputJor = `<input type="number" id="pfjor-${p._id}" value="${p.jornadas}" min="0" max="31" oninput="calcFilaFijaVer('${p._id}','${lugarId}')" style="width:60px;text-align:center">`;
+        let celdasPos;
+        if (dp) {
+          const esP2 = posicionEfectiva.toLowerCase().includes(dp[1].toLowerCase()) || dp[1].toLowerCase().includes(posicionEfectiva.toLowerCase());
+          const guion = '<span style="color:var(--text2)">—</span>';
+          celdasPos = `<td style="text-align:center">${esP2 ? guion : inputJor}</td><td style="text-align:center">${esP2 ? inputJor : guion}</td>`;
+        } else {
+          celdasPos = `<td><select id="pfpos-${p._id}" onchange="calcFilaFijaVer('${p._id}','${lugarId}')" style="font-size:12px;padding:3px 6px">${allPosOpts}</select></td>`
+            + `<td style="text-align:center">${inputJor}</td>`
+            + (usaJornada8(lugarId)?`<td style="text-align:center"><input type="number" id="pfjorf-${p._id}" value="${p.jornadasFinde||0}" min="0" max="31" oninput="calcFilaFijaVer('${p._id}','${lugarId}')" style="width:60px;text-align:center"></td>`:'');
+        }
         return `<tr id="pfrow-${p._id}" ${vacia?'style="opacity:.55"':''}>
           <td><strong>${p.apellido}, ${p.nombre}</strong></td>
           <td style="font-family:monospace;font-size:11.5px">${p.cuil||'—'}</td>
-          <td><select id="pfpos-${p._id}" onchange="calcFilaFijaVer('${p._id}','${lugarId}')" style="font-size:12px;padding:3px 6px">${allPosOpts}</select></td>
-          <td style="text-align:center"><input type="number" id="pfjor-${p._id}" value="${p.jornadas}" min="0" max="31" oninput="calcFilaFijaVer('${p._id}','${lugarId}')" style="width:60px;text-align:center"></td>
-          ${usaJornada8(lugarId)?`<td style="text-align:center"><input type="number" id="pfjorf-${p._id}" value="${p.jornadasFinde||0}" min="0" max="31" oninput="calcFilaFijaVer('${p._id}','${lugarId}')" style="width:60px;text-align:center"></td>`:''}
+          ${celdasPos}
           <td style="text-align:right;font-weight:500" id="pfsub-${p._id}">${fmt(subtotal)}</td>
           <td>${p.esNuevo ? '<span class="badge bn" style="font-size:10px">nuevo</span>' : '<span class="badge bs" style="font-size:10px">registrado</span>'}</td>
           <td><button class="btn btn-sm btn-danger" onclick="quitarPersonaFija('${p._id}')" title="Quitar de esta liquidación"><i class="ti ti-trash"></i></button></td>
@@ -4229,9 +4244,10 @@ window.quitarSinJornadasFija = function() {
 window.calcFilaFijaVer = function(id, lugarId) {
   const jornadas = parseInt(document.getElementById('pfjor-'+id)?.value) || 0;
   const jornadasFinde = usaJornada8(lugarId) ? (parseInt(document.getElementById('pfjorf-'+id)?.value) || 0) : 0;
-  const posicion  = document.getElementById('pfpos-'+id)?.value;
   // Guardar en el draft para que las ediciones sobrevivan a un re-render (ej: al quitar una fila)
   const p = window._fijoDraft?.personas.find(x => x._id === id);
+  // En lugares con dos columnas (Ecoparque) no hay dropdown: la posición viene de la planilla (draft).
+  const posicion = document.getElementById('pfpos-'+id)?.value ?? p?.posicion ?? '';
   if (p) { p.jornadas = jornadas; p.jornadasFinde = jornadasFinde; p.posicion = posicion; }
   const sub = calcSubtotalFijo(posicion, jornadas, jornadasFinde);
   const subEl = document.getElementById('pfsub-'+id); if (subEl) subEl.textContent = fmt(sub);
@@ -4262,7 +4278,7 @@ window.confirmarPlanillaFija = async function(mesId, lugarId) {
   for (const p of draft.personas) {
     const jornadas = parseInt(document.getElementById('pfjor-'+p._id)?.value) || 0;
     const jornadasFinde = usaJornada8(lugarId) ? (parseInt(document.getElementById('pfjorf-'+p._id)?.value) || 0) : 0;
-    const posicion  = document.getElementById('pfpos-'+p._id)?.value;
+    const posicion  = document.getElementById('pfpos-'+p._id)?.value ?? p.posicion;
 
     // Agregar persona nueva si no existe
     if (p.esNuevo) {
