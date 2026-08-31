@@ -3494,6 +3494,12 @@ const LUGARES_FIJOS = [
   { id: 'campo-de-polo', nombre: 'Campo de Polo',   posiciones: ['Franquero'] },
 ];
 
+// Lugares fijos que usan tarifa diferencial por duración de jornada (6hs vs 8hs).
+// Para estos, la verificación/liquidación muestra dos columnas (6hs y 8hs), el dropdown
+// de posición usa la posición BASE (sin el sufijo "[Jornada X hs.]") y el subtotal se cobra
+// con las variantes "[Jornada 6 hs.]" y "[Jornada 8 hs.]" del tarifario.
+function usaJornada8(lugarId) { return lugarId === 'teatro-colon' || lugarId === 'campo-de-polo'; }
+
 function getMesesFijos() {
   // Preferir lo que vino de Supabase; si no está cargado todavía, usar el caché local
   if (Array.isArray(APP.mesesFijos)) return APP.mesesFijos;
@@ -4138,9 +4144,9 @@ function renderTablaVerificacionFija() {
     <button class="btn btn-success" onclick="confirmarPlanillaFija('${mesId}','${lugarId}')"><i class="ti ti-check"></i> Confirmar</button>`;
 
   const areaLugarVer = lugar?.nombre;
-  const posicionesBase = lugarId === 'teatro-colon'
+  const posicionesBase = usaJornada8(lugarId)
     ? [...new Set(APP.tarifario
-        .filter(t => t.area === 'Teatro Colón')
+        .filter(t => t.area === areaLugarVer || t.area === 'General')
         .map(t => t.posicion.replace(/\s*\[Jornada [68] hs\.\]\s*$/i, '')))]
     : [...new Set(APP.tarifario.filter(t => t.area === areaLugarVer || t.area === 'General').map(t => t.posicion))];
 
@@ -4153,7 +4159,7 @@ function renderTablaVerificacionFija() {
     <div class="card" style="padding:0;overflow:hidden">
       <table><thead><tr>
         <th>Apellido y nombre</th><th>CUIL</th><th>Posición</th>
-        <th style="text-align:center">Jornadas 6 hs.</th>${lugarId==='teatro-colon'?'<th style="text-align:center">Jornadas 8 hs.</th>':''}<th style="text-align:right">Subtotal</th><th>Estado</th><th style="width:34px"></th>
+        <th style="text-align:center">Jornadas 6 hs.</th>${usaJornada8(lugarId)?'<th style="text-align:center">Jornadas 8 hs.</th>':''}<th style="text-align:right">Subtotal</th><th>Estado</th><th style="width:34px"></th>
       </tr></thead>
       <tbody>${personas.map(p => {
         const posicionEfectiva = p.posicion || posicionesBase[0] || '';
@@ -4165,14 +4171,14 @@ function renderTablaVerificacionFija() {
           <td style="font-family:monospace;font-size:11.5px">${p.cuil||'—'}</td>
           <td><select id="pfpos-${p._id}" onchange="calcFilaFijaVer('${p._id}','${lugarId}')" style="font-size:12px;padding:3px 6px">${allPosOpts}</select></td>
           <td style="text-align:center"><input type="number" id="pfjor-${p._id}" value="${p.jornadas}" min="0" max="31" oninput="calcFilaFijaVer('${p._id}','${lugarId}')" style="width:60px;text-align:center"></td>
-          ${lugarId==='teatro-colon'?`<td style="text-align:center"><input type="number" id="pfjorf-${p._id}" value="${p.jornadasFinde||0}" min="0" max="31" oninput="calcFilaFijaVer('${p._id}','${lugarId}')" style="width:60px;text-align:center"></td>`:''}
+          ${usaJornada8(lugarId)?`<td style="text-align:center"><input type="number" id="pfjorf-${p._id}" value="${p.jornadasFinde||0}" min="0" max="31" oninput="calcFilaFijaVer('${p._id}','${lugarId}')" style="width:60px;text-align:center"></td>`:''}
           <td style="text-align:right;font-weight:500" id="pfsub-${p._id}">${fmt(subtotal)}</td>
           <td>${p.esNuevo ? '<span class="badge bn" style="font-size:10px">nuevo</span>' : '<span class="badge bs" style="font-size:10px">registrado</span>'}</td>
           <td><button class="btn btn-sm btn-danger" onclick="quitarPersonaFija('${p._id}')" title="Quitar de esta liquidación"><i class="ti ti-trash"></i></button></td>
         </tr>`;
       }).join('')}</tbody>
       <tfoot><tr>
-        <td colspan="${lugarId==='teatro-colon'?5:4}" style="font-weight:600;padding:10px;border-top:2px solid var(--border)">Total estimado · ${personas.length} ${personas.length===1?'persona':'personas'}</td>
+        <td colspan="${usaJornada8(lugarId)?5:4}" style="font-weight:600;padding:10px;border-top:2px solid var(--border)">Total estimado · ${personas.length} ${personas.length===1?'persona':'personas'}</td>
         <td style="text-align:right;font-size:16px;font-weight:700;padding:10px;border-top:2px solid var(--border)" id="pf-total">
           ${fmt(personas.reduce((s,p) => s + calcSubtotalFijo(p.posicion || posicionesBase[0] || '', p.jornadas, p.jornadasFinde||0), 0))}
         </td>
@@ -4203,7 +4209,7 @@ window.quitarSinJornadasFija = function() {
 
 window.calcFilaFijaVer = function(id, lugarId) {
   const jornadas = parseInt(document.getElementById('pfjor-'+id)?.value) || 0;
-  const jornadasFinde = lugarId==='teatro-colon' ? (parseInt(document.getElementById('pfjorf-'+id)?.value) || 0) : 0;
+  const jornadasFinde = usaJornada8(lugarId) ? (parseInt(document.getElementById('pfjorf-'+id)?.value) || 0) : 0;
   const posicion  = document.getElementById('pfpos-'+id)?.value;
   // Guardar en el draft para que las ediciones sobrevivan a un re-render (ej: al quitar una fila)
   const p = window._fijoDraft?.personas.find(x => x._id === id);
@@ -4236,7 +4242,7 @@ window.confirmarPlanillaFija = async function(mesId, lugarId) {
   const presentesLugar = [];
   for (const p of draft.personas) {
     const jornadas = parseInt(document.getElementById('pfjor-'+p._id)?.value) || 0;
-    const jornadasFinde = lugarId==='teatro-colon' ? (parseInt(document.getElementById('pfjorf-'+p._id)?.value) || 0) : 0;
+    const jornadasFinde = usaJornada8(lugarId) ? (parseInt(document.getElementById('pfjorf-'+p._id)?.value) || 0) : 0;
     const posicion  = document.getElementById('pfpos-'+p._id)?.value;
 
     // Agregar persona nueva si no existe
@@ -4406,7 +4412,7 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
 
   // Detectar jornadas que no tienen tarifa cargada: sin esto sumarían $0 en silencio
   const faltantes = [];
-  if (lugarId === 'teatro-colon') {
+  if (usaJornada8(lugarId)) {
     [...new Set(pres.map(p => p.posicion).filter(Boolean))].forEach(pos => {
       const { tSemana, tFinde } = getTarifaSemanaFinde(pos);
       const usa6 = pres.some(p => p.posicion === pos && (p.jornadas||0));
@@ -4433,8 +4439,8 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
         <th style="padding:6px 10px;text-align:left">Apellido y nombre</th>
         <th style="padding:6px 10px;text-align:left">CUIL</th>
         <th style="padding:6px 10px;text-align:left">Posición</th>
-        <th style="padding:6px 10px;text-align:center">${lugarId==='teatro-colon'?'Jornadas 6hs':'Jornadas'}</th>
-        ${lugarId==='teatro-colon'?'<th style="padding:6px 10px;text-align:center">Jornadas 8hs</th>':''}
+        <th style="padding:6px 10px;text-align:center">${usaJornada8(lugarId)?'Jornadas 6hs':'Jornadas'}</th>
+        ${usaJornada8(lugarId)?'<th style="padding:6px 10px;text-align:center">Jornadas 8hs</th>':''}
         <th style="padding:6px 10px;text-align:right">Subtotal</th>
       </tr></thead><tbody>
       ${pres.map((p, idx) => {
@@ -4459,7 +4465,7 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
             editaLiq  ? `<input type="number" value="${jorVal}" min="0" max="31" style="width:55px;text-align:center" onchange="editarJornadasFijo('${liq.id}','${mesId}','${lugarId}','semana',this.value)">` :
             editaPres ? `<input type="number" value="${jorVal}" min="0" max="31" style="width:55px;text-align:center" onchange="editarPresenteFijo('${mesId}','${lugarId}',${idx},'jornadas',this.value)">` :
             jorVal}</td>
-          ${lugarId==='teatro-colon'?`<td style="padding:6px 10px;text-align:center">${
+          ${usaJornada8(lugarId)?`<td style="padding:6px 10px;text-align:center">${
             editaLiq  ? `<input type="number" value="${jorFVal}" min="0" max="31" style="width:55px;text-align:center" onchange="editarJornadasFijo('${liq.id}','${mesId}','${lugarId}','finde',this.value)">` :
             editaPres ? `<input type="number" value="${jorFVal}" min="0" max="31" style="width:55px;text-align:center" onchange="editarPresenteFijo('${mesId}','${lugarId}',${idx},'jornadasFinde',this.value)">` :
             jorFVal}</td>`:''}
@@ -4469,7 +4475,7 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
         </tr>`;
       }).join('')}
       </tbody><tfoot><tr style="border-top:2px solid var(--border);font-weight:700">
-        <td colspan="${lugarId==='teatro-colon'?5:4}" style="padding:8px 10px">Total</td>
+        <td colspan="${usaJornada8(lugarId)?5:4}" style="padding:8px 10px">Total</td>
         <td style="padding:8px 10px;text-align:right">${fmt(liqs.length ? liqs.reduce((s,l)=>s+(l.total||0),0) : pres.reduce((s,p)=>s+calcSubtotalFijo(p.posicion,p.jornadas||0,p.jornadasFinde||0),0))}</td>
       </tr></tfoot>
       </table>
@@ -4489,6 +4495,7 @@ window.exportDetalleLugarFijo = function(mesId, lugarId) {
   const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId && l.lugar_fijo === lugarId);
   if (!pres.length) { alert('Sin personas cargadas para exportar'); return; }
   const esColon = lugarId === 'teatro-colon';
+  const usa8 = usaJornada8(lugarId);
   const rows = pres.map(p => {
     const liq = liqs.find(l => l.persona_id === p.personaId);
     const per = APP.personal.find(x => x.id === p.personaId)
@@ -4504,7 +4511,7 @@ window.exportDetalleLugarFijo = function(mesId, lugarId) {
     row['Lugar']   = normExport(lugar.nombre);
     row['Período'] = normExport(mes.nombre);
     row['Posición'] = normExport(p.posicion||'');
-    if (esColon) {
+    if (usa8) {
       row['Jornadas 6hs'] = p.jornadas||0;
       row['Jornadas 8hs'] = p.jornadasFinde||0;
     } else {
@@ -4514,9 +4521,11 @@ window.exportDetalleLugarFijo = function(mesId, lugarId) {
     return row;
   });
   // Header explícito (varía según lugar) + aoa_to_sheet para garantizar el orden
-  const header = esColon
-    ? ['CUIL','Apellido y nombre','CBU','Alias','Lugar','Período','Posición','Jornadas 6hs','Jornadas 8hs','Total ($)']
-    : ['CUIL','Apellido y nombre','CBU','Lugar','Período','Posición','Jornadas','Total ($)'];
+  const header = ['CUIL','Apellido y nombre','CBU'];
+  if (esColon) header.push('Alias');
+  header.push('Lugar','Período','Posición');
+  if (usa8) header.push('Jornadas 6hs','Jornadas 8hs'); else header.push('Jornadas');
+  header.push('Total ($)');
   const aoa = [header, ...rows.map(r => header.map(h => r[h] ?? ''))];
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = header.map(h => ({ wch: h === 'CBU' ? 26 : h === 'Apellido y nombre' ? 22 : h === 'CUIL' ? 16 : 14 }));
