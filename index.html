@@ -106,6 +106,7 @@ tr:hover td { background: var(--bg3); }
 .chip-polo  { background: #fae8f0; color: #7a1a4e; border: 1px solid #e0a0c0; }
 .chip-colon { background: #efe6fb; color: #4a2178; border: 1px solid #c9aef0; }
 .chip-eco   { background: #e8f5e8; color: #1a5a2e; border: 1px solid #a0d0a8; }
+.chip-sanmartin { background: #e0f5f2; color: #0f5a52; border: 1px solid #9ad4cb; }
 
 /* ── Inputs ── */
 input, select, textarea { width: 100%; padding: 7px 10px; border: 1px solid var(--border2); border-radius: var(--radius); font-size: 12.5px; font-family: inherit; background: var(--bg2); color: var(--text); outline: none; transition: border-color .12s; }
@@ -543,6 +544,7 @@ function chipClaseArea(area) {
   if (area === 'Movistar Arena') return 'chip-arena';
   if (area === 'Campo de Polo') return 'chip-polo';
   if (area === 'Teatro Colón') return 'chip-colon';
+  if (area === 'Teatro San Martín') return 'chip-sanmartin';
   if (area === 'Ecoparque') return 'chip-eco';
   return 'chip-fijos';
 }
@@ -629,15 +631,13 @@ async function pgDB(el) {
       <div class="metric-s">${totalCerrados} liquidación${totalCerrados!==1?'es':''} cerrada${totalCerrados!==1?'s':''}</div></div>
   </div>
   <div class="grid3" style="margin-bottom:14px">
-    <div class="metric"><div class="metric-l"><span class="chip chip-eco" style="font-size:11px">Ecoparque</span></div>
-      <div class="metric-v" style="font-size:17px">${fmt(liqEco)}</div>
-      <div class="metric-s">${mesesEco} ${mesesEco===1?'mes':'meses'} liquidado${mesesEco===1?'':'s'}</div></div>
-    <div class="metric"><div class="metric-l"><span class="chip chip-colon" style="font-size:11px">Teatro Colón</span></div>
-      <div class="metric-v" style="font-size:17px">${fmt(liqColon)}</div>
-      <div class="metric-s">${mesesColon} ${mesesColon===1?'mes':'meses'} liquidado${mesesColon===1?'':'s'}</div></div>
-    <div class="metric"><div class="metric-l"><span class="chip chip-polo" style="font-size:11px">Campo de Polo</span></div>
-      <div class="metric-v" style="font-size:17px">${fmt(liqPolo)}</div>
-      <div class="metric-s">${mesesPolo} ${mesesPolo===1?'mes':'meses'} liquidado${mesesPolo===1?'':'s'}</div></div>
+    ${LUGARES_FIJOS.map(l => {
+      const liqL = liqFijos.filter(x => x.lugar_fijo === l.id).reduce((s,x)=>s+(x.total||0),0);
+      const mesesL = [...new Set(liqFijos.filter(x=>x.lugar_fijo===l.id).map(x=>x.mes_id))].length;
+      return `<div class="metric"><div class="metric-l"><span class="chip ${chipClaseArea(l.nombre)}" style="font-size:11px">${l.nombre}</span></div>
+      <div class="metric-v" style="font-size:17px">${fmt(liqL)}</div>
+      <div class="metric-s">${mesesL} ${mesesL===1?'mes':'meses'} liquidado${mesesL===1?'':'s'}</div></div>`;
+    }).join('')}
   </div>
   <div class="grid2">
     <div class="card">
@@ -852,9 +852,7 @@ window.modalPersona = function(id) {
       <label class="fl">Lugar (Servicios Fijos)</label>
       <select id="plugar" onchange="refreshPosicionesPersona()">
         <option value="">— seleccionar —</option>
-        <option value="teatro-colon"  ${p?.lugar_fijo==='teatro-colon'?'selected':''}>Teatro Colón</option>
-        <option value="campo-de-polo" ${p?.lugar_fijo==='campo-de-polo'?'selected':''}>Campo de Polo</option>
-        <option value="ecoparque"     ${p?.lugar_fijo==='ecoparque'?'selected':''}>Ecoparque</option>
+        ${LUGARES_FIJOS.map(l => `<option value="${l.id}" ${p?.lugar_fijo===l.id?'selected':''}>${l.nombre}</option>`).join('')}
       </select>
     </div>
     <div class="fr">
@@ -1095,6 +1093,7 @@ window.modalTarifa = function(id) {
         <option value="Ecoparque"     ${t?.area==='Ecoparque'?'selected':''}>Ecoparque</option>
         <option value="Teatro Colón"  ${t?.area==='Teatro Colón'?'selected':''}>Teatro Colón</option>
         <option value="Campo de Polo" ${t?.area==='Campo de Polo'?'selected':''}>Campo de Polo</option>
+        <option value="Teatro San Martín" ${t?.area==='Teatro San Martín'?'selected':''}>Teatro San Martín</option>
         <option value="General"       ${t?.area==='General'?'selected':''}>General (ambas áreas)</option>
       </select>
     </div>
@@ -3492,13 +3491,14 @@ const LUGARES_FIJOS = [
   { id: 'ecoparque',     nombre: 'Ecoparque',       posiciones: ['Orientador', 'Supervisor'] },
   { id: 'teatro-colon',  nombre: 'Teatro Colón',    posiciones: ['Boletero', 'Supervisor'] },
   { id: 'campo-de-polo', nombre: 'Campo de Polo',   posiciones: ['Franquero'] },
+  { id: 'teatro-san-martin', nombre: 'Teatro San Martín', posiciones: ['Boletero'] },
 ];
 
 // Lugares fijos que usan tarifa diferencial por duración de jornada (6hs vs 8hs).
 // Para estos, la verificación/liquidación muestra dos columnas (6hs y 8hs), el dropdown
 // de posición usa la posición BASE (sin el sufijo "[Jornada X hs.]") y el subtotal se cobra
 // con las variantes "[Jornada 6 hs.]" y "[Jornada 8 hs.]" del tarifario.
-function usaJornada8(lugarId) { return lugarId === 'teatro-colon' || lugarId === 'campo-de-polo'; }
+function usaJornada8(lugarId) { return lugarId === 'teatro-colon' || lugarId === 'campo-de-polo' || lugarId === 'teatro-san-martin'; }
 
 function getMesesFijos() {
   // Preferir lo que vino de Supabase; si no está cargado todavía, usar el caché local
@@ -3545,9 +3545,7 @@ async function pgFijos(el, ac) {
 
   el.innerHTML = `
     <div class="grid4" style="margin-bottom:18px">
-      <div class="metric"><div class="metric-l">Ecoparque</div><div class="metric-v" style="font-size:17px">${fmt(APP.liquidaciones.filter(l=>l.area==='Servicios Fijos'&&l.lugar_fijo==='ecoparque').reduce((s,l)=>s+(l.total||0),0))}</div><div class="metric-s">Total liquidado</div></div>
-      <div class="metric"><div class="metric-l">Teatro Colón</div><div class="metric-v" style="font-size:17px">${fmt(APP.liquidaciones.filter(l=>l.area==='Servicios Fijos'&&l.lugar_fijo==='teatro-colon').reduce((s,l)=>s+(l.total||0),0))}</div><div class="metric-s">Total liquidado</div></div>
-      <div class="metric"><div class="metric-l">Campo de Polo</div><div class="metric-v" style="font-size:17px">${fmt(APP.liquidaciones.filter(l=>l.area==='Servicios Fijos'&&l.lugar_fijo==='campo-de-polo').reduce((s,l)=>s+(l.total||0),0))}</div><div class="metric-s">Total liquidado</div></div>
+      ${LUGARES_FIJOS.map(l => `<div class="metric"><div class="metric-l">${l.nombre}</div><div class="metric-v" style="font-size:17px">${fmt(APP.liquidaciones.filter(x=>x.area==='Servicios Fijos'&&x.lugar_fijo===l.id).reduce((s,x)=>s+(x.total||0),0))}</div><div class="metric-s">Total liquidado</div></div>`).join('')}
       <div class="metric"><div class="metric-l">Total general</div><div class="metric-v" style="font-size:17px">${fmt(totalLiq)}</div><div class="metric-s">${meses.length} mes${meses.length!==1?'es':''} · ${APP.personal.filter(p=>p.area==='Servicios Fijos').length} personas</div></div>
     </div>
     ${cerradosCount ? `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
@@ -3968,6 +3966,7 @@ function parsePlanillaFijaPDF(pdfRows, mesId, lugarId) {
   // Separar filas que hayan quedado fusionadas antes de parsear (2 personas en un mismo registro)
   const rows = separarFilasFusionadas(pdfRows);
   if (lugarId === 'teatro-colon') return parsePlanillaFijaPDF_Colon(rows, mesId, lugarId);
+  if (lugarId === 'teatro-san-martin') return parsePlanillaFijaPDF_Colon(rows, mesId, lugarId);
   if (lugarId === 'campo-de-polo') return parsePlanillaFijaPDF_Polo(rows, mesId, lugarId);
   return parsePlanillaFijaPDF_SinCuil(rows, mesId, lugarId);
 }
