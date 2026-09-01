@@ -4190,6 +4190,7 @@ function renderTablaVerificacionFija() {
   const ac = document.getElementById('topbar-ac');
   ac.innerHTML = `
     <button class="btn" onclick="go('fijos')"><i class="ti ti-x"></i> Cancelar</button>
+    <button class="btn" onclick="agregarPersonaFija()"><i class="ti ti-user-plus"></i> Agregar persona</button>
     <button class="btn btn-success" onclick="confirmarPlanillaFija('${mesId}','${lugarId}')"><i class="ti ti-check"></i> Confirmar</button>`;
 
   const areaLugarVer = lugar?.nombre;
@@ -4257,6 +4258,94 @@ window.quitarPersonaFija = function(id) {
   d.personas = d.personas.filter(p => p._id !== id);
   if (!d.personas.length) { alert('No quedan personas en la planilla.'); go('fijos'); return; }
   renderTablaVerificacionFija();
+};
+
+// Posición por defecto para una persona agregada a mano (según el lugar).
+function _defaultPosFija(lugarId) {
+  const dp = dosPuestos(lugarId);
+  if (dp) return dp[0];
+  const area = LUGARES_FIJOS.find(l => l.id === lugarId)?.nombre;
+  const posTar = usaJornada8(lugarId)
+    ? APP.tarifario.filter(t => t.area === area || t.area === 'General').map(t => t.posicion.replace(/\s*\[Jornada [68] hs\.\]\s*$/i, ''))
+    : APP.tarifario.filter(t => t.area === area || t.area === 'General').map(t => t.posicion);
+  return posTar[0] || LUGARES_FIJOS.find(l => l.id === lugarId)?.posiciones?.[0] || '';
+}
+
+// Abre el modal para sumar una persona que no vino en el PDF.
+window.agregarPersonaFija = function() {
+  const d = window._fijoDraft; if (!d) return;
+  showModal(`<div class="modal" style="max-width:520px">
+    <div class="modal-t"><i class="ti ti-user-plus"></i> Agregar persona a la planilla</div>
+    <div class="modal-s">Buscá a alguien del sistema, o cargá una persona nueva. Se suma con 0 jornadas: se las cargás en la tabla.</div>
+    <input id="add-fija-search" placeholder="Buscar por apellido, nombre o CUIL…" style="width:100%;margin:10px 0" oninput="renderAddFijaLista(this.value)">
+    <div id="add-fija-list" style="max-height:240px;overflow:auto;border:1px solid var(--border);border-radius:8px"></div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px">¿No está en el sistema? Cargala nueva:</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <input id="add-fija-ape" placeholder="Apellido" style="flex:1;min-width:110px">
+        <input id="add-fija-nom" placeholder="Nombre" style="flex:1;min-width:110px">
+        <input id="add-fija-cuil" placeholder="CUIL" style="flex:1;min-width:110px">
+      </div>
+      <button class="btn btn-sm btn-primary" style="margin-top:8px" onclick="addPersonaFijaNueva()"><i class="ti ti-plus"></i> Agregar nueva</button>
+    </div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cerrar</button></div>
+  </div>`);
+  renderAddFijaLista('');
+};
+
+// Renderiza la lista de personas del sistema que se pueden agregar (excluye las que ya están).
+window.renderAddFijaLista = function(filtro) {
+  const d = window._fijoDraft; if (!d) return;
+  const el = document.getElementById('add-fija-list'); if (!el) return;
+  const f = (filtro || '').toLowerCase().trim();
+  const yaIds = new Set(d.personas.map(p => p.existeId).filter(Boolean));
+  const yaCuils = new Set(d.personas.map(p => normCuil(p.cuil)).filter(c => c && c.length >= 8));
+  let lista = APP.personal.filter(p => !yaIds.has(p.id) && !yaCuils.has(normCuil(p.cuil)));
+  if (f) {
+    const fd = f.replace(/\D/g, '');
+    lista = lista.filter(p => `${p.apellido} ${p.nombre}`.toLowerCase().includes(f) || (fd && normCuil(p.cuil).includes(fd)));
+  }
+  lista.sort((a, b) => ((b.area === 'Servicios Fijos') - (a.area === 'Servicios Fijos')) || a.apellido.localeCompare(b.apellido));
+  lista = lista.slice(0, 30);
+  el.innerHTML = lista.length ? lista.map(p => `
+    <div onclick="addPersonaFijaExistente('${p.id}')" style="padding:8px 11px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;justify-content:space-between;gap:8px">
+      <span><strong>${p.apellido}, ${p.nombre}</strong> <span style="color:var(--text2);font-size:11px">${p.posicion||''}</span></span>
+      <span style="font-family:monospace;font-size:11px;color:var(--text2)">${p.cuil||''}</span>
+    </div>`).join('') : `<div style="padding:12px;color:var(--text2);font-size:12.5px">Sin resultados. Podés cargarla como nueva abajo.</div>`;
+};
+
+// Agrega al draft una persona que ya existe en el sistema.
+window.addPersonaFijaExistente = function(personaId) {
+  const d = window._fijoDraft; if (!d) return;
+  const per = APP.personal.find(p => p.id === personaId); if (!per) return;
+  if (d.personas.some(p => p.existeId === personaId || (p.cuil && per.cuil && normCuil(p.cuil) === normCuil(per.cuil)))) {
+    alert('Esa persona ya está en la planilla.'); return;
+  }
+  d.personas.push({
+    _id: uid(), apellido: per.apellido, nombre: per.nombre, cuil: normCuil(per.cuil || ''),
+    posicion: per.posicion || _defaultPosFija(d.lugarId), jornadas: 0, jornadasFinde: 0,
+    existeId: per.id, esNuevo: false
+  });
+  closeModal(); renderTablaVerificacionFija();
+};
+
+// Agrega al draft una persona nueva (que no existe en el sistema). Si el CUIL ya existe, la vincula.
+window.addPersonaFijaNueva = function() {
+  const d = window._fijoDraft; if (!d) return;
+  const apellido = (document.getElementById('add-fija-ape')?.value || '').trim();
+  const nombre = (document.getElementById('add-fija-nom')?.value || '').trim();
+  const cuil = normCuil(document.getElementById('add-fija-cuil')?.value || '');
+  if (!apellido) { alert('Poné al menos el apellido.'); return; }
+  if (cuil.length >= 8) {
+    const ya = APP.personal.find(p => normCuil(p.cuil) === cuil);
+    if (ya) return addPersonaFijaExistente(ya.id); // ya existe: vincular, no duplicar
+    if (d.personas.some(p => normCuil(p.cuil) === cuil)) { alert('Ya hay alguien con ese CUIL en la planilla.'); return; }
+  }
+  d.personas.push({
+    _id: uid(), apellido, nombre, cuil, posicion: _defaultPosFija(d.lugarId),
+    jornadas: 0, jornadasFinde: 0, existeId: null, esNuevo: true
+  });
+  closeModal(); renderTablaVerificacionFija();
 };
 
 // Quita de una todas las personas que quedaron sin jornadas
