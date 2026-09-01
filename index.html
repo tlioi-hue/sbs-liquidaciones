@@ -4348,6 +4348,117 @@ window.addPersonaFijaNueva = function() {
   closeModal(); renderTablaVerificacionFija();
 };
 
+// ── Agregar persona en la vista de DETALLE (después de liquidar) ──
+// Suma a la persona a los presentes del lugar y, si el lugar ya tiene liquidaciones,
+// le crea una liquidación en $0 para que entre en el total; después se le cargan las jornadas.
+window.agregarPersonaDetalleFijo = function(mesId, lugarId) {
+  window._addDetalleCtx = { mesId, lugarId };
+  showModal(`<div class="modal" style="max-width:520px">
+    <div class="modal-t"><i class="ti ti-user-plus"></i> Agregar persona</div>
+    <div class="modal-s">Se suma a este lugar con 0 jornadas; después le cargás las jornadas en la tabla.</div>
+    <input id="add-det-search" placeholder="Buscar por apellido, nombre o CUIL…" style="width:100%;margin:10px 0" oninput="renderAddDetalleLista(this.value)">
+    <div id="add-det-list" style="max-height:240px;overflow:auto;border:1px solid var(--border);border-radius:8px"></div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px">¿No está en el sistema? Cargala nueva:</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <input id="add-det-ape" placeholder="Apellido" style="flex:1;min-width:110px">
+        <input id="add-det-nom" placeholder="Nombre" style="flex:1;min-width:110px">
+        <input id="add-det-cuil" placeholder="CUIL" style="flex:1;min-width:110px">
+      </div>
+      <button class="btn btn-sm btn-primary" style="margin-top:8px" onclick="addPersonaDetalleNueva()"><i class="ti ti-plus"></i> Agregar nueva</button>
+    </div>
+    <div class="modal-f"><button class="btn" onclick="closeModal();verDetalleLugarFijo('${mesId}','${lugarId}')">Cerrar</button></div>
+  </div>`);
+  renderAddDetalleLista('');
+};
+
+window.renderAddDetalleLista = function(filtro) {
+  const { mesId, lugarId } = window._addDetalleCtx || {};
+  const el = document.getElementById('add-det-list'); if (!el) return;
+  const mes = getMesesFijos().find(m => m.id === mesId);
+  const pres = mes?.presentes?.[lugarId] || [];
+  const yaIds = new Set(pres.map(p => p.personaId).filter(Boolean));
+  const yaCuils = new Set(pres.map(p => normCuil(p.cuil)).filter(c => c && c.length >= 8));
+  const f = (filtro || '').toLowerCase().trim();
+  let lista = APP.personal.filter(p => !yaIds.has(p.id) && !yaCuils.has(normCuil(p.cuil)));
+  if (f) {
+    const fd = f.replace(/\D/g, '');
+    lista = lista.filter(p => `${p.apellido} ${p.nombre}`.toLowerCase().includes(f) || (fd && normCuil(p.cuil).includes(fd)));
+  }
+  lista.sort((a, b) => ((b.area === 'Servicios Fijos') - (a.area === 'Servicios Fijos')) || a.apellido.localeCompare(b.apellido));
+  lista = lista.slice(0, 30);
+  el.innerHTML = lista.length ? lista.map(p => `
+    <div onclick="addPersonaDetalleExistente('${p.id}')" style="padding:8px 11px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;justify-content:space-between;gap:8px">
+      <span><strong>${p.apellido}, ${p.nombre}</strong> <span style="color:var(--text2);font-size:11px">${p.posicion||''}</span></span>
+      <span style="font-family:monospace;font-size:11px;color:var(--text2)">${p.cuil||''}</span>
+    </div>`).join('') : `<div style="padding:12px;color:var(--text2);font-size:12.5px">Sin resultados. Podés cargarla como nueva abajo.</div>`;
+};
+
+window.addPersonaDetalleExistente = async function(personaId) {
+  const { mesId, lugarId } = window._addDetalleCtx || {};
+  const per = APP.personal.find(p => p.id === personaId); if (!per) return;
+  await _crearPresenteYLiqFijo(mesId, lugarId, {
+    personaId: per.id, apellido: per.apellido, nombre: per.nombre,
+    cuil: normCuil(per.cuil || ''), posicion: per.posicion || _defaultPosFija(lugarId)
+  });
+};
+
+window.addPersonaDetalleNueva = async function() {
+  const { mesId, lugarId } = window._addDetalleCtx || {};
+  const apellido = (document.getElementById('add-det-ape')?.value || '').trim();
+  const nombre = (document.getElementById('add-det-nom')?.value || '').trim();
+  const cuil = normCuil(document.getElementById('add-det-cuil')?.value || '');
+  if (!apellido) { alert('Poné al menos el apellido.'); return; }
+  if (cuil.length >= 8) {
+    const ya = APP.personal.find(p => normCuil(p.cuil) === cuil);
+    if (ya) return addPersonaDetalleExistente(ya.id); // ya existe: vincular, no duplicar
+  }
+  loading(true);
+  const { data: np, error } = await sb.from('personal').insert({
+    apellido, nombre, cuil, area: 'Servicios Fijos', lugar_fijo: lugarId,
+    posicion: _defaultPosFija(lugarId), activo: true
+  }).select().single();
+  loading(false);
+  if (error || !np) { toast('No se pudo crear la persona: ' + (error?.message || ''), 'err'); return; }
+  APP.personal.push(np);
+  await _crearPresenteYLiqFijo(mesId, lugarId, {
+    personaId: np.id, apellido, nombre, cuil, posicion: _defaultPosFija(lugarId)
+  });
+};
+
+async function _crearPresenteYLiqFijo(mesId, lugarId, datos) {
+  const meses = getMesesFijos();
+  const mes = meses.find(m => m.id === mesId);
+  const lugar = LUGARES_FIJOS.find(l => l.id === lugarId);
+  if (!mes.presentes) mes.presentes = {};
+  if (!mes.presentes[lugarId]) mes.presentes[lugarId] = [];
+  if (mes.presentes[lugarId].some(p => p.personaId === datos.personaId)) { alert('Esa persona ya está en la liquidación.'); return; }
+  mes.presentes[lugarId].push({
+    personaId: datos.personaId, apellido: datos.apellido, nombre: datos.nombre,
+    cuil: datos.cuil, posicion: datos.posicion, jornadas: 0, jornadasFinde: 0
+  });
+  saveMesesFijos(meses);
+  // Si el lugar ya tiene liquidaciones, crearle una en $0 para que entre en el total y sea editable inline.
+  const hayLiqs = APP.liquidaciones.some(l => l.mes_id === mesId && l.lugar_fijo === lugarId);
+  if (hayLiqs) {
+    const dp = dosPuestos(lugarId);
+    const uni = APP.tarifario.filter(t => t.area === lugar.nombre || t.area === 'General');
+    const row = {
+      persona_id: datos.personaId, persona_nombre: `${datos.apellido}, ${datos.nombre}`,
+      area: 'Servicios Fijos', lugar_fijo: lugarId, lugar_nombre: lugar.nombre,
+      mes_id: mesId, periodo: mes.nombre, posicion: datos.posicion,
+      jornadas: 0, jornadas_semana: 0, jornadas_finde: 0,
+      valor_jornada: (dp ? uni.find(t => t.posicion === dp[0])?.monto : uni.find(t => t.posicion === datos.posicion)?.monto) || 0,
+      valor_jornada_finde: (dp ? uni.find(t => t.posicion === dp[1])?.monto : null) ?? null,
+      total: 0, estado: 'pendiente'
+    };
+    const { data: nl, error } = await sb.from('liquidaciones').insert(row).select().single();
+    if (error) { toast('Persona agregada, pero no se pudo crear su liquidación: ' + error.message, 'err'); }
+    else if (nl) { APP.liquidaciones.push(nl); }
+  }
+  closeModal(); toast('Persona agregada', 'ok'); verDetalleLugarFijo(mesId, lugarId);
+}
+
 // Quita de una todas las personas que quedaron sin jornadas
 window.quitarSinJornadasFija = function() {
   const d = window._fijoDraft; if (!d) return;
@@ -4664,6 +4775,7 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
     </div>
     <div class="modal-f">
       <button class="btn" onclick="closeModal()">Cerrar</button>
+      ${!lugarCerrado ? `<button class="btn" onclick="agregarPersonaDetalleFijo('${mesId}','${lugarId}')"><i class="ti ti-user-plus"></i> Agregar persona</button>` : ''}
       ${liqs.length && !lugarCerrado ? `<button class="btn" onclick="recalcularLiqsFijo('${mesId}','${lugarId}')" title="Recalcular contra el tarifario actual"><i class="ti ti-refresh"></i> Recalcular totales</button>` : ''}
       <button class="btn btn-sm" onclick="closeModal();exportDetalleLugarFijo('${mesId}','${lugarId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
     </div>
