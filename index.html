@@ -555,24 +555,27 @@ function chipClaseArea(area) {
 // Busca las tarifas de 6hs y 8hs de una posición base.
 // La comparación se hace normalizada (sin mayúsculas, espacios, puntos ni corchetes) para que
 // "Boletero [Jornada 8 hs.]", "Boletero [Jornada 8 hs]" o "Boletero [Jornada 8hs.]" coincidan igual.
-function getTarifaSemanaFinde(posBase) {
+function getTarifaSemanaFinde(posBase, area) {
   const norm = s => String(s||'').toLowerCase().normalize('NFD')
     .replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
   const base = norm(posBase);
   if (!base) return { tSemana: undefined, tFinde: undefined };
-  const buscar = n => APP.tarifario.find(t => norm(t.posicion) === `${base}jornada${n}hs`);
+  const universo = area ? APP.tarifario.filter(t => t.area === area || t.area === 'General') : APP.tarifario;
+  const buscar = n => universo.find(t => norm(t.posicion) === `${base}jornada${n}hs`);
   return { tSemana: buscar(6), tFinde: buscar(8) };
 }
-function calcSubtotalFijo(posBaseOTar, jornadasSemana, jornadasFinde) {
+function calcSubtotalFijo(posBaseOTar, jornadasSemana, jornadasFinde, area) {
   // Acepta posicion (string) o un objeto tarifario ya resuelto (compatibilidad)
   const posBase = typeof posBaseOTar === 'string' ? posBaseOTar : posBaseOTar?.posicion;
   if (!posBase) return 0;
-  const { tSemana, tFinde } = getTarifaSemanaFinde(posBase);
+  const { tSemana, tFinde } = getTarifaSemanaFinde(posBase, area);
   if (tSemana || tFinde) {
     return (tSemana?.monto||0)*jornadasSemana + (tFinde?.monto||0)*jornadasFinde;
   }
-  // Fallback: posición única (no Colón / sin variantes semana-finde)
-  const tar = APP.tarifario.find(t => t.posicion === posBase);
+  // Fallback: posición única (no Colón / sin variantes semana-finde). Filtrado por área para no
+  // agarrar un homónimo de otra área (ej: "Orientador" existe en Ecoparque y en Movistar Arena).
+  const universo = area ? APP.tarifario.filter(t => t.area === area || t.area === 'General') : APP.tarifario;
+  const tar = universo.find(t => t.posicion === posBase);
   return (tar?.monto||0) * (jornadasSemana + jornadasFinde);
 }
 function liqsF(evId, fechaId) { return APP.liquidaciones.filter(l => l.evento_id === evId && l.fecha_id === fechaId); }
@@ -4187,7 +4190,7 @@ function renderTablaVerificacionFija() {
       </tr></thead>
       <tbody>${personas.map(p => {
         const posicionEfectiva = p.posicion || (dosPuestos(lugarId)?.[0]) || posicionesBase[0] || '';
-        const subtotal = calcSubtotalFijo(posicionEfectiva, p.jornadas, p.jornadasFinde||0);
+        const subtotal = calcSubtotalFijo(posicionEfectiva, p.jornadas, p.jornadasFinde||0, areaLugarVer);
         const allPosOpts = posicionesBase.map(pb => `<option value="${pb}" ${pb===posicionEfectiva?'selected':''}>${pb}</option>`).join('');
         const vacia = !(p.jornadas||0) && !(p.jornadasFinde||0);
         const dp = dosPuestos(lugarId);
@@ -4214,7 +4217,7 @@ function renderTablaVerificacionFija() {
       <tfoot><tr>
         <td colspan="${usaJornada8(lugarId)?5:4}" style="font-weight:600;padding:10px;border-top:2px solid var(--border)">Total estimado · ${personas.length} ${personas.length===1?'persona':'personas'}</td>
         <td style="text-align:right;font-size:16px;font-weight:700;padding:10px;border-top:2px solid var(--border)" id="pf-total">
-          ${fmt(personas.reduce((s,p) => s + calcSubtotalFijo(p.posicion || posicionesBase[0] || '', p.jornadas, p.jornadasFinde||0), 0))}
+          ${fmt(personas.reduce((s,p) => s + calcSubtotalFijo(p.posicion || posicionesBase[0] || '', p.jornadas, p.jornadasFinde||0, areaLugarVer), 0))}
         </td>
         <td colspan="2" style="border-top:2px solid var(--border)"></td>
       </tr></tfoot>
@@ -4249,7 +4252,7 @@ window.calcFilaFijaVer = function(id, lugarId) {
   // En lugares con dos columnas (Ecoparque) no hay dropdown: la posición viene de la planilla (draft).
   const posicion = document.getElementById('pfpos-'+id)?.value ?? p?.posicion ?? '';
   if (p) { p.jornadas = jornadas; p.jornadasFinde = jornadasFinde; p.posicion = posicion; }
-  const sub = calcSubtotalFijo(posicion, jornadas, jornadasFinde);
+  const sub = calcSubtotalFijo(posicion, jornadas, jornadasFinde, LUGARES_FIJOS.find(l => l.id === lugarId)?.nombre);
   const subEl = document.getElementById('pfsub-'+id); if (subEl) subEl.textContent = fmt(sub);
   // La fila se atenúa solo mientras no tenga jornadas: al cargarle una, vuelve a normal
   const rowEl = document.getElementById('pfrow-'+id);
@@ -4312,10 +4315,10 @@ window.liquidarLugarFijo = async function(mesId, lugarId) {
   for (const p of presentes) {
     const jf = p.jornadasFinde || 0;
     if (!p.jornadas && !jf) continue;
-    const { tSemana, tFinde } = getTarifaSemanaFinde(p.posicion);
-    const tarUnico = APP.tarifario.find(t => t.posicion === p.posicion);
+    const { tSemana, tFinde } = getTarifaSemanaFinde(p.posicion, lugar.nombre);
+    const tarUnico = APP.tarifario.find(t => t.posicion === p.posicion && (t.area === lugar.nombre || t.area === 'General'));
     if (!tSemana && !tFinde && !tarUnico) { sinTarifa.push(`${p.apellido} (${p.posicion})`); continue; }
-    const total = calcSubtotalFijo(p.posicion, p.jornadas||0, jf);
+    const total = calcSubtotalFijo(p.posicion, p.jornadas||0, jf, lugar.nombre);
     rows.push({
       persona_id: p.personaId, persona_nombre: `${p.apellido}, ${p.nombre}`,
       area: 'Servicios Fijos', lugar_fijo: lugarId, lugar_nombre: lugar.nombre,
@@ -4449,7 +4452,7 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
   const faltantes = [];
   if (usaJornada8(lugarId)) {
     [...new Set(pres.map(p => p.posicion).filter(Boolean))].forEach(pos => {
-      const { tSemana, tFinde } = getTarifaSemanaFinde(pos);
+      const { tSemana, tFinde } = getTarifaSemanaFinde(pos, lugar.nombre);
       const usa6 = pres.some(p => p.posicion === pos && (p.jornadas||0));
       const usa8 = pres.some(p => p.posicion === pos && (p.jornadasFinde||0));
       if (usa6 && !tSemana) faltantes.push(`${pos} [Jornada 6 hs.]`);
@@ -4457,7 +4460,7 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
     });
   } else {
     [...new Set(pres.map(p => p.posicion).filter(Boolean))].forEach(pos => {
-      if (!APP.tarifario.find(t => t.posicion === pos)) faltantes.push(pos);
+      if (!APP.tarifario.find(t => t.posicion === pos && (t.area === lugar.nombre || t.area === 'General'))) faltantes.push(pos);
     });
   }
 
@@ -4483,7 +4486,7 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
         const per = APP.personal.find(x => x.id === p.personaId)
           || APP.personal.find(x => x.id === liq?.persona_id);
         const cuil = p.cuil || per?.cuil || '—';
-        const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
+        const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0, lugar.nombre);
         // Dos modos de edición: si ya se liquidó se edita la liquidación; si todavía no,
         // se editan los presentes cargados. En ambos casos solo si el lugar no está cerrado.
         const editaLiq  = !!liq && !lugarCerrado;
@@ -4511,7 +4514,7 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
       }).join('')}
       </tbody><tfoot><tr style="border-top:2px solid var(--border);font-weight:700">
         <td colspan="${usaJornada8(lugarId)?5:4}" style="padding:8px 10px">Total</td>
-        <td style="padding:8px 10px;text-align:right">${fmt(liqs.length ? liqs.reduce((s,l)=>s+(l.total||0),0) : pres.reduce((s,p)=>s+calcSubtotalFijo(p.posicion,p.jornadas||0,p.jornadasFinde||0),0))}</td>
+        <td style="padding:8px 10px;text-align:right">${fmt(liqs.length ? liqs.reduce((s,l)=>s+(l.total||0),0) : pres.reduce((s,p)=>s+calcSubtotalFijo(p.posicion,p.jornadas||0,p.jornadasFinde||0,lugar.nombre),0))}</td>
       </tr></tfoot>
       </table>
     </div>
@@ -4535,7 +4538,7 @@ window.exportDetalleLugarFijo = function(mesId, lugarId) {
     const liq = liqs.find(l => l.persona_id === p.personaId);
     const per = APP.personal.find(x => x.id === p.personaId)
       || APP.personal.find(x => x.id === liq?.persona_id);
-    const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0);
+    const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0, lugar.nombre);
     const cuil = p.cuil || ''; // siempre del localStorage, igual que el ojo
     const row = {
       'CUIL': cuil,
@@ -4625,8 +4628,9 @@ window.editarJornadasFijo = async function(liqId, mesId, lugarId, campo, valor) 
   let finde  = liq.jornadas_finde ?? 0;
   if (campo === 'semana') semana = n; else finde = n;
 
-  const { tSemana, tFinde } = getTarifaSemanaFinde(liq.posicion);
-  const total = calcSubtotalFijo(liq.posicion, semana, finde);
+  const areaFija = LUGARES_FIJOS.find(l => l.id === lugarId)?.nombre;
+  const { tSemana, tFinde } = getTarifaSemanaFinde(liq.posicion, areaFija);
+  const total = calcSubtotalFijo(liq.posicion, semana, finde, areaFija);
 
   const upd = {
     jornadas_semana: semana,
@@ -4655,11 +4659,12 @@ window.editarJornadasFijo = async function(liqId, mesId, lugarId, campo, valor) 
 window.recalcularLiqsFijo = async function(mesId, lugarId) {
   const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId && l.lugar_fijo === lugarId);
   if (!liqs.length) return;
+  const areaFija = LUGARES_FIJOS.find(l => l.id === lugarId)?.nombre;
   const cambios = [];
   liqs.forEach(l => {
     const semana = l.jornadas_semana ?? l.jornadas ?? 0;
     const finde  = l.jornadas_finde ?? 0;
-    const nuevo  = calcSubtotalFijo(l.posicion, semana, finde);
+    const nuevo  = calcSubtotalFijo(l.posicion, semana, finde, areaFija);
     if (nuevo !== (l.total||0)) cambios.push({ liq: l, semana, finde, nuevo });
   });
   if (!cambios.length) { alert('Todos los totales ya coinciden con el tarifario actual.'); return; }
@@ -4667,7 +4672,7 @@ window.recalcularLiqsFijo = async function(mesId, lugarId) {
   if (!confirm(`Se van a recalcular ${cambios.length} liquidación${cambios.length>1?'es':''}:\n\n${detalle}\n\n¿Confirmás?`)) return;
   loading(true);
   for (const c of cambios) {
-    const { tSemana, tFinde } = getTarifaSemanaFinde(c.liq.posicion);
+    const { tSemana, tFinde } = getTarifaSemanaFinde(c.liq.posicion, areaFija);
     const upd = { total: c.nuevo, valor_jornada: tSemana?.monto ?? c.liq.valor_jornada ?? 0, valor_jornada_finde: tFinde?.monto ?? null };
     await sb.from('liquidaciones').update(upd).eq('id', c.liq.id);
     const i = APP.liquidaciones.findIndex(l => l.id === c.liq.id);
