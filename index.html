@@ -560,7 +560,7 @@ function getTarifaSemanaFinde(posBase, area) {
     .replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
   const base = norm(posBase);
   if (!base) return { tSemana: undefined, tFinde: undefined };
-  const universo = area ? APP.tarifario.filter(t => t.area === area || t.area === 'General') : APP.tarifario;
+  const universo = area ? APP.tarifario.filter(t => t.area === areaParaTarifa(area) || t.area === 'General') : APP.tarifario;
   const buscar = n => universo.find(t => norm(t.posicion) === `${base}jornada${n}hs`);
   return { tSemana: buscar(6), tFinde: buscar(8) };
 }
@@ -569,7 +569,7 @@ function calcSubtotalFijo(posBaseOTar, jornadasSemana, jornadasFinde, area) {
   // de la posición 1 y la 2ª con la de la posición 2. Acá jornadasSemana=col1, jornadasFinde=col2.
   const dp = dosPuestosArea(area);
   if (dp) {
-    const universo = APP.tarifario.filter(t => t.area === area || t.area === 'General');
+    const universo = APP.tarifario.filter(t => t.area === areaParaTarifa(area) || t.area === 'General');
     const monto = pos => universo.find(t => t.posicion === pos)?.monto || 0;
     return (jornadasSemana||0) * monto(dp[0]) + (jornadasFinde||0) * monto(dp[1]);
   }
@@ -582,7 +582,7 @@ function calcSubtotalFijo(posBaseOTar, jornadasSemana, jornadasFinde, area) {
   }
   // Fallback: posición única (no Colón / sin variantes semana-finde). Filtrado por área para no
   // agarrar un homónimo de otra área (ej: "Orientador" existe en Ecoparque y en Movistar Arena).
-  const universo = area ? APP.tarifario.filter(t => t.area === area || t.area === 'General') : APP.tarifario;
+  const universo = area ? APP.tarifario.filter(t => t.area === areaParaTarifa(area) || t.area === 'General') : APP.tarifario;
   const tar = universo.find(t => t.posicion === posBase);
   return (tar?.monto||0) * (jornadasSemana + jornadasFinde);
 }
@@ -3516,6 +3516,11 @@ function usaJornada8(lugarId) { return lugarId === 'teatro-colon' || lugarId ===
 function dosPuestos(lugarId) { return lugarId === 'ecoparque' ? ['Orientador', 'Supervisor'] : null; }
 // Igual que dosPuestos pero a partir del nombre de área (para el cálculo de subtotal, que recibe área).
 function dosPuestosArea(area) { const l = LUGARES_FIJOS.find(x => x.nombre === area); return l ? dosPuestos(l.id) : null; }
+// Algunos lugares se cobran con el tarifario de OTRA área (comparten tarifas).
+// Ej: Teatro San Martín usa las tarifas cargadas en Teatro Colón.
+const ALIAS_TARIFARIO = { 'Teatro San Martín': 'Teatro Colón' };
+function areaParaTarifa(area) { return ALIAS_TARIFARIO[area] || area; }
+
 // Etiquetas de las dos columnas de jornadas de un lugar (o null si usa una sola).
 function colLabels(lugarId) {
   const dp = dosPuestos(lugarId);
@@ -4196,9 +4201,9 @@ function renderTablaVerificacionFija() {
   const areaLugarVer = lugar?.nombre;
   const posLugarConocidas = LUGARES_FIJOS.find(l => l.id === lugarId)?.posiciones || [];
   const posTarifario = usaJornada8(lugarId)
-    ? APP.tarifario.filter(t => t.area === areaLugarVer || t.area === 'General')
+    ? APP.tarifario.filter(t => t.area === areaParaTarifa(areaLugarVer) || t.area === 'General')
         .map(t => t.posicion.replace(/\s*\[Jornada [68] hs\.\]\s*$/i, ''))
-    : APP.tarifario.filter(t => t.area === areaLugarVer || t.area === 'General').map(t => t.posicion);
+    : APP.tarifario.filter(t => t.area === areaParaTarifa(areaLugarVer) || t.area === 'General').map(t => t.posicion);
   // El dropdown ofrece las posiciones del tarifario + las conocidas del lugar, así nunca queda
   // vacío aunque todavía no se hayan cargado las tarifas de ese lugar.
   const posicionesBase = [...new Set([...posTarifario, ...posLugarConocidas])];
@@ -4442,7 +4447,7 @@ async function _crearPresenteYLiqFijo(mesId, lugarId, datos) {
   const hayLiqs = APP.liquidaciones.some(l => l.mes_id === mesId && l.lugar_fijo === lugarId);
   if (hayLiqs) {
     const dp = dosPuestos(lugarId);
-    const uni = APP.tarifario.filter(t => t.area === lugar.nombre || t.area === 'General');
+    const uni = APP.tarifario.filter(t => t.area === areaParaTarifa(lugar.nombre) || t.area === 'General');
     const row = {
       persona_id: datos.personaId, persona_nombre: `${datos.apellido}, ${datos.nombre}`,
       area: 'Servicios Fijos', lugar_fijo: lugarId, lugar_nombre: lugar.nombre,
@@ -4543,7 +4548,7 @@ window.liquidarLugarFijo = async function(mesId, lugarId) {
 
   const rows = [], sinTarifa = [];
   const dpLiq = dosPuestos(lugarId);
-  const univLiq = APP.tarifario.filter(t => t.area === lugar.nombre || t.area === 'General');
+  const univLiq = APP.tarifario.filter(t => t.area === areaParaTarifa(lugar.nombre) || t.area === 'General');
   for (const p of presentes) {
     const jf = p.jornadasFinde || 0;
     if (!p.jornadas && !jf) continue;
@@ -4566,7 +4571,7 @@ window.liquidarLugarFijo = async function(mesId, lugarId) {
       continue;
     }
     const { tSemana, tFinde } = getTarifaSemanaFinde(p.posicion, lugar.nombre);
-    const tarUnico = APP.tarifario.find(t => t.posicion === p.posicion && (t.area === lugar.nombre || t.area === 'General'));
+    const tarUnico = APP.tarifario.find(t => t.posicion === p.posicion && (t.area === areaParaTarifa(lugar.nombre) || t.area === 'General'));
     if (!tSemana && !tFinde && !tarUnico) { sinTarifa.push(`${p.apellido} (${p.posicion})`); continue; }
     rows.push({
       persona_id: p.personaId, persona_nombre: `${p.apellido}, ${p.nombre}`,
@@ -4702,7 +4707,7 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
   // Detectar jornadas que no tienen tarifa cargada: sin esto sumarían $0 en silencio
   const faltantes = [];
   if (dpDet) {
-    const uni = APP.tarifario.filter(t => t.area === lugar.nombre || t.area === 'General');
+    const uni = APP.tarifario.filter(t => t.area === areaParaTarifa(lugar.nombre) || t.area === 'General');
     if (pres.some(p => p.jornadas||0)     && !uni.find(t => t.posicion === dpDet[0])) faltantes.push(dpDet[0]);
     if (pres.some(p => p.jornadasFinde||0) && !uni.find(t => t.posicion === dpDet[1])) faltantes.push(dpDet[1]);
   } else if (usaJornada8(lugarId)) {
@@ -4715,7 +4720,7 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
     });
   } else {
     [...new Set(pres.map(p => p.posicion).filter(Boolean))].forEach(pos => {
-      if (!APP.tarifario.find(t => t.posicion === pos && (t.area === lugar.nombre || t.area === 'General'))) faltantes.push(pos);
+      if (!APP.tarifario.find(t => t.posicion === pos && (t.area === areaParaTarifa(lugar.nombre) || t.area === 'General'))) faltantes.push(pos);
     });
   }
 
