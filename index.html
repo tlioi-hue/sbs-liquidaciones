@@ -251,6 +251,8 @@ input:disabled, select:disabled { opacity: .6; cursor: not-allowed; background: 
         <div class="sb-item" onclick="go('fijos')"     id="n-fijos"><i class="ti ti-calendar-repeat"></i> Servicios Fijos</div>
         <div class="sb-sec">Facturación</div>
         <div class="sb-item" onclick="go('facturacion')" id="n-facturacion"><i class="ti ti-file-invoice"></i> Facturación Movistar Arena</div>
+        <div class="sb-sec">Análisis</div>
+        <div class="sb-item" onclick="go('rentabilidad')" id="n-rentabilidad"><i class="ti ti-chart-bar"></i> Facturación vs Liquidación</div>
       </div>
       <div class="sb-bottom">
         <div class="sb-user">
@@ -423,7 +425,7 @@ async function render() {
   const ac = document.getElementById('topbar-ac');
   loading(true);
   try {
-    await ({ db:pgDB, personal:pgPersonal, tarifario:pgTarifario, importar:pgImportar, cbu:pgCBU, externos:pgExternos, arena:pgArena, fijos:pgFijos, facturacion:pgFacturacion })[APP.page]?.(el, ac);
+    await ({ db:pgDB, personal:pgPersonal, tarifario:pgTarifario, importar:pgImportar, cbu:pgCBU, externos:pgExternos, arena:pgArena, fijos:pgFijos, facturacion:pgFacturacion, rentabilidad:pgRentabilidad })[APP.page]?.(el, ac);
   } catch (e) {
     el.innerHTML = `<div class="alert alert-warn"><i class="ti ti-alert-circle"></i> Error cargando: ${e.message}</div>`;
     console.error(e);
@@ -3842,7 +3844,9 @@ async function pgFacturacion(el, ac) {
     const facs = APP.facturaciones || [];
     const nowKey = new Date().toISOString().slice(0, 7);
     const acum = facs.reduce((s, f) => s + (f.total_iva || 0), 0);
+    const acumNeto = facs.reduce((s, f) => s + (f.total || 0), 0);
     const mesTot = facs.filter(f => f.periodo === nowKey).reduce((s, f) => s + (f.total_iva || 0), 0);
+    const mesNeto = facs.filter(f => f.periodo === nowKey).reduce((s, f) => s + (f.total || 0), 0);
     const grupos = {};
     facs.forEach(f => { (grupos[f.periodo || '—'] = grupos[f.periodo || '—'] || []).push(f); });
     const periodos = Object.keys(grupos).sort().reverse();
@@ -3855,8 +3859,8 @@ async function pgFacturacion(el, ac) {
       </div>
       ${facs.length ? `
       <div class="grid3" style="margin-bottom:16px">
-        <div class="metric"><div class="metric-l">Acumulado facturado (c/IVA)</div><div class="metric-v">${fmt(acum)}</div><div class="metric-s">${facs.length} facturación${facs.length !== 1 ? 'es' : ''}</div></div>
-        <div class="metric"><div class="metric-l">Mes actual (c/IVA)</div><div class="metric-v" style="font-size:17px">${fmt(mesTot)}</div><div class="metric-s">${mesLabel(nowKey)}</div></div>
+        <div class="metric"><div class="metric-l">Acumulado facturado</div><div class="metric-v">${fmt(acum)} <span style="font-size:12px;color:var(--text2);font-weight:500">c/IVA</span></div><div class="metric-s">sin IVA ${fmt(acumNeto)} · ${facs.length} facturación${facs.length !== 1 ? 'es' : ''}</div></div>
+        <div class="metric"><div class="metric-l">Mes actual · ${mesLabel(nowKey)}</div><div class="metric-v" style="font-size:17px">${fmt(mesTot)} <span style="font-size:12px;color:var(--text2);font-weight:500">c/IVA</span></div><div class="metric-s">sin IVA ${fmt(mesNeto)}</div></div>
         <div class="metric"><div class="metric-l">Shows facturados</div><div class="metric-v">${facs.length}</div></div>
       </div>
       ${periodos.map(pk => {
@@ -3890,6 +3894,55 @@ function mesLabel(k) {
   const [y, m] = k.split('-');
   const M = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   return `${M[(+m) - 1] || m} ${y}`;
+}
+
+// Facturación vs Liquidación de Arena: ganancia neta por quincena (facturado sin IVA − liquidado).
+async function pgRentabilidad(el, ac) {
+  document.querySelectorAll('.sb-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('n-rentabilidad')?.classList.add('active');
+  ac.innerHTML = '';
+  const facs = APP.facturaciones || [];
+  const filas = (APP.quincenas || []).map(q => {
+    const f = facs.filter(x => x.quincena_id === q.id);
+    const liqs = APP.liquidaciones.filter(l => l.quincena_id === q.id);
+    const facturadoNeto = f.reduce((s, x) => s + (x.total || 0), 0);
+    const facturadoIva = f.reduce((s, x) => s + (x.total_iva || 0), 0);
+    const liquidado = liqs.reduce((s, l) => s + (l.total || 0), 0);
+    return { q, facturadoNeto, facturadoIva, liquidado, ganancia: facturadoNeto - liquidado, nFac: f.length };
+  }).filter(r => r.facturadoNeto || r.liquidado);
+  filas.sort((a, b) => new Date(b.q.fecha_inicio) - new Date(a.q.fecha_inicio));
+  const tot = filas.reduce((a, r) => ({ fn: a.fn + r.facturadoNeto, li: a.li + r.liquidado, ga: a.ga + r.ganancia }), { fn: 0, li: 0, ga: 0 });
+  const pct = (g, f) => f ? Math.round(g / f * 100) : 0;
+  const col = g => g >= 0 ? '#1a7a3e' : '#b45309';
+  el.innerHTML = `
+    <div style="margin-bottom:14px"><h2 style="margin:0">Facturación vs Liquidación</h2>
+      <div style="color:var(--text2);font-size:13px">Ganancia neta de Movistar Arena por quincena: lo facturado al Arena (sin IVA) menos lo liquidado al personal.</div></div>
+    <div class="grid3" style="margin-bottom:16px">
+      <div class="metric"><div class="metric-l">Facturado (sin IVA)</div><div class="metric-v">${fmt(tot.fn)}</div></div>
+      <div class="metric"><div class="metric-l">Liquidado (costo)</div><div class="metric-v">${fmt(tot.li)}</div></div>
+      <div class="metric"><div class="metric-l">Ganancia neta</div><div class="metric-v" style="color:${col(tot.ga)}">${fmt(tot.ga)}</div><div class="metric-s">margen ${pct(tot.ga, tot.fn)}%</div></div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table class="tbl"><thead><tr>
+        <th>Quincena</th><th style="text-align:right">Facturado s/IVA</th><th style="text-align:right">Facturado c/IVA</th>
+        <th style="text-align:right">Liquidado</th><th style="text-align:right">Ganancia neta</th><th style="text-align:center">Margen</th>
+      </tr></thead><tbody>
+      ${filas.length ? filas.map(r => `<tr>
+        <td><strong>${r.q.nombre}</strong>${!r.nFac ? ' <span class="badge bw" style="font-size:10px" title="hay liquidación pero no cargaste facturación">sin fact.</span>' : (!r.liquidado ? ' <span class="badge bw" style="font-size:10px" title="hay facturación pero la quincena no está cerrada/liquidada">sin liq.</span>' : '')}</td>
+        <td style="text-align:right">${fmt(r.facturadoNeto)}</td>
+        <td style="text-align:right;color:var(--text2)">${fmt(r.facturadoIva)}</td>
+        <td style="text-align:right">${fmt(r.liquidado)}</td>
+        <td style="text-align:right;font-weight:600;color:${col(r.ganancia)}">${fmt(r.ganancia)}</td>
+        <td style="text-align:center">${pct(r.ganancia, r.facturadoNeto)}%</td>
+      </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:16px">Todavía no hay datos para comparar. Guardá facturaciones y cerrá quincenas de Arena.</td></tr>'}
+      </tbody>
+      <tfoot><tr style="background:var(--card2);font-weight:700">
+        <td>Total</td><td style="text-align:right">${fmt(tot.fn)}</td><td></td>
+        <td style="text-align:right">${fmt(tot.li)}</td><td style="text-align:right;color:${col(tot.ga)}">${fmt(tot.ga)}</td>
+        <td style="text-align:center">${pct(tot.ga, tot.fn)}%</td>
+      </tr></tfoot></table>
+    </div>
+    <div style="color:var(--text2);font-size:11.5px;margin-top:8px">La comparación es por quincena. Una quincena calcula ganancia cuando tiene facturaciones guardadas (con su quincena elegida) y sus liquidaciones de Arena generadas.</div>`;
 }
 window.subirFacturaArena = function(input) {
   const file = input.files?.[0]; if (!file) return;
