@@ -302,6 +302,7 @@ const APP = {
   mesesFijosCargados: false, // true una vez que fetchAll leyó la tabla meses_fijos
   mapeosExternos: {}, // { seccion_norm: posicion } — alias aprendidos SOLO para Externos
   facturaciones: [], // facturaciones de Arena guardadas
+  dbTab: 'liq', // pestaña activa del dashboard: 'liq' | 'fact'
 };
 
 // Promesa del último guardado de meses a Supabase. fetchAll la espera antes de leer, para que
@@ -638,7 +639,23 @@ async function pgDB(el) {
   const mesesColon = [...new Set(liqFijos.filter(l=>l.lugar_fijo==='teatro-colon').map(l=>l.mes_id))].length;
   const mesesPolo  = [...new Set(liqFijos.filter(l=>l.lugar_fijo==='campo-de-polo').map(l=>l.mes_id))].length;
 
-  el.innerHTML = `
+  // ── Datos de Facturación (para la pestaña de facturación) ──
+  const facs = APP.facturaciones || [];
+  const nowKey = new Date().toISOString().slice(0, 7);
+  const factAcum = facs.reduce((s, f) => s + (f.total_iva || 0), 0);
+  const factAcumNeto = facs.reduce((s, f) => s + (f.total || 0), 0);
+  const factMesIva = facs.filter(f => f.periodo === nowKey).reduce((s, f) => s + (f.total_iva || 0), 0);
+  const factMesNeto = facs.filter(f => f.periodo === nowKey).reduce((s, f) => s + (f.total || 0), 0);
+  let gFn = 0, gLi = 0;
+  (APP.quincenas || []).forEach(q => {
+    const fnv = facs.filter(x => x.quincena_id === q.id).reduce((s, x) => s + (x.total || 0), 0);
+    const liv = APP.liquidaciones.filter(x => x.quincena_id === q.id).reduce((s, x) => s + (x.total || 0), 0);
+    if (fnv || liv) { gFn += fnv; gLi += liv; }
+  });
+  const gGa = gFn - gLi;
+  const tab = APP.dbTab || 'liq';
+
+  const liqHTML = `
   <div class="grid4" style="margin-bottom:14px">
     <div class="metric"><div class="metric-l">Personal</div><div class="metric-v">${APP.personal.length}</div>
       <div class="metric-s">${APP.personal.filter(p=>p.area==='Externos').length} ext · ${APP.personal.filter(p=>p.area==='Movistar Arena').length} arena · ${persFijos.length} fijos</div></div>
@@ -693,7 +710,54 @@ async function pgDB(el) {
       </div>
     </div>
   </div>`;
+
+  const factHTML = `
+  <div class="grid3" style="margin-bottom:14px">
+    <div class="metric"><div class="metric-l">Acumulado facturado</div><div class="metric-v">${fmt(factAcum)} <span style="font-size:12px;color:var(--text2);font-weight:500">c/IVA</span></div><div class="metric-s">sin IVA ${fmt(factAcumNeto)} · ${facs.length} fact.</div></div>
+    <div class="metric"><div class="metric-l">Mes actual · ${mesLabel(nowKey)}</div><div class="metric-v" style="font-size:17px">${fmt(factMesIva)} <span style="font-size:12px;color:var(--text2);font-weight:500">c/IVA</span></div><div class="metric-s">sin IVA ${fmt(factMesNeto)}</div></div>
+    <div class="metric"><div class="metric-l">Shows facturados</div><div class="metric-v">${facs.length}</div></div>
+  </div>
+  <div class="grid3" style="margin-bottom:14px">
+    <div class="metric"><div class="metric-l">Facturado (sin IVA)</div><div class="metric-v" style="font-size:17px">${fmt(gFn)}</div></div>
+    <div class="metric"><div class="metric-l">Liquidado Arena (costo)</div><div class="metric-v" style="font-size:17px">${fmt(gLi)}</div></div>
+    <div class="metric"><div class="metric-l">Ganancia neta</div><div class="metric-v" style="font-size:17px;color:${gGa>=0?'#1a7a3e':'#b45309'}">${fmt(gGa)}</div><div class="metric-s">margen ${gFn?Math.round(gGa/gFn*100):0}%</div></div>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <div style="font-size:13px;font-weight:600;margin-bottom:13px">Últimas facturaciones</div>
+      ${!facs.length
+        ? '<div class="empty-state"><i class="ti ti-file-invoice"></i><p>Sin facturaciones aún</p></div>'
+        : facs.slice(0, 6).map(f => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+            <div><div style="font-size:12.5px;font-weight:500">${f.show}</div><div style="font-size:11px;color:var(--text2)">${f.fecha||''}</div></div>
+            <div style="text-align:right"><div style="font-size:12.5px;font-weight:600">${fmt(f.total_iva)}</div><div style="font-size:11px;color:var(--text2)">sin IVA ${fmt(f.total)}</div></div>
+          </div>`).join('')}
+    </div>
+    <div class="card">
+      <div style="font-size:13px;font-weight:600;margin-bottom:13px">Accesos rápidos</div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        <button class="btn" style="justify-content:flex-start" onclick="go('facturacion')"><i class="ti ti-file-invoice"></i> Facturación Movistar Arena</button>
+        <button class="btn" style="justify-content:flex-start" onclick="go('rentabilidad')"><i class="ti ti-chart-bar"></i> Facturación vs Liquidación</button>
+      </div>
+    </div>
+  </div>`;
+
+  el.innerHTML = `
+    <div style="display:flex;gap:6px;margin-bottom:16px">
+      <button class="btn ${tab==='liq'?'btn-primary':''}" id="dbtab-liq" onclick="dbTab('liq')"><i class="ti ti-receipt"></i> Liquidaciones</button>
+      <button class="btn ${tab==='fact'?'btn-primary':''}" id="dbtab-fact" onclick="dbTab('fact')"><i class="ti ti-file-invoice"></i> Facturación</button>
+    </div>
+    <div id="db-liq" style="display:${tab==='liq'?'block':'none'}">${liqHTML}</div>
+    <div id="db-fact" style="display:${tab==='fact'?'block':'none'}">${factHTML}</div>`;
 }
+window.dbTab = function(t) {
+  APP.dbTab = t;
+  const L = document.getElementById('db-liq'), F = document.getElementById('db-fact');
+  if (L) L.style.display = t === 'liq' ? 'block' : 'none';
+  if (F) F.style.display = t === 'fact' ? 'block' : 'none';
+  document.getElementById('dbtab-liq')?.classList.toggle('btn-primary', t === 'liq');
+  document.getElementById('dbtab-fact')?.classList.toggle('btn-primary', t === 'fact');
+};
 
 // ══════════════════════════════════════════════
 // PERSONAL
