@@ -3913,8 +3913,9 @@ function factPresentesShow(evId) {
   if (!ev) return null;
   return (ev.fechas || []).reduce((s, f) => s + ((f.presentismo || []).length), 0);
 }
-// Fecha (más temprana) de un show de Arena, formateada DD/MM/AAAA.
+// Fecha de un show de Arena: la propia del show (ev.fecha) o, si no, la de sus jornadas.
 function factShowFecha(ev) {
+  if (ev.fecha) return fd(ev.fecha);
   const f = (ev.fechas || []).map(x => x.fecha).filter(Boolean).sort()[0];
   return f ? fd(f) : '';
 }
@@ -4018,7 +4019,7 @@ function factResolverShow(d) {
     const ev = APP.eventos.find(e => e.id === d.verShow);
     if (ev) {
       tShow = ev.nombre || tShow;
-      const f = (ev.fechas || []).map(x => x.fecha).filter(Boolean).sort()[0];
+      const f = ev.fecha || (ev.fechas || []).map(x => x.fecha).filter(Boolean).sort()[0];
       if (f) { fechaISO = f; tFecha = fd(f); }
     }
   }
@@ -4098,17 +4099,8 @@ window.descargarFacturaXLSX = async function() {
       if (money) cell.numFmt = MON;
       return cell;
     };
-    // Nombre y fecha del show: preferir el show elegido en el selector (dato preciso de Arena),
-    // si no, lo que vino en el PDF. Administración necesita distinguir de qué show es.
-    let tShow = d.show || 'Arena', tFecha = d.fecha || '';
-    if (d.verShow) {
-      const ev = APP.eventos.find(e => e.id === d.verShow);
-      if (ev) {
-        tShow = ev.nombre || tShow;
-        const f = (ev.fechas || []).map(x => x.fecha).filter(Boolean).sort()[0];
-        if (f) tFecha = fd(f);
-      }
-    }
+    // Nombre y fecha del show (usa el mismo resolvedor que al guardar).
+    const { tShow, tFecha } = factResolverShow(d);
     // Título (evita duplicar la fecha si el nombre del show ya la incluye)
     ws.mergeCells('A1:E2');
     const t = ws.getCell('A1');
