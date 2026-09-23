@@ -3769,16 +3769,19 @@ function parseFacturaArena(pdfRows) {
   for (const rowItems of pdfRows) {
     const toks = rowItems.map(it => it.text);
     const joined = toks.join(' ');
+    const up = joined.toUpperCase();
     if (toks[0] === 'SHOW') show = joined.replace(/^SHOW\s*/, '').split('CITACIONES')[0].replace(/\s+(Cargas|16hs).*$/i, '').trim();
     if (toks[0] === 'FECHA') { const m = joined.match(/\d{2}\/\d{2}\/\d{4}/); if (m) fecha = m[0]; }
-    if (toks.includes('PREVIA')) {
+    // Ojo: PDF.js suele devolver "SUBTOTAL PP" o "PREVIA + SHOW" como UN solo token,
+    // por eso se detecta por la línea completa (no por token exacto).
+    if (up.includes('PREVIA')) {
       const montos = toks.filter(t => t.includes('$'));
-      const cant = (toks.find(t => /^\d+$/.test(t)) || 0) && factNum(toks.find(t => /^\d+$/.test(t)));
-      if (montos.length) personal = { recurso: 'Cargas', cant: cant || 0, valor: factNum(montos[0]) };
+      const numTok = toks.find(t => /^\d+$/.test(t));
+      if (montos.length) personal = { recurso: 'Stagehands/Cargas', cant: numTok ? factNum(numTok) : 0, valor: factNum(montos[0]) };
       continue;
     }
-    if (toks.includes('SUBTOTAL')) { fase = 'prem'; continue; }
-    if (joined.startsWith('TOTAL')) continue;
+    if (up.includes('SUBTOTAL')) { fase = 'prem'; continue; }
+    if (up.startsWith('TOTAL')) continue;
     // fila de datos: recurso ... cantidad $valor $total
     let idx = -1;
     for (let i = 0; i < toks.length; i++) {
