@@ -646,12 +646,10 @@ async function pgDB(el) {
   const factAcumNeto = facs.reduce((s, f) => s + (f.total || 0), 0);
   const factMesIva = facs.filter(f => f.periodo === nowKey).reduce((s, f) => s + (f.total_iva || 0), 0);
   const factMesNeto = facs.filter(f => f.periodo === nowKey).reduce((s, f) => s + (f.total || 0), 0);
-  let gFn = 0, gLi = 0;
-  (APP.quincenas || []).forEach(q => {
-    const fnv = facs.filter(x => x.quincena_id === q.id).reduce((s, x) => s + (x.total || 0), 0);
-    const liv = APP.liquidaciones.filter(x => x.quincena_id === q.id).reduce((s, x) => s + (x.total || 0), 0);
-    if (fnv || liv) { gFn += fnv; gLi += liv; }
-  });
+  // Ganancia: mismo cálculo por show que "Facturación vs Liquidación" (desde RENT_DESDE, solo shows facturados)
+  const rentFact = rentPorShow().filter(r => r.nFac);
+  const gFn = rentFact.reduce((s, r) => s + r.facturado, 0);
+  const gLi = rentFact.reduce((s, r) => s + r.costo, 0);
   const gGa = gFn - gLi;
   const tab = APP.dbTab || 'liq';
 
@@ -718,7 +716,7 @@ async function pgDB(el) {
     <div class="metric"><div class="metric-l">Shows facturados</div><div class="metric-v">${facs.length}</div></div>
   </div>
   <div class="grid3" style="margin-bottom:14px">
-    <div class="metric"><div class="metric-l">Facturado (sin IVA)</div><div class="metric-v" style="font-size:17px">${fmt(gFn)}</div></div>
+    <div class="metric"><div class="metric-l">Facturado (sin IVA)</div><div class="metric-v" style="font-size:17px">${fmt(gFn)}</div><div class="metric-s">shows desde ${fd(RENT_DESDE)}</div></div>
     <div class="metric"><div class="metric-l">Liquidado Arena (costo)</div><div class="metric-v" style="font-size:17px">${fmt(gLi)}</div></div>
     <div class="metric"><div class="metric-l">Ganancia neta</div><div class="metric-v" style="font-size:17px;color:${gGa>=0?'#1a7a3e':'#b45309'}">${fmt(gGa)}</div><div class="metric-s">margen ${gFn?Math.round(gGa/gFn*100):0}%</div></div>
   </div>
@@ -3896,7 +3894,7 @@ function factTotales(d) {
   });
   const cantTotal = cantReg + cantPrem + cantPers;
   const total = totReg + totPrem + totPers;
-  return { cantReg, totReg, cantPrem, totPrem, cantPers, totPers, cantTotal, total, iva: Math.round(total * FACT_IVA) };
+  return { cantReg, totReg, cantPrem, totPrem, cantPers, totPers, cantTotal, total, iva: Math.round(total * FACT_IVA * 100) / 100 };
 }
 
 async function pgFacturacion(el, ac) {
@@ -3960,53 +3958,92 @@ function mesLabel(k) {
   return `${M[(+m) - 1] || m} ${y}`;
 }
 
-// Facturación vs Liquidación de Arena: ganancia neta por quincena (facturado sin IVA − liquidado).
+// El análisis de rentabilidad arranca en este show: antes no hay números de facturación.
+const RENT_DESDE = '2026-09-22';
+
+// Fecha ISO de un show de Arena (la propia del show o la primera de sus jornadas).
+function showFechaISO(ev) {
+  return ev.fecha || (ev.fechas || []).map(x => x.fecha).filter(Boolean).sort()[0] || '';
+}
+
+// Facturado vs costo POR SHOW, desde RENT_DESDE.
+// Costo: si la quincena está cerrada, lo liquidado (valores congelados, líneas del detalle de ese show);
+// si está abierta, estimado con presentismo × tarifario actual de Arena.
+function rentPorShow() {
+  const facs = APP.facturaciones || [];
+  return (APP.eventos || [])
+    .filter(ev => ev.area === 'Movistar Arena' && showFechaISO(ev) >= RENT_DESDE)
+    .map(ev => {
+      const fISO = showFechaISO(ev);
+      const f = facs.filter(x => x.evento_id === ev.id);
+      const facturado = f.reduce((s, x) => s + (x.total || 0), 0);
+      const facturadoIva = f.reduce((s, x) => s + (x.total_iva || 0), 0);
+      const q = APP.quincenas.find(x => x.id === ev.quincena_id);
+      const fechasShow = new Set((ev.fechas || []).map(x => x.fecha).concat(ev.fecha ? [ev.fecha] : []));
+      let costo = 0, estimado = false;
+      if (q?.cerrada) {
+        APP.liquidaciones.filter(l => l.quincena_id === q.id).forEach(l => {
+          let det = l.detalle;
+          if (typeof det === 'string') { try { det = JSON.parse(det); } catch { det = []; } }
+          (det || []).forEach(j => {
+            if (j.ev_nombre === ev.nombre && (!j.fecha || fechasShow.has(j.fecha))) costo += j.monto || 0;
+          });
+        });
+      } else {
+        estimado = true;
+        (ev.fechas || []).forEach(fe => (fe.presentismo || []).forEach(p => {
+          costo += getTarifa(p.posicion, 'Movistar Arena')?.monto || 0;
+        }));
+      }
+      return { ev, fISO, facturado, facturadoIva, costo, estimado, ganancia: facturado - costo, nFac: f.length };
+    })
+    .sort((a, b) => b.fISO.localeCompare(a.fISO));
+}
+
+// Facturación vs Liquidación de Arena: ganancia neta por show (facturado sin IVA − costo).
 async function pgRentabilidad(el, ac) {
   document.querySelectorAll('.sb-item').forEach(n => n.classList.remove('active'));
   document.getElementById('n-rentabilidad')?.classList.add('active');
   ac.innerHTML = '';
-  const facs = APP.facturaciones || [];
-  const filas = (APP.quincenas || []).map(q => {
-    const f = facs.filter(x => x.quincena_id === q.id);
-    const liqs = APP.liquidaciones.filter(l => l.quincena_id === q.id);
-    const facturadoNeto = f.reduce((s, x) => s + (x.total || 0), 0);
-    const facturadoIva = f.reduce((s, x) => s + (x.total_iva || 0), 0);
-    const liquidado = liqs.reduce((s, l) => s + (l.total || 0), 0);
-    return { q, facturadoNeto, facturadoIva, liquidado, ganancia: facturadoNeto - liquidado, nFac: f.length };
-  }).filter(r => r.facturadoNeto || r.liquidado);
-  filas.sort((a, b) => new Date(b.q.fecha_inicio) - new Date(a.q.fecha_inicio));
-  const tot = filas.reduce((a, r) => ({ fn: a.fn + r.facturadoNeto, li: a.li + r.liquidado, ga: a.ga + r.ganancia }), { fn: 0, li: 0, ga: 0 });
+  const filas = rentPorShow();
+  const facturados = filas.filter(r => r.nFac);
+  const pendientes = filas.filter(r => !r.nFac);
+  const tot = facturados.reduce((a, r) => ({ fn: a.fn + r.facturado, fi: a.fi + r.facturadoIva, co: a.co + r.costo, ga: a.ga + r.ganancia }), { fn: 0, fi: 0, co: 0, ga: 0 });
+  const costoPend = pendientes.reduce((s, r) => s + r.costo, 0);
   const pct = (g, f) => f ? Math.round(g / f * 100) : 0;
   const col = g => g >= 0 ? '#1a7a3e' : '#b45309';
   el.innerHTML = `
     <div style="margin-bottom:14px"><h2 style="margin:0">Facturación vs Liquidación</h2>
-      <div style="color:var(--text2);font-size:13px">Ganancia neta de Movistar Arena por quincena: lo facturado al Arena (sin IVA) menos lo liquidado al personal.</div></div>
+      <div style="color:var(--text2);font-size:13px">Ganancia neta de Movistar Arena por show, desde el ${fd(RENT_DESDE)}: lo facturado al Arena (sin IVA) menos lo liquidado al personal.</div></div>
     <div class="grid3" style="margin-bottom:16px">
-      <div class="metric"><div class="metric-l">Facturado (sin IVA)</div><div class="metric-v">${fmt(tot.fn)}</div></div>
-      <div class="metric"><div class="metric-l">Liquidado (costo)</div><div class="metric-v">${fmt(tot.li)}</div></div>
+      <div class="metric"><div class="metric-l">Facturado (sin IVA)</div><div class="metric-v">${fmt(tot.fn)}</div><div class="metric-s">c/IVA ${fmt(tot.fi)}</div></div>
+      <div class="metric"><div class="metric-l">Liquidado (costo)</div><div class="metric-v">${fmt(tot.co)}</div></div>
       <div class="metric"><div class="metric-l">Ganancia neta</div><div class="metric-v" style="color:${col(tot.ga)}">${fmt(tot.ga)}</div><div class="metric-s">margen ${pct(tot.ga, tot.fn)}%</div></div>
     </div>
     <div class="card" style="padding:0;overflow:hidden">
       <table class="tbl"><thead><tr>
-        <th>Quincena</th><th style="text-align:right">Facturado s/IVA</th><th style="text-align:right">Facturado c/IVA</th>
+        <th>Show</th><th style="text-align:right">Facturado s/IVA</th><th style="text-align:right">Facturado c/IVA</th>
         <th style="text-align:right">Liquidado</th><th style="text-align:right">Ganancia neta</th><th style="text-align:center">Margen</th>
       </tr></thead><tbody>
       ${filas.length ? filas.map(r => `<tr>
-        <td><strong>${r.q.nombre}</strong>${!r.nFac ? ' <span class="badge bw" style="font-size:10px" title="hay liquidación pero no cargaste facturación">sin fact.</span>' : (!r.liquidado ? ' <span class="badge bw" style="font-size:10px" title="hay facturación pero la quincena no está cerrada/liquidada">sin liq.</span>' : '')}</td>
-        <td style="text-align:right">${fmt(r.facturadoNeto)}</td>
+        <td><strong>${r.ev.nombre}</strong> <span style="color:var(--text2);font-size:12px">· ${fd(r.fISO)}</span>
+          ${!r.nFac ? ' <span class="badge bw" style="font-size:10px" title="todavía no guardaste la facturación de este show">sin fact.</span>' : ''}
+          ${r.estimado ? ' <span class="badge bi" style="font-size:10px" title="quincena abierta: costo estimado con el tarifario actual">estimado</span>' : ''}</td>
+        <td style="text-align:right">${fmt(r.facturado)}</td>
         <td style="text-align:right;color:var(--text2)">${fmt(r.facturadoIva)}</td>
-        <td style="text-align:right">${fmt(r.liquidado)}</td>
-        <td style="text-align:right;font-weight:600;color:${col(r.ganancia)}">${fmt(r.ganancia)}</td>
-        <td style="text-align:center">${pct(r.ganancia, r.facturadoNeto)}%</td>
-      </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:16px">Todavía no hay datos para comparar. Guardá facturaciones y cerrá quincenas de Arena.</td></tr>'}
+        <td style="text-align:right">${fmt(r.costo)}</td>
+        <td style="text-align:right;font-weight:600;color:${col(r.ganancia)}">${r.nFac ? fmt(r.ganancia) : '—'}</td>
+        <td style="text-align:center">${r.nFac ? pct(r.ganancia, r.facturado) + '%' : '—'}</td>
+      </tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:16px">No hay shows de Arena desde el ${fd(RENT_DESDE)}.</td></tr>`}
       </tbody>
       <tfoot><tr style="background:var(--card2);font-weight:700">
-        <td>Total</td><td style="text-align:right">${fmt(tot.fn)}</td><td></td>
-        <td style="text-align:right">${fmt(tot.li)}</td><td style="text-align:right;color:${col(tot.ga)}">${fmt(tot.ga)}</td>
+        <td>Total</td><td style="text-align:right">${fmt(tot.fn)}</td><td style="text-align:right;color:var(--text2)">${fmt(tot.fi)}</td>
+        <td style="text-align:right">${fmt(tot.co)}</td><td style="text-align:right;color:${col(tot.ga)}">${fmt(tot.ga)}</td>
         <td style="text-align:center">${pct(tot.ga, tot.fn)}%</td>
       </tr></tfoot></table>
     </div>
-    <div style="color:var(--text2);font-size:11.5px;margin-top:8px">La comparación es por quincena. Una quincena calcula ganancia cuando tiene facturaciones guardadas (con su quincena elegida) y sus liquidaciones de Arena generadas.</div>`;
+    ${pendientes.length ? `<div class="alert alert-warn" style="margin-top:10px"><i class="ti ti-alert-triangle"></i> ${pendientes.length} show${pendientes.length>1?'s':''} sin facturación guardada (costo ${fmt(costoPend)}), no incluido${pendientes.length>1?'s':''} en los totales hasta que lo${pendientes.length>1?'s':''} factures.</div>` : ''}
+    <div style="color:var(--text2);font-size:11.5px;margin-top:8px">Los totales incluyen solo shows facturados. "Estimado": la quincena del show sigue abierta, el costo sale de presentismo × tarifario actual; al cerrarla pasa a usar lo liquidado.</div>`;
 }
 window.subirFacturaArena = function(input) {
   const file = input.files?.[0]; if (!file) return;
@@ -4201,81 +4238,84 @@ window.descargarFacturaXLSX = async function() {
     const T = factTotales(d);
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet('Facturación');
-    ws.columns = [{ width: 16 }, { width: 22 }, { width: 11 }, { width: 18 }, { width: 16 }, { width: 16 }];
-    const F = 'Arial', GREEN = 'FFA9D08E', GREENH = 'FFC6EFCE';
+    // Estética calcada de la planilla de facturación de SBS (Google Sheets verde)
+    ws.columns = [{ width: 18 }, { width: 32 }, { width: 18 }, { width: 22 }, { width: 23 }, { width: 20 }];
+    ws.pageSetup = { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
+    const F = 'Arial', FS = 9;
+    const VERDE_TIT = 'FFA8E4BC';   // título
+    const VERDE_SUB = 'FF7DD197';   // subtotales y total
     const fillOf = argb => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
-    const bd = { style: 'thin', color: { argb: 'FFBFBFBF' } };
+    const bd = { style: 'thin', color: { argb: 'FF000000' } };
     const B = { top: bd, left: bd, bottom: bd, right: bd };
-    const MON = '"$"#,##0';
-    const put = (r, c, v, { bold = false, fill = null, left = false, money = false } = {}) => {
+    const MON = '"$"#,##0', MON2 = '"$"#,##0.00';
+    const put = (r, c, v, { bold = false, fill = null, fmt: nf = null } = {}) => {
       const cell = ws.getCell(r, c);
       cell.value = v; cell.border = B;
-      cell.font = { name: F, size: 10, bold };
-      cell.alignment = { horizontal: left ? 'left' : 'center', vertical: 'middle' };
+      cell.font = { name: F, size: FS, bold };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
       if (fill) cell.fill = fillOf(fill);
-      if (money) cell.numFmt = MON;
+      if (nf) cell.numFmt = nf;
       return cell;
     };
-    // Nombre y fecha del show (usa el mismo resolvedor que al guardar).
+    // Título: "PEDIDO STAFF" / "DD/MM/AAAA - SHOW" (fecha una sola vez)
     const { tShow, tFecha } = factResolverShow(d);
-    // Título (evita duplicar la fecha si el nombre del show ya la incluye)
+    let showUp = (tShow || '').toUpperCase();
+    if (tFecha) showUp = showUp.replace(tFecha, '').replace(/\s*[·-]\s*$/, '').trim();
+    const linea2 = [tFecha, showUp].filter(Boolean).join(' - ');
     ws.mergeCells('A1:E2');
     const t = ws.getCell('A1');
-    let titulo = tShow;
-    if (tFecha && !titulo.includes(tFecha)) titulo += ' · ' + tFecha;
-    t.value = `PEDIDO STAFF\n${titulo}`;
-    t.font = { name: F, size: 11, bold: true };
+    t.value = `PEDIDO STAFF\n${linea2}`;
+    t.font = { name: F, size: FS, bold: true };
     t.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    t.fill = fillOf(GREENH);
+    t.fill = fillOf(VERDE_TIT);
     for (let c = 1; c <= 5; c++) { ws.getCell(1, c).border = B; ws.getCell(2, c).border = B; }
-    // Encabezado
+    // Encabezado: blanco, solo "Valor por 6 horas" y "TOTAL"
     let r = 3;
-    put(r, 1, '', { fill: GREENH }); put(r, 2, '', { fill: GREENH });
-    put(r, 3, 'Cantidad', { bold: true, fill: GREENH });
-    put(r, 4, 'Valor por 6 horas', { bold: true, fill: GREENH });
-    put(r, 5, 'TOTAL', { bold: true, fill: GREENH });
-    put(r, 6, 'TOTAL c/IVA', { bold: true, fill: GREENH });
+    put(r, 1, ''); put(r, 2, ''); put(r, 3, '');
+    put(r, 4, 'Valor por 6 horas', { bold: true });
+    put(r, 5, 'TOTAL', { bold: true });
     r++;
-    const escribirBloque = (items, zonaLabel) => {
+    const fila = (label, it, labelBold = true) => {
+      if (label !== null) put(r, 1, label, { bold: labelBold });
+      put(r, 2, it.recurso);
+      put(r, 3, it.cant || 0);
+      put(r, 4, it.valor || 0, { bold: true, fmt: MON });
+      put(r, 5, (it.cant || 0) * (it.valor || 0), { bold: true, fmt: MON });
+      r++;
+    };
+    const escribirZona = (items, zonaLabel) => {
       const r0 = r;
-      items.forEach(it => {
-        put(r, 2, it.recurso, { left: true });
-        put(r, 3, it.cant || 0);
-        put(r, 4, it.valor || 0, { money: true });
-        put(r, 5, (it.cant || 0) * (it.valor || 0), { money: true });
-        r++;
-      });
+      items.forEach(it => fila(zonaLabel ? null : '', it));
       if (zonaLabel && r > r0) {
         if (r - 1 > r0) ws.mergeCells(r0, 1, r - 1, 1);
         const cz = ws.getCell(r0, 1);
-        cz.value = zonaLabel; cz.font = { name: F, size: 10, bold: true };
+        cz.value = zonaLabel; cz.font = { name: F, size: FS, bold: true };
         cz.alignment = { horizontal: 'center', vertical: 'middle' };
         for (let rr = r0; rr < r; rr++) ws.getCell(rr, 1).border = B;
       }
     };
+    const subtotal = (cant, tot) => {
+      put(r, 1, 'Subtotal', { bold: true, fill: VERDE_SUB }); put(r, 2, '', { fill: VERDE_SUB });
+      put(r, 3, cant, { bold: true, fill: VERDE_SUB }); put(r, 4, '', { fill: VERDE_SUB });
+      put(r, 5, tot, { bold: true, fill: VERDE_SUB, fmt: MON2 }); r++;
+    };
     // Zonas regulares + Subtotal
-    d.secciones.filter(s => !['PREMIUM', 'Personal'].includes(s.zona)).forEach(s => escribirBloque(s.items, s.zona));
-    put(r, 1, 'Subtotal', { bold: true, fill: GREEN }); put(r, 2, '', { fill: GREEN });
-    put(r, 3, T.cantReg, { bold: true, fill: GREEN }); put(r, 4, '', { fill: GREEN });
-    put(r, 5, T.totReg, { bold: true, fill: GREEN, money: true }); r++;
-    // Premium + Subtotal
+    d.secciones.filter(s => !['PREMIUM', 'Personal'].includes(s.zona)).forEach(s => escribirZona(s.items, s.zona));
+    subtotal(T.cantReg, T.totReg);
+    // Premium (columna A vacía) + Subtotal
     const prem = d.secciones.find(s => s.zona === 'PREMIUM');
-    if (prem) escribirBloque(prem.items, null);
-    put(r, 1, 'Subtotal', { bold: true, fill: GREEN }); put(r, 2, '', { fill: GREEN });
-    put(r, 3, T.cantPrem, { bold: true, fill: GREEN }); put(r, 4, '', { fill: GREEN });
-    put(r, 5, T.totPrem, { bold: true, fill: GREEN, money: true }); r++;
+    if (prem) escribirZona(prem.items, null);
+    subtotal(T.cantPrem, T.totPrem);
     // Personal
     const pers = d.secciones.find(s => s.zona === 'Personal');
-    if (pers) pers.items.forEach(it => {
-      put(r, 1, 'Personal', { bold: true }); put(r, 2, it.recurso, { left: true });
-      put(r, 3, it.cant || 0); put(r, 4, it.valor || 0, { money: true });
-      put(r, 5, (it.cant || 0) * (it.valor || 0), { money: true }); r++;
-    });
-    // TOTAL DÍA SHOW + IVA
-    put(r, 1, 'TOTAL DIA SHOW', { bold: true, fill: GREEN }); put(r, 2, '', { fill: GREEN });
-    put(r, 3, T.cantTotal, { bold: true, fill: GREEN }); put(r, 4, '', { fill: GREEN });
-    put(r, 5, T.total, { bold: true, fill: GREEN, money: true });
-    put(r, 6, T.iva, { bold: true, fill: GREEN, money: true });
+    if (pers) pers.items.forEach(it => fila('Personal', it));
+    // TOTAL DÍA SHOW (A:B combinadas) + total c/IVA en F
+    ws.mergeCells(r, 1, r, 2);
+    put(r, 1, 'TOTAL DIA SHOW', { bold: true, fill: VERDE_SUB });
+    ws.getCell(r, 2).border = B;
+    put(r, 3, T.cantTotal, { bold: true, fill: VERDE_SUB }); put(r, 4, '', { fill: VERDE_SUB });
+    put(r, 5, T.total, { bold: true, fill: VERDE_SUB, fmt: MON2 });
+    put(r, 6, Math.round(T.total * FACT_IVA * 100) / 100, { bold: true, fill: VERDE_SUB, fmt: MON2 });
 
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
