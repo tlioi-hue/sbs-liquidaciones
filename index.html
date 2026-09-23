@@ -13,6 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.x/dist/tabler-icons.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
@@ -247,6 +248,7 @@ input:disabled, select:disabled { opacity: .6; cursor: not-allowed; background: 
         <div class="sb-sec">Liquidaciones</div>
         <div class="sb-item" onclick="go('externos')"  id="n-externos"><i class="ti ti-world"></i> Externos</div>
         <div class="sb-item" onclick="go('arena')"     id="n-arena"><i class="ti ti-building"></i> Movistar Arena</div>
+        <div class="sb-item" onclick="go('facturacion')" id="n-facturacion"><i class="ti ti-file-invoice"></i> Facturación Arena</div>
         <div class="sb-item" onclick="go('fijos')"     id="n-fijos"><i class="ti ti-calendar-repeat"></i> Servicios Fijos</div>
       </div>
       <div class="sb-bottom">
@@ -419,7 +421,7 @@ async function render() {
   const ac = document.getElementById('topbar-ac');
   loading(true);
   try {
-    await ({ db:pgDB, personal:pgPersonal, tarifario:pgTarifario, importar:pgImportar, cbu:pgCBU, externos:pgExternos, arena:pgArena, fijos:pgFijos })[APP.page]?.(el, ac);
+    await ({ db:pgDB, personal:pgPersonal, tarifario:pgTarifario, importar:pgImportar, cbu:pgCBU, externos:pgExternos, arena:pgArena, fijos:pgFijos, facturacion:pgFacturacion })[APP.page]?.(el, ac);
   } catch (e) {
     el.innerHTML = `<div class="alert alert-warn"><i class="ti ti-alert-circle"></i> Error cargando: ${e.message}</div>`;
     console.error(e);
@@ -3752,6 +3754,269 @@ window.handlePlanillaFija = function(file, mesId, lugarId) {
 
 // ── EXTRACCIÓN DE TEXTO DE PDF (Teatro Colón) ──
 // Usa pdf.js para extraer palabras con posición X/Y y reconstruye filas agrupando por Y.
+// ══════════════════════════════════════════════
+// FACTURACIÓN ARENA — procesa el pedido del Arena y arma la planilla de facturación
+// ══════════════════════════════════════════════
+const FACT_ZONAS_ORDEN = ['Anillo PB', 'Bowl', 'Platea Baja', 'Platea Alta', 'Molinetes', 'Calle'];
+const FACT_ETIQUETAS_ROT = new Set(['OLLINA', 'OPMAC', 'AJAB.P', 'ATLA.P', 'LOM', 'ELLAC', 'MUIMERP']);
+const FACT_IVA = 1.21;
+const factNum = s => parseInt(String(s).replace(/[^\d]/g, '')) || 0;
+
+// Parsea las filas del PDF de STAFFING del Arena -> { show, fecha, secciones:[{zona, items:[{recurso,cant,valor}]}] }
+function parseFacturaArena(pdfRows) {
+  let show = '', fecha = '', fase = 'reg';
+  const reg = [], prem = []; let personal = null;
+  for (const rowItems of pdfRows) {
+    const toks = rowItems.map(it => it.text);
+    const joined = toks.join(' ');
+    if (toks[0] === 'SHOW') show = joined.replace(/^SHOW\s*/, '').split('CITACIONES')[0].replace(/\s+(Cargas|16hs).*$/i, '').trim();
+    if (toks[0] === 'FECHA') { const m = joined.match(/\d{2}\/\d{2}\/\d{4}/); if (m) fecha = m[0]; }
+    if (toks.includes('PREVIA')) {
+      const montos = toks.filter(t => t.includes('$'));
+      const cant = (toks.find(t => /^\d+$/.test(t)) || 0) && factNum(toks.find(t => /^\d+$/.test(t)));
+      if (montos.length) personal = { recurso: 'Cargas', cant: cant || 0, valor: factNum(montos[0]) };
+      continue;
+    }
+    if (toks.includes('SUBTOTAL')) { fase = 'prem'; continue; }
+    if (joined.startsWith('TOTAL')) continue;
+    // fila de datos: recurso ... cantidad $valor $total
+    let idx = -1;
+    for (let i = 0; i < toks.length; i++) {
+      if (/^\d+$/.test(toks[i]) && i + 1 < toks.length && toks[i + 1].includes('$')) { idx = i; break; }
+    }
+    if (idx < 0) continue;
+    let pal = toks.slice(0, idx);
+    while (pal.length && FACT_ETIQUETAS_ROT.has(pal[0])) pal = pal.slice(1);
+    const recurso = pal.join(' ').trim().replace('/ ', '/');
+    if (!recurso) continue;
+    (fase === 'reg' ? reg : prem).push({ recurso, cant: factNum(toks[idx]), valor: factNum(toks[idx + 1]) });
+  }
+  // Cortar zonas regulares por su fila "Supervisor" (cada zona termina en una) y nombrarlas en orden
+  const secciones = []; let bloque = [], zi = 0;
+  for (const row of reg) {
+    bloque.push(row);
+    if (row.recurso.toLowerCase().startsWith('supervisor')) {
+      secciones.push({ zona: FACT_ZONAS_ORDEN[zi] || ('Zona ' + (zi + 1)), items: bloque }); bloque = []; zi++;
+    }
+  }
+  if (bloque.length) secciones.push({ zona: FACT_ZONAS_ORDEN[zi] || 'Otros', items: bloque });
+  if (prem.length) secciones.push({ zona: 'PREMIUM', items: prem });
+  if (personal) secciones.push({ zona: 'Personal', items: [personal] });
+  return { show, fecha, secciones };
+}
+
+function factTotales(d) {
+  let cantReg = 0, totReg = 0, cantPrem = 0, totPrem = 0, cantPers = 0, totPers = 0;
+  d.secciones.forEach(s => {
+    s.items.forEach(it => {
+      const t = (it.cant || 0) * (it.valor || 0);
+      if (s.zona === 'PREMIUM') { cantPrem += it.cant || 0; totPrem += t; }
+      else if (s.zona === 'Personal') { cantPers += it.cant || 0; totPers += t; }
+      else { cantReg += it.cant || 0; totReg += t; }
+    });
+  });
+  const cantTotal = cantReg + cantPrem + cantPers;
+  const total = totReg + totPrem + totPers;
+  return { cantReg, totReg, cantPrem, totPrem, cantPers, totPers, cantTotal, total, iva: Math.round(total * FACT_IVA) };
+}
+
+async function pgFacturacion(el, ac) {
+  document.querySelectorAll('.sb-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('n-facturacion')?.classList.add('active');
+  ac.innerHTML = '';
+  const d = window._facturaDraft;
+  if (!d) {
+    el.innerHTML = `
+      <div style="margin-bottom:14px"><h2 style="margin:0">Facturación · Movistar Arena</h2>
+        <div style="color:var(--text2);font-size:13px;margin-top:3px">Subí el PDF del pedido que te manda el Arena y armo tu planilla de facturación lista para descargar.</div></div>
+      <div style="border:2px dashed var(--border);border-radius:12px;padding:40px;text-align:center;background:var(--card)">
+        <i class="ti ti-file-invoice" style="font-size:38px;color:var(--text2)"></i>
+        <div style="margin:12px 0;color:var(--text2)">Seleccioná el PDF del pedido del Arena (STAFFING)</div>
+        <input type="file" id="fact-file" accept="application/pdf" style="display:none" onchange="subirFacturaArena(this)">
+        <button class="btn btn-primary" onclick="document.getElementById('fact-file').click()"><i class="ti ti-upload"></i> Elegir PDF</button>
+      </div>`;
+    return;
+  }
+  el.innerHTML = renderFacturaPreviewHTML(d);
+}
+
+window.subirFacturaArena = function(input) {
+  const file = input.files?.[0]; if (!file) return;
+  loading(true);
+  const r = new FileReader();
+  r.onload = async () => {
+    try {
+      const filas = await extraerFilasPDF(r.result);
+      const d = parseFacturaArena(filas);
+      if (!d.secciones.length) { loading(false); alert('No pude leer el pedido. ¿Es el PDF de STAFFING del Arena?'); return; }
+      d.archivo = file.name;
+      window._facturaDraft = d;
+      loading(false); render();
+    } catch (e) { loading(false); alert('Error leyendo el PDF: ' + e.message); }
+  };
+  r.readAsArrayBuffer(file);
+};
+
+function renderFacturaPreviewHTML(d) {
+  const T = factTotales(d);
+  const filasHTML = [];
+  d.secciones.forEach((s, zi) => {
+    const esBloque = !['PREMIUM', 'Personal'].includes(s.zona);
+    s.items.forEach((it, ii) => {
+      const total = (it.cant || 0) * (it.valor || 0);
+      filasHTML.push(`<tr>
+        <td style="color:var(--text2);font-size:11px">${ii === 0 && s.zona !== 'PREMIUM' ? s.zona : ''}</td>
+        <td>${it.recurso}</td>
+        <td style="text-align:center"><input type="number" min="0" value="${it.cant || 0}" style="width:56px;text-align:center" onchange="editFactura(${zi},${ii},'cant',this.value)"></td>
+        <td style="text-align:right"><input type="number" min="0" value="${it.valor || 0}" style="width:100px;text-align:right" onchange="editFactura(${zi},${ii},'valor',this.value)"></td>
+        <td style="text-align:right;font-weight:500">${fmt(total)}</td>
+      </tr>`);
+    });
+    if (s.zona === 'PREMIUM') filasHTML.push(subFacturaRow('Subtotal', T.cantPrem, T.totPrem));
+    else if (s.zona === 'Personal') { /* total abajo */ }
+    // subtotal regular: después de la última zona regular
+    if (esBloque && (d.secciones[zi + 1] && ['PREMIUM', 'Personal'].includes(d.secciones[zi + 1].zona) || !d.secciones[zi + 1])) {
+      filasHTML.push(subFacturaRow('Subtotal', T.cantReg, T.totReg));
+    }
+  });
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+      <div><h2 style="margin:0">Facturación · ${d.show || 'Arena'}</h2>
+        <div style="color:var(--text2);font-size:13px">${d.fecha || ''} · ${d.archivo || ''}</div></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="window._facturaDraft=null;render()"><i class="ti ti-x"></i> Descartar</button>
+        <button class="btn btn-success" onclick="descargarFacturaXLSX()"><i class="ti ti-file-spreadsheet"></i> Descargar Excel</button>
+      </div>
+    </div>
+    <div class="alert" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--card);border:1px solid var(--border)">
+      <div><span style="color:var(--text2);font-size:12px">Total staff pedido</span><div style="font-size:20px;font-weight:700">${T.cantTotal}</div></div>
+      <div style="width:1px;height:34px;background:var(--border)"></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="color:var(--text2);font-size:12px">Presentes del día</span>
+        <input type="number" id="fact-presentes" min="0" placeholder="—" style="width:70px;text-align:center" oninput="chequearFactPresentes(${T.cantTotal})">
+        <span id="fact-presentes-chk" style="font-size:12px;color:var(--text2)">cargá el nº para verificar</span>
+      </div>
+      <div style="flex:1"></div>
+      <div style="text-align:right"><span style="color:var(--text2);font-size:12px">TOTAL / con IVA</span>
+        <div style="font-size:18px;font-weight:700">${fmt(T.total)} <span style="color:var(--text2);font-weight:500;font-size:13px">/ ${fmt(T.iva)}</span></div></div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table class="tbl"><thead><tr>
+        <th style="width:110px">Zona</th><th>Recurso</th><th style="text-align:center">Cantidad</th>
+        <th style="text-align:right">Valor por 6 horas</th><th style="text-align:right">TOTAL</th>
+      </tr></thead><tbody>
+        ${filasHTML.join('')}
+        <tr style="background:var(--card2);font-weight:700"><td>TOTAL DÍA SHOW</td><td></td><td style="text-align:center">${T.cantTotal}</td><td></td><td style="text-align:right">${fmt(T.total)}</td></tr>
+      </tbody></table>
+    </div>`;
+}
+function subFacturaRow(label, cant, total) {
+  return `<tr style="background:#e8f5e8;font-weight:600"><td>${label}</td><td></td><td style="text-align:center">${cant}</td><td></td><td style="text-align:right">${fmt(total)}</td></tr>`;
+}
+window.chequearFactPresentes = function(pedido) {
+  const v = parseInt(document.getElementById('fact-presentes')?.value);
+  const chk = document.getElementById('fact-presentes-chk'); if (!chk) return;
+  if (isNaN(v)) { chk.textContent = 'cargá el nº para verificar'; chk.style.color = 'var(--text2)'; return; }
+  if (v === pedido) { chk.textContent = '✓ coincide con el pedido'; chk.style.color = '#1a7a3e'; }
+  else { const dif = v - pedido; chk.textContent = `⚠ difiere en ${dif > 0 ? '+' : ''}${dif} (pedido ${pedido})`; chk.style.color = '#b45309'; }
+};
+window.editFactura = function(zi, ii, campo, valor) {
+  const d = window._facturaDraft; if (!d) return;
+  const it = d.secciones[zi]?.items[ii]; if (!it) return;
+  it[campo] = parseInt(valor) || 0;
+  render();
+};
+
+window.descargarFacturaXLSX = async function() {
+  const d = window._facturaDraft; if (!d) return;
+  if (typeof ExcelJS === 'undefined') { toast('No se pudo cargar el generador de Excel. Reintentá.', 'err'); return; }
+  loading(true);
+  try {
+    const T = factTotales(d);
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Facturación');
+    ws.columns = [{ width: 16 }, { width: 22 }, { width: 11 }, { width: 18 }, { width: 16 }, { width: 16 }];
+    const F = 'Arial', GREEN = 'FFA9D08E', GREENH = 'FFC6EFCE';
+    const fillOf = argb => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+    const bd = { style: 'thin', color: { argb: 'FFBFBFBF' } };
+    const B = { top: bd, left: bd, bottom: bd, right: bd };
+    const MON = '"$"#,##0';
+    const put = (r, c, v, { bold = false, fill = null, left = false, money = false } = {}) => {
+      const cell = ws.getCell(r, c);
+      cell.value = v; cell.border = B;
+      cell.font = { name: F, size: 10, bold };
+      cell.alignment = { horizontal: left ? 'left' : 'center', vertical: 'middle' };
+      if (fill) cell.fill = fillOf(fill);
+      if (money) cell.numFmt = MON;
+      return cell;
+    };
+    // Título
+    ws.mergeCells('A1:E2');
+    const t = ws.getCell('A1');
+    t.value = `PEDIDO STAFF\n${d.fecha || ''} - ${d.show || ''}`;
+    t.font = { name: F, size: 11, bold: true };
+    t.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    t.fill = fillOf(GREENH);
+    for (let c = 1; c <= 5; c++) { ws.getCell(1, c).border = B; ws.getCell(2, c).border = B; }
+    // Encabezado
+    let r = 3;
+    put(r, 1, '', { fill: GREENH }); put(r, 2, '', { fill: GREENH });
+    put(r, 3, 'Cantidad', { bold: true, fill: GREENH });
+    put(r, 4, 'Valor por 6 horas', { bold: true, fill: GREENH });
+    put(r, 5, 'TOTAL', { bold: true, fill: GREENH });
+    put(r, 6, 'TOTAL c/IVA', { bold: true, fill: GREENH });
+    r++;
+    const escribirBloque = (items, zonaLabel) => {
+      const r0 = r;
+      items.forEach(it => {
+        put(r, 2, it.recurso, { left: true });
+        put(r, 3, it.cant || 0);
+        put(r, 4, it.valor || 0, { money: true });
+        put(r, 5, (it.cant || 0) * (it.valor || 0), { money: true });
+        r++;
+      });
+      if (zonaLabel && r > r0) {
+        if (r - 1 > r0) ws.mergeCells(r0, 1, r - 1, 1);
+        const cz = ws.getCell(r0, 1);
+        cz.value = zonaLabel; cz.font = { name: F, size: 10, bold: true };
+        cz.alignment = { horizontal: 'center', vertical: 'middle' };
+        for (let rr = r0; rr < r; rr++) ws.getCell(rr, 1).border = B;
+      }
+    };
+    // Zonas regulares + Subtotal
+    d.secciones.filter(s => !['PREMIUM', 'Personal'].includes(s.zona)).forEach(s => escribirBloque(s.items, s.zona));
+    put(r, 1, 'Subtotal', { bold: true, fill: GREEN }); put(r, 2, '', { fill: GREEN });
+    put(r, 3, T.cantReg, { bold: true, fill: GREEN }); put(r, 4, '', { fill: GREEN });
+    put(r, 5, T.totReg, { bold: true, fill: GREEN, money: true }); r++;
+    // Premium + Subtotal
+    const prem = d.secciones.find(s => s.zona === 'PREMIUM');
+    if (prem) escribirBloque(prem.items, null);
+    put(r, 1, 'Subtotal', { bold: true, fill: GREEN }); put(r, 2, '', { fill: GREEN });
+    put(r, 3, T.cantPrem, { bold: true, fill: GREEN }); put(r, 4, '', { fill: GREEN });
+    put(r, 5, T.totPrem, { bold: true, fill: GREEN, money: true }); r++;
+    // Personal
+    const pers = d.secciones.find(s => s.zona === 'Personal');
+    if (pers) pers.items.forEach(it => {
+      put(r, 1, 'Personal', { bold: true }); put(r, 2, it.recurso, { left: true });
+      put(r, 3, it.cant || 0); put(r, 4, it.valor || 0, { money: true });
+      put(r, 5, (it.cant || 0) * (it.valor || 0), { money: true }); r++;
+    });
+    // TOTAL DÍA SHOW + IVA
+    put(r, 1, 'TOTAL DIA SHOW', { bold: true, fill: GREEN }); put(r, 2, '', { fill: GREEN });
+    put(r, 3, T.cantTotal, { bold: true, fill: GREEN }); put(r, 4, '', { fill: GREEN });
+    put(r, 5, T.total, { bold: true, fill: GREEN, money: true });
+    put(r, 6, T.iva, { bold: true, fill: GREEN, money: true });
+
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Facturacion ${(d.show || 'Arena')} ${(d.fecha || '').replace(/\//g, '-')}.xlsx`;
+    a.click(); URL.revokeObjectURL(a.href);
+    loading(false); toast('Excel generado', 'ok');
+  } catch (e) { loading(false); toast('No se pudo generar el Excel: ' + e.message, 'err'); console.error(e); }
+};
+
 async function extraerFilasPDF(arrayBuffer) {
   if (typeof pdfjsLib === 'undefined') throw new Error('No se pudo cargar el lector de PDF.');
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
