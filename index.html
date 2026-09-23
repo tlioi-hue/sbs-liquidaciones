@@ -3805,6 +3805,12 @@ function parseFacturaArena(pdfRows) {
   if (bloque.length) secciones.push({ zona: FACT_ZONAS_ORDEN[zi] || 'Otros', items: bloque });
   if (prem.length) secciones.push({ zona: 'PREMIUM', items: prem });
   if (personal) secciones.push({ zona: 'Personal', items: [personal] });
+  if (!fecha) {   // rescate: buscar una fecha dd/mm/aaaa en cualquier parte del PDF
+    for (const rowItems of pdfRows) {
+      const m = rowItems.map(it => it.text).join(' ').match(/\d{2}\/\d{2}\/\d{4}/);
+      if (m) { fecha = m[0]; break; }
+    }
+  }
   return { show, fecha, secciones };
 }
 
@@ -3860,8 +3866,35 @@ window.subirFacturaArena = function(input) {
   r.readAsArrayBuffer(file);
 };
 
+function factPresentesShow(evId) {
+  const ev = APP.eventos.find(e => e.id === evId);
+  if (!ev) return null;
+  return (ev.fechas || []).reduce((s, f) => s + ((f.presentismo || []).length), 0);
+}
+function factAutoQuincena(fechaStr) {
+  if (!fechaStr) return '';
+  const [d, m, y] = fechaStr.split('/').map(Number);
+  const t = new Date(y, (m || 1) - 1, d || 1).getTime();
+  const q = (APP.quincenas || []).find(q => {
+    const i = new Date(q.fecha_inicio).getTime(), f = new Date(q.fecha_fin).getTime();
+    return t >= i && t <= f;
+  });
+  return q?.id || '';
+}
+
 function renderFacturaPreviewHTML(d) {
   const T = factTotales(d);
+  if (d.verQ === undefined) d.verQ = factAutoQuincena(d.fecha);   // preseleccionar por fecha del PDF
+  const showsQ = (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && e.quincena_id === d.verQ);
+  const presSel = d.verShow ? factPresentesShow(d.verShow) : null;
+  let chkHTML;
+  if (presSel == null) chkHTML = `<span style="font-size:12px;color:var(--text2)">elegí el show para verificar</span>`;
+  else {
+    const dif = presSel - T.cantTotal;
+    chkHTML = dif === 0
+      ? `<span style="font-size:12px;color:#1a7a3e">✓ coincide (${presSel} presentes)</span>`
+      : `<span style="font-size:12px;color:#b45309">⚠ difiere en ${dif > 0 ? '+' : ''}${dif} · pedido ${T.cantTotal}, presentes ${presSel}</span>`;
+  }
   const filasHTML = [];
   d.secciones.forEach((s, zi) => {
     const esBloque = !['PREMIUM', 'Personal'].includes(s.zona);
@@ -3894,10 +3927,17 @@ function renderFacturaPreviewHTML(d) {
     <div class="alert" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--card);border:1px solid var(--border)">
       <div><span style="color:var(--text2);font-size:12px">Total staff pedido</span><div style="font-size:20px;font-weight:700">${T.cantTotal}</div></div>
       <div style="width:1px;height:34px;background:var(--border)"></div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="color:var(--text2);font-size:12px">Presentes del día</span>
-        <input type="number" id="fact-presentes" min="0" placeholder="—" style="width:70px;text-align:center" oninput="chequearFactPresentes(${T.cantTotal})">
-        <span id="fact-presentes-chk" style="font-size:12px;color:var(--text2)">cargá el nº para verificar</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="color:var(--text2);font-size:12px">Verificar contra</span>
+        <select onchange="window._facturaDraft.verQ=this.value;window._facturaDraft.verShow='';render()" style="font-size:12px;padding:4px 6px">
+          <option value="">Quincena…</option>
+          ${(APP.quincenas||[]).map(q => `<option value="${q.id}" ${q.id===d.verQ?'selected':''}>${q.nombre}</option>`).join('')}
+        </select>
+        <select onchange="window._facturaDraft.verShow=this.value;render()" style="font-size:12px;padding:4px 6px" ${showsQ.length?'':'disabled'}>
+          <option value="">Show…</option>
+          ${showsQ.map(ev => `<option value="${ev.id}" ${ev.id===d.verShow?'selected':''}>${ev.nombre}</option>`).join('')}
+        </select>
+        ${chkHTML}
       </div>
       <div style="flex:1"></div>
       <div style="text-align:right"><span style="color:var(--text2);font-size:12px">TOTAL / con IVA</span>
@@ -3916,13 +3956,6 @@ function renderFacturaPreviewHTML(d) {
 function subFacturaRow(label, cant, total) {
   return `<tr style="background:#e8f5e8;font-weight:600"><td>${label}</td><td></td><td style="text-align:center">${cant}</td><td></td><td style="text-align:right">${fmt(total)}</td></tr>`;
 }
-window.chequearFactPresentes = function(pedido) {
-  const v = parseInt(document.getElementById('fact-presentes')?.value);
-  const chk = document.getElementById('fact-presentes-chk'); if (!chk) return;
-  if (isNaN(v)) { chk.textContent = 'cargá el nº para verificar'; chk.style.color = 'var(--text2)'; return; }
-  if (v === pedido) { chk.textContent = '✓ coincide con el pedido'; chk.style.color = '#1a7a3e'; }
-  else { const dif = v - pedido; chk.textContent = `⚠ difiere en ${dif > 0 ? '+' : ''}${dif} (pedido ${pedido})`; chk.style.color = '#b45309'; }
-};
 window.editFactura = function(zi, ii, campo, valor) {
   const d = window._facturaDraft; if (!d) return;
   const it = d.secciones[zi]?.items[ii]; if (!it) return;
@@ -3953,10 +3986,21 @@ window.descargarFacturaXLSX = async function() {
       if (money) cell.numFmt = MON;
       return cell;
     };
+    // Nombre y fecha del show: preferir el show elegido en el selector (dato preciso de Arena),
+    // si no, lo que vino en el PDF. Administración necesita distinguir de qué show es.
+    let tShow = d.show || 'Arena', tFecha = d.fecha || '';
+    if (d.verShow) {
+      const ev = APP.eventos.find(e => e.id === d.verShow);
+      if (ev) {
+        tShow = ev.nombre || tShow;
+        const f = (ev.fechas || []).map(x => x.fecha).filter(Boolean).sort()[0];
+        if (f) tFecha = fd(f);
+      }
+    }
     // Título
     ws.mergeCells('A1:E2');
     const t = ws.getCell('A1');
-    t.value = `PEDIDO STAFF\n${d.fecha || ''} - ${d.show || ''}`;
+    t.value = `PEDIDO STAFF\n${tShow}${tFecha ? ' · ' + tFecha : ''}`;
     t.font = { name: F, size: 11, bold: true };
     t.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
     t.fill = fillOf(GREENH);
@@ -4014,7 +4058,7 @@ window.descargarFacturaXLSX = async function() {
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `Facturacion ${(d.show || 'Arena')} ${(d.fecha || '').replace(/\//g, '-')}.xlsx`;
+    a.download = `Facturacion ${tShow} ${(tFecha || '').replace(/\//g, '-')}.xlsx`.replace(/\s+/g, ' ').trim();
     a.click(); URL.revokeObjectURL(a.href);
     loading(false); toast('Excel generado', 'ok');
   } catch (e) { loading(false); toast('No se pudo generar el Excel: ' + e.message, 'err'); console.error(e); }
