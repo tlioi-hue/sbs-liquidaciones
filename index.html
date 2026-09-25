@@ -253,6 +253,7 @@ input:disabled, select:disabled { opacity: .6; cursor: not-allowed; background: 
         <div class="sb-item" onclick="go('facturacion')" id="n-facturacion"><i class="ti ti-file-invoice"></i> Facturación Movistar Arena</div>
         <div class="sb-sec">Análisis</div>
         <div class="sb-item" onclick="go('rentabilidad')" id="n-rentabilidad"><i class="ti ti-chart-bar"></i> Facturación vs Liquidación</div>
+        <div class="sb-item" onclick="go('informes')" id="n-informes"><i class="ti ti-presentation-analytics"></i> Informes a socios</div>
       </div>
       <div class="sb-bottom">
         <div class="sb-user">
@@ -409,7 +410,7 @@ function loading(show) {
   } else { if (ov) ov.style.display = 'none'; }
 }
 
-const TITLES = { db:'Dashboard', personal:'Personal', tarifario:'Tarifario', importar:'Importar planilla', cbu:'Importar CBU', externos:'Externos', arena:'Movistar Arena', fijos:'Servicios Fijos' };
+const TITLES = { db:'Dashboard', personal:'Personal', tarifario:'Tarifario', importar:'Importar planilla', cbu:'Importar CBU', externos:'Externos', arena:'Movistar Arena', fijos:'Servicios Fijos', facturacion:'Facturación Movistar Arena', rentabilidad:'Facturación vs Liquidación', informes:'Informes a socios' };
 
 async function go(page) {
   APP.page = page;
@@ -426,7 +427,7 @@ async function render() {
   const ac = document.getElementById('topbar-ac');
   loading(true);
   try {
-    await ({ db:pgDB, personal:pgPersonal, tarifario:pgTarifario, importar:pgImportar, cbu:pgCBU, externos:pgExternos, arena:pgArena, fijos:pgFijos, facturacion:pgFacturacion, rentabilidad:pgRentabilidad })[APP.page]?.(el, ac);
+    await ({ db:pgDB, personal:pgPersonal, tarifario:pgTarifario, importar:pgImportar, cbu:pgCBU, externos:pgExternos, arena:pgArena, fijos:pgFijos, facturacion:pgFacturacion, rentabilidad:pgRentabilidad, informes:pgInformes })[APP.page]?.(el, ac);
   } catch (e) {
     el.innerHTML = `<div class="alert alert-warn"><i class="ti ti-alert-circle"></i> Error cargando: ${e.message}</div>`;
     console.error(e);
@@ -4060,6 +4061,244 @@ window.subirFacturaArena = function(input) {
     } catch (e) { loading(false); alert('Error leyendo el PDF: ' + e.message); }
   };
   r.readAsArrayBuffer(file);
+};
+
+// ══════════════════════════════════════════════
+// INFORMES A SOCIOS — foto mensual/anual de la rentabilidad del Arena, publicada como link
+// ══════════════════════════════════════════════
+const DESC_KEY = 'sbs_descuentos_informe';
+function getDescuentos() {
+  try { const v = JSON.parse(localStorage.getItem(DESC_KEY)); if (Array.isArray(v)) return v; } catch {}
+  return [
+    { nombre: 'Ingresos Brutos', pct: 0, base: 'facturado' },
+    { nombre: 'Cargas sociales', pct: 0, base: 'liquidado' },
+  ];
+}
+function setDescuentos(arr) { try { localStorage.setItem(DESC_KEY, JSON.stringify(arr)); } catch {} }
+
+// Arma la "foto" del período: todo lo que necesita la página pública, ya calculado.
+function buildInforme(tipo, periodo) {
+  const desc = getDescuentos().filter(x => (x.nombre || '').trim());
+  const facs = APP.facturaciones || [];
+  const enPeriodo = rentPorShow().filter(r => tipo === 'mes' ? r.fISO.slice(0, 7) === periodo : r.fISO.slice(0, 4) === periodo);
+  const calcDesc = (fact, costo) => desc.map(x => {
+    const pct = parseFloat(x.pct) || 0;
+    return { nombre: x.nombre.trim(), pct, base: x.base, monto: Math.round((x.base === 'liquidado' ? costo : fact) * pct / 100) };
+  });
+  const shows = enPeriodo.filter(r => r.nFac).map(r => {
+    const staff = facs.filter(f => f.evento_id === r.ev.id).reduce((s, f) => s + (f.cant_staff || 0), 0);
+    const totDesc = calcDesc(r.facturado, r.costo).reduce((s, x) => s + x.monto, 0);
+    return { nombre: r.ev.nombre, fecha: r.fISO, staff, facturado: r.facturado, facturadoIva: r.facturadoIva,
+             costo: r.costo, descuentos: totDesc, ganancia: r.facturado - r.costo - totDesc, estimado: r.estimado };
+  }).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const pendientes = enPeriodo.filter(r => !r.nFac).map(r => ({ nombre: r.ev.nombre, fecha: r.fISO }));
+  const sum = (arr, k) => arr.reduce((s, x) => s + (x[k] || 0), 0);
+  const T = { facturado: sum(shows, 'facturado'), facturadoIva: sum(shows, 'facturadoIva'), costo: sum(shows, 'costo'),
+              staff: sum(shows, 'staff'), shows: shows.length };
+  T.descuentos = calcDesc(T.facturado, T.costo);
+  T.totalDescuentos = T.descuentos.reduce((s, x) => s + x.monto, 0);
+  T.margenBruto = T.facturado - T.costo;
+  T.ganancia = T.margenBruto - T.totalDescuentos;
+  let meses = null;
+  if (tipo === 'anio') {
+    const g = {};
+    shows.forEach(s => {
+      const k = s.fecha.slice(0, 7);
+      g[k] = g[k] || { periodo: k, label: mesLabel(k), facturado: 0, costo: 0, descuentos: 0, ganancia: 0, shows: 0 };
+      ['facturado', 'costo', 'descuentos', 'ganancia'].forEach(c => g[k][c] += s[c]);
+      g[k].shows++;
+    });
+    meses = Object.values(g).sort((a, b) => a.periodo.localeCompare(b.periodo));
+  }
+  const periodoLabel = tipo === 'mes' ? mesLabel(periodo) : `Año ${periodo}`;
+  return {
+    tipo, periodo, periodoLabel, titulo: `Informe Movistar Arena, ${periodoLabel.toLowerCase()}`,
+    desde: RENT_DESDE, generado: new Date().toISOString(),
+    conDescuentos: T.descuentos.some(x => x.pct > 0),
+    shows, pendientes, totales: T, meses, hayEstimados: shows.some(s => s.estimado),
+  };
+}
+
+const informeUrl = token => `${location.origin}/informe.html?t=${token}`;
+function informeMailTexto(inf, url) {
+  const T = inf.totales;
+  const pct = T.facturado ? Math.round(T.ganancia / T.facturado * 100) : 0;
+  const lineas = [
+    'Hola,', '',
+    `Les comparto el informe de resultados del Movistar Arena de ${inf.periodoLabel.toLowerCase()}.`, '',
+    `Shows: ${T.shows}`,
+    `Facturado (sin IVA): ${fmt(T.facturado)}`,
+    `Costo de personal: ${fmt(T.costo)}`,
+  ];
+  if (inf.conDescuentos) lineas.push(`Descuentos (${T.descuentos.filter(x => x.pct > 0).map(x => x.nombre).join(', ')}): ${fmt(T.totalDescuentos)}`);
+  lineas.push(`${inf.conDescuentos ? 'Ganancia neta' : 'Margen bruto'}: ${fmt(T.ganancia)} (${pct}% de lo facturado)`, '',
+    `El detalle por show y los gráficos están acá: ${url}`, '', 'Saludos,');
+  return { asunto: `Informe Movistar Arena - ${inf.periodoLabel}`, cuerpo: lineas.join('\n') };
+}
+
+async function pgInformes(el, ac) {
+  ac.innerHTML = '';
+  const conFact = rentPorShow().filter(r => r.nFac);
+  const meses = [...new Set(conFact.map(r => r.fISO.slice(0, 7)))].sort().reverse();
+  const anios = [...new Set(conFact.map(r => r.fISO.slice(0, 4)))].sort().reverse();
+  APP.infTipo = APP.infTipo || 'mes';
+  const opciones = APP.infTipo === 'mes' ? meses : anios;
+  if (!opciones.includes(APP.infPeriodo)) APP.infPeriodo = opciones[0] || '';
+  const { data: pubs, error: ePub } = await sb.from('informes').select('id,token,tipo,periodo,titulo,updated_at').order('periodo', { ascending: false });
+
+  const cab = `
+    <div style="margin-bottom:14px"><h2 style="margin:0">Informes a socios</h2>
+      <div style="color:var(--text2);font-size:13px">Elegí el período, revisá los números y publicá un link para mandarles a los socios.</div></div>`;
+  if (!APP.infPeriodo) {
+    el.innerHTML = cab + `<div class="empty-state"><i class="ti ti-presentation-analytics"></i><p>Todavía no hay shows facturados desde el ${fd(RENT_DESDE)}. Guardá facturaciones en "Facturación Movistar Arena" para armar el primer informe.</p></div>`;
+    return;
+  }
+  const inf = buildInforme(APP.infTipo, APP.infPeriodo);
+  window._informeActual = inf;
+  const T = inf.totales;
+  const pct = T.facturado ? Math.round(T.ganancia / T.facturado * 100) : 0;
+  const desc = getDescuentos();
+  const yaPub = (pubs || []).find(p => p.tipo === inf.tipo && p.periodo === inf.periodo);
+
+  el.innerHTML = cab + `
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <button class="btn ${APP.infTipo === 'mes' ? 'btn-primary' : ''}" onclick="APP.infTipo='mes';APP.infPeriodo='';render()">Mensual</button>
+      <button class="btn ${APP.infTipo === 'anio' ? 'btn-primary' : ''}" onclick="APP.infTipo='anio';APP.infPeriodo='';render()">Anual</button>
+      <select onchange="APP.infPeriodo=this.value;render()" style="font-size:12.5px;padding:6px 9px">
+        ${opciones.map(o => `<option value="${o}" ${o === APP.infPeriodo ? 'selected' : ''}>${APP.infTipo === 'mes' ? mesLabel(o) : o}</option>`).join('')}
+      </select>
+      <div style="flex:1"></div>
+      <button class="btn" onclick="previewInforme()"><i class="ti ti-eye"></i> Vista previa</button>
+      <button class="btn btn-success" onclick="publicarInforme()"><i class="ti ti-world-upload"></i> ${yaPub ? 'Actualizar informe publicado' : 'Publicar informe'}</button>
+    </div>
+    ${inf.hayEstimados ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Hay shows con costo <strong>estimado</strong> (su quincena sigue abierta). Conviene cerrar la quincena antes de mandar el informe, así el costo es el liquidado.</div>` : ''}
+    ${inf.pendientes.length ? `<div class="alert alert-warn"><i class="ti ti-info-circle"></i> ${inf.pendientes.length} show${inf.pendientes.length > 1 ? 's' : ''} del período sin facturación guardada (${inf.pendientes.map(p => p.nombre).join(', ')}): no entran en el informe hasta que los factures.</div>` : ''}
+    <div class="grid4" style="margin-bottom:14px">
+      <div class="metric"><div class="metric-l">Facturado (sin IVA)</div><div class="metric-v" style="font-size:17px">${fmt(T.facturado)}</div><div class="metric-s">${T.shows} show${T.shows !== 1 ? 's' : ''}</div></div>
+      <div class="metric"><div class="metric-l">Costo de personal</div><div class="metric-v" style="font-size:17px">${fmt(T.costo)}</div><div class="metric-s">${T.staff} puestos</div></div>
+      <div class="metric"><div class="metric-l">Descuentos</div><div class="metric-v" style="font-size:17px">${fmt(T.totalDescuentos)}</div><div class="metric-s">${inf.conDescuentos ? 'según porcentajes cargados' : 'sin porcentajes cargados'}</div></div>
+      <div class="metric"><div class="metric-l">${inf.conDescuentos ? 'Ganancia neta' : 'Margen bruto'}</div><div class="metric-v" style="font-size:17px;color:${T.ganancia >= 0 ? '#1a7a3e' : '#b45309'}">${fmt(T.ganancia)}</div><div class="metric-s">${pct}% de lo facturado</div></div>
+    </div>
+    <div class="grid2" style="margin-bottom:14px;align-items:start">
+      <div class="card">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px">Descuentos a aplicar</div>
+        <div style="font-size:11.5px;color:var(--text2);margin-bottom:10px">Porcentajes a definir con administración. Mientras estén en 0%, el informe muestra margen bruto. Cada informe publicado guarda los porcentajes con los que se calculó.</div>
+        <table class="tbl"><thead><tr><th>Concepto</th><th style="width:80px;text-align:center">%</th><th>Sobre</th><th style="text-align:right">Monto</th><th></th></tr></thead><tbody>
+        ${desc.map((x, i) => `<tr>
+          <td><input value="${(x.nombre || '').replace(/"/g, '&quot;')}" onchange="editDescuento(${i},'nombre',this.value)" style="width:100%"></td>
+          <td><input type="number" step="0.01" min="0" value="${x.pct || 0}" onchange="editDescuento(${i},'pct',this.value)" style="width:70px;text-align:center"></td>
+          <td><select onchange="editDescuento(${i},'base',this.value)" style="font-size:12px">
+            <option value="facturado" ${x.base !== 'liquidado' ? 'selected' : ''}>lo facturado</option>
+            <option value="liquidado" ${x.base === 'liquidado' ? 'selected' : ''}>la liquidación</option></select></td>
+          <td style="text-align:right">${fmt(T.descuentos.find(d => d.nombre === (x.nombre || '').trim())?.monto || 0)}</td>
+          <td><button class="btn btn-sm btn-danger" onclick="borrarDescuento(${i})" title="Quitar"><i class="ti ti-trash"></i></button></td>
+        </tr>`).join('')}
+        </tbody></table>
+        <button class="btn btn-sm" style="margin-top:8px" onclick="agregarDescuento()"><i class="ti ti-plus"></i> Agregar concepto</button>
+      </div>
+      <div class="card">
+        <div style="font-size:13px;font-weight:600;margin-bottom:10px">Informes publicados</div>
+        ${ePub ? `<div class="alert alert-warn" style="margin:0"><i class="ti ti-database-off"></i> Falta crear la tabla <strong>informes</strong> en Supabase para publicar.</div>`
+          : !(pubs || []).length ? '<div style="font-size:12.5px;color:var(--text2)">Todavía no publicaste ninguno.</div>'
+          : pubs.map(p => `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+              <div><div style="font-size:12.5px;font-weight:500">${p.tipo === 'mes' ? mesLabel(p.periodo) : 'Año ' + p.periodo}</div>
+                <div style="font-size:11px;color:var(--text2)">actualizado ${new Date(p.updated_at).toLocaleDateString('es-AR')}</div></div>
+              <div style="white-space:nowrap">
+                <button class="btn btn-sm" title="Link y mail" onclick="abrirLinkInforme('${p.id}')"><i class="ti ti-link"></i></button>
+                <button class="btn btn-sm" title="Abrir" onclick="window.open(informeUrl('${p.token}'),'_blank')"><i class="ti ti-external-link"></i></button>
+              </div></div>`).join('')}
+      </div>
+    </div>
+    <div class="card" style="padding:0;overflow:auto">
+      <table class="tbl"><thead><tr>
+        <th>Show</th><th style="text-align:center">Staff</th><th style="text-align:right">Facturado s/IVA</th><th style="text-align:right">Costo</th>
+        <th style="text-align:right">Descuentos</th><th style="text-align:right">${inf.conDescuentos ? 'Ganancia neta' : 'Margen bruto'}</th><th style="text-align:center">%</th>
+      </tr></thead><tbody>
+      ${inf.shows.map(s => `<tr>
+        <td><strong>${s.nombre}</strong> <span style="color:var(--text2);font-size:12px">${fd(s.fecha)}</span>${s.estimado ? ' <span class="badge bi" style="font-size:10px">estimado</span>' : ''}</td>
+        <td style="text-align:center">${s.staff || '—'}</td>
+        <td style="text-align:right">${fmt(s.facturado)}</td><td style="text-align:right">${fmt(s.costo)}</td>
+        <td style="text-align:right">${fmt(s.descuentos)}</td>
+        <td style="text-align:right;font-weight:600;color:${s.ganancia >= 0 ? '#1a7a3e' : '#b45309'}">${fmt(s.ganancia)}</td>
+        <td style="text-align:center">${s.facturado ? Math.round(s.ganancia / s.facturado * 100) : 0}%</td>
+      </tr>`).join('')}
+      </tbody></table>
+    </div>`;
+}
+
+window.editDescuento = function(i, campo, valor) {
+  const d = getDescuentos(); if (!d[i]) return;
+  d[i][campo] = campo === 'pct' ? (parseFloat(valor) || 0) : valor;
+  setDescuentos(d); render();
+};
+window.agregarDescuento = function() { const d = getDescuentos(); d.push({ nombre: 'Nuevo concepto', pct: 0, base: 'facturado' }); setDescuentos(d); render(); };
+window.borrarDescuento = function(i) { const d = getDescuentos(); d.splice(i, 1); setDescuentos(d); render(); };
+
+window.previewInforme = function() {
+  try { localStorage.setItem('sbs_informe_preview', JSON.stringify(window._informeActual)); } catch {}
+  window.open('informe.html?preview=1', '_blank');
+};
+
+window.publicarInforme = async function() {
+  const inf = window._informeActual; if (!inf) return;
+  if (inf.hayEstimados && !confirm('Hay shows con costo estimado (quincena abierta). ¿Publicar igual?')) return;
+  loading(true);
+  try {
+    const { data: ex, error: e1 } = await sb.from('informes').select('id,token').eq('tipo', inf.tipo).eq('periodo', inf.periodo).maybeSingle();
+    if (e1) throw e1;
+    let token;
+    if (ex) {
+      const { error } = await sb.from('informes').update({ titulo: inf.titulo, data: inf, updated_at: new Date().toISOString() }).eq('id', ex.id);
+      if (error) throw error; token = ex.token;
+    } else {
+      const { data, error } = await sb.from('informes').insert({ tipo: inf.tipo, periodo: inf.periodo, titulo: inf.titulo, data: inf }).select('token').single();
+      if (error) throw error; token = data.token;
+    }
+    loading(false);
+    toast(ex ? 'Informe actualizado (el link sigue siendo el mismo)' : 'Informe publicado', 'ok');
+    await render();
+    modalLinkInforme(token, inf);
+  } catch (e) {
+    loading(false);
+    toast('No se pudo publicar: ' + e.message + (/informes|schema cache/i.test(e.message) ? ' (¿creaste la tabla informes?)' : ''), 'err');
+  }
+};
+
+window.abrirLinkInforme = async function(id) {
+  loading(true);
+  const { data, error } = await sb.from('informes').select('token,data').eq('id', id).single();
+  loading(false);
+  if (error || !data) { toast('No se pudo abrir el informe', 'err'); return; }
+  modalLinkInforme(data.token, data.data);
+};
+
+function modalLinkInforme(token, inf) {
+  const url = informeUrl(token);
+  const { asunto, cuerpo } = informeMailTexto(inf, url);
+  window._mailInforme = { asunto, cuerpo, url };
+  showModal(`<div class="modal" style="max-width:560px">
+    <div class="modal-t"><i class="ti ti-link"></i> ${inf.titulo}</div>
+    <div class="modal-s">Este link abre el informe sin necesidad de usuario. Solo lo ve quien lo tenga.</div>
+    <div style="display:flex;gap:6px;margin:12px 0">
+      <input id="inf-url" value="${url}" readonly style="flex:1;font-size:12px" onclick="this.select()">
+      <button class="btn btn-sm" onclick="copiarTexto(window._mailInforme.url,'Link copiado')"><i class="ti ti-copy"></i> Copiar</button>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:6px">Mail para los socios</div>
+    <textarea id="inf-mail" rows="12" style="width:100%;font-size:12px;font-family:inherit">${cuerpo}</textarea>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn" onclick="copiarTexto(document.getElementById('inf-mail').value,'Mail copiado')"><i class="ti ti-copy"></i> Copiar mail</button>
+      <button class="btn btn-primary" onclick="abrirMailInforme()"><i class="ti ti-mail"></i> Abrir en mi correo</button>
+    </div>
+  </div>`);
+}
+window.copiarTexto = async function(txt, msg) {
+  try { await navigator.clipboard.writeText(txt); toast(msg, 'ok'); }
+  catch { toast('No se pudo copiar; seleccioná y copiá a mano', 'err'); }
+};
+window.abrirMailInforme = function() {
+  const cuerpo = document.getElementById('inf-mail')?.value || window._mailInforme.cuerpo;
+  location.href = `mailto:?subject=${encodeURIComponent(window._mailInforme.asunto)}&body=${encodeURIComponent(cuerpo)}`;
 };
 
 function factPresentesShow(evId) {

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Informe Movistar Arena · SBS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --ink: #16261d; --muted: #5e6e65; --rule: #dde4df;
+  --paper: #f5f7f5; --surface: #ffffff;
+  --green: #2d6a2d; --mint: #a8e4bc;
+  --cost: #b3c0b8; --desc: #d9c894; --loss: #b45309;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: 'Manrope', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 16px; line-height: 1.55; font-variant-numeric: tabular-nums;
+}
+.wrap { max-width: 760px; margin: 0 auto; padding: 32px 22px 64px; }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 40px; }
+.marca { font-weight: 800; letter-spacing: -0.01em; font-size: 15px; }
+.marca span { font-weight: 500; color: var(--muted); }
+button.print {
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--ink); background: transparent;
+  border: 1px solid var(--rule); border-radius: 8px; padding: 7px 12px; cursor: pointer; white-space: nowrap;
+}
+button.print:hover { border-color: var(--muted); }
+button.print:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.periodo { color: var(--muted); font-size: 15px; margin: 0 0 10px; }
+h1 {
+  font-size: clamp(30px, 6vw, 46px); line-height: 1.12; letter-spacing: -0.025em;
+  font-weight: 800; margin: 0 0 16px; max-width: 24ch;
+}
+.bajada { font-size: 18px; color: var(--muted); margin: 0 0 34px; max-width: 58ch; }
+.bajada strong { color: var(--ink); font-weight: 600; }
+
+/* La barra "a dónde fue cada peso facturado" */
+.barra { display: flex; height: 64px; border-radius: 10px; overflow: hidden; background: var(--rule); }
+.seg { height: 100%; }
+.seg.costo { background: var(--cost); }
+.seg.desc { background: var(--desc); }
+.seg.gan { background: var(--green); }
+.seg.perd { background: repeating-linear-gradient(135deg, var(--loss) 0 6px, #d97a3a 6px 12px); }
+.leyenda { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 14px 0 52px; }
+.ley { border-top: 3px solid var(--cost); padding-top: 8px; }
+.ley.desc { border-color: var(--desc); }
+.ley.gan { border-color: var(--green); }
+.ley.perd { border-color: var(--loss); }
+.ley .n { font-weight: 600; font-size: 17px; }
+.ley .t { color: var(--muted); font-size: 13px; }
+
+h2 { font-size: 20px; letter-spacing: -0.01em; margin: 0 0 6px; font-weight: 800; }
+.nota-h2 { color: var(--muted); font-size: 14px; margin: 0 0 18px; }
+
+.filas { margin-bottom: 52px; }
+.fila { display: grid; grid-template-columns: 170px 1fr 165px; gap: 14px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--rule); }
+.fila:first-child { border-top: 1px solid var(--rule); }
+.fila .nom { font-weight: 600; font-size: 15px; line-height: 1.3; }
+.fila .nom small { display: block; color: var(--muted); font-weight: 500; font-size: 13px; }
+.fila .mini { position: relative; display: flex; height: 18px; border-radius: 5px; overflow: hidden; }
+.fila .marca-fact { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); }
+.fila .res { text-align: right; font-weight: 600; font-size: 15px; line-height: 1.3; }
+.fila .res small { display: block; color: var(--muted); font-weight: 500; font-size: 13px; }
+.neg { color: var(--loss); }
+
+.tabla-wrap { overflow-x: auto; margin-bottom: 52px; background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 560px; }
+th, td { padding: 10px 11px; border-bottom: 1px solid var(--rule); text-align: right; white-space: nowrap; }
+th { font-weight: 600; color: var(--muted); font-size: 13px; }
+th:first-child, td:first-child { text-align: left; }
+tfoot td { font-weight: 800; border-bottom: none; }
+td small.f { display: block; color: var(--muted); font-size: 12px; }
+
+.metodo { font-size: 14px; color: var(--muted); max-width: 64ch; }
+.metodo p { margin: 0 0 10px; }
+.metodo strong { color: var(--ink); font-weight: 600; }
+.aviso { background: #fff7e6; border: 1px solid #efd9a6; border-radius: 10px; padding: 12px 14px; font-size: 14px; margin: 0 0 28px; }
+.pie { margin-top: 44px; padding-top: 16px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 12.5px; }
+.estado { padding: 80px 0; color: var(--muted); }
+
+@media (max-width: 600px) {
+  .wrap { padding-top: 22px; }
+  .top { margin-bottom: 28px; }
+  .bajada { font-size: 16px; }
+  .barra { height: 48px; }
+  .leyenda { grid-template-columns: 1fr; gap: 10px; }
+  .fila { grid-template-columns: 1fr auto; row-gap: 8px; }
+  .fila .mini { grid-column: 1 / -1; grid-row: 2; }
+}
+@media print {
+  body { background: #fff; }
+  button.print, .preview-tag { display: none; }
+  .wrap { padding-top: 0; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .fila, tr { break-inside: avoid; }
+}
+.preview-tag { display: inline-block; background: var(--mint); color: var(--ink); font-size: 12px; font-weight: 600; border-radius: 6px; padding: 3px 8px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<main class="wrap" id="app"><div class="estado">Cargando informe…</div></main>
+
+<script>
+const SUPABASE_URL = 'https://tvggknkvrjsuhnfahtzl.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR2Z2drbmt2cmpzdWhuZmFodHpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MDg2MzMsImV4cCI6MjA5NzI4NDYzM30.GjZl4U-VDXzLw21-eMOT3FZUgIdAL_am25z4w_fW6oE';
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = n => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(Math.round(n || 0));
+const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+const fecha = iso => { const p = String(iso || '').slice(0, 10).split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : ''; };
+
+function estado(msg) { $('app').innerHTML = `<div class="estado">${esc(msg)}</div>`; }
+
+// Barra partida: costo | descuentos | ganancia (o pérdida), escalada contra "escala".
+function segmentos(r, escala) {
+  const w = v => Math.max(0, v) / (escala || 1) * 100;
+  const perdida = r.ganancia < 0 ? -r.ganancia : 0;
+  // Si hay pérdida, costo+descuentos superan lo facturado: la parte que sobra se marca rayada.
+  const costoVisible = perdida ? Math.max(0, r.costo - perdida) : r.costo;
+  return `<div class="seg costo" style="width:${w(costoVisible)}%"></div>`
+    + `<div class="seg desc" style="width:${w(r.descuentos)}%"></div>`
+    + (perdida ? `<div class="seg perd" style="width:${w(perdida)}%"></div>` : `<div class="seg gan" style="width:${w(r.ganancia)}%"></div>`);
+}
+
+function filas(items, conDesc, etiqueta, sub) {
+  const escala = Math.max(...items.map(r => Math.max(r.facturado, r.costo + r.descuentos)), 1);
+  return `<div class="filas">${items.map(r => {
+    const label = `${etiqueta(r)}: facturado ${money(r.facturado)}, costo ${money(r.costo)}, ${r.ganancia >= 0 ? 'queda' : 'pérdida'} ${money(Math.abs(r.ganancia))}`;
+    const marca = r.ganancia < 0 ? `<div class="marca-fact" style="left:${r.facturado / escala * 100}%" title="Facturado"></div>` : '';
+    return `<div class="fila">
+      <div class="nom">${esc(etiqueta(r))}<small>${esc(sub(r))}</small></div>
+      <div class="mini" role="img" aria-label="${esc(label)}">${segmentos(r, escala)}${marca}</div>
+      <div class="res ${r.ganancia < 0 ? 'neg' : ''}">${money(r.ganancia)}<small>${pct(r.ganancia, r.facturado)}% de ${money(r.facturado)}</small></div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function render(d, esPreview) {
+  const T = d.totales;
+  const conDesc = !!d.conDescuentos;
+  const nombreRes = conDesc ? 'ganancia neta' : 'margen bruto';
+  const [y, m] = String(d.periodo).split('-');
+  const cuando = d.tipo === 'mes' ? `En ${MESES[+m - 1]} de ${y}` : `En ${d.periodo}`;
+  document.title = `${d.titulo} · SBS`;
+
+  const h1 = T.ganancia >= 0
+    ? `${cuando}, el Movistar Arena dejó ${money(T.ganancia)} de ${nombreRes}.`
+    : `${cuando}, el Movistar Arena tuvo una pérdida de ${money(-T.ganancia)}.`;
+  const deCada100 = pct(T.ganancia, T.facturado);
+  const bajada = `Sobre <strong>${money(T.facturado)}</strong> facturados sin IVA en ${T.shows} show${T.shows !== 1 ? 's' : ''}`
+    + (T.ganancia >= 0 ? `: de cada 100 pesos, <strong>${deCada100}</strong> quedaron en la empresa.` : '.');
+
+  const escala = Math.max(T.facturado, T.costo + T.totalDescuentos, 1);
+  const perdida = T.ganancia < 0;
+  const leyenda = `
+    <div class="ley"><div class="n">${money(T.costo)}</div><div class="t">Personal liquidado, ${pct(T.costo, T.facturado)}%</div></div>
+    <div class="ley desc"><div class="n">${money(T.totalDescuentos)}</div><div class="t">${conDesc ? `Descuentos, ${pct(T.totalDescuentos, T.facturado)}%` : 'Descuentos (sin cargar)'}</div></div>
+    <div class="ley ${perdida ? 'perd' : 'gan'}"><div class="n">${money(Math.abs(T.ganancia))}</div><div class="t">${perdida ? 'Pérdida' : (conDesc ? 'Ganancia neta' : 'Margen bruto')}, ${Math.abs(deCada100)}%</div></div>`;
+
+  const porShow = filas(d.shows, conDesc, r => r.nombre, r => `${fecha(r.fecha)}${r.staff ? `, ${r.staff} puestos` : ''}${r.estimado ? ', costo estimado' : ''}`);
+  const porMes = d.meses ? filas(d.meses, conDesc, r => r.label, r => `${r.shows} show${r.shows !== 1 ? 's' : ''}`) : '';
+
+  const tabla = `<div class="tabla-wrap"><table>
+    <thead><tr><th>Show</th><th>Staff</th><th>Facturado s/IVA</th><th>Personal</th>${conDesc ? '<th>Descuentos</th>' : ''}<th>${conDesc ? 'Ganancia' : 'Margen'}</th><th>%</th></tr></thead>
+    <tbody>${d.shows.map(s => `<tr><td>${esc(s.nombre)}<small class="f">${fecha(s.fecha)}</small></td><td>${s.staff || '—'}</td><td>${money(s.facturado)}</td><td>${money(s.costo)}</td>${conDesc ? `<td>${money(s.descuentos)}</td>` : ''}<td class="${s.ganancia < 0 ? 'neg' : ''}">${money(s.ganancia)}</td><td>${pct(s.ganancia, s.facturado)}%</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td>Total</td><td>${T.staff || '—'}</td><td>${money(T.facturado)}</td><td>${money(T.costo)}</td>${conDesc ? `<td>${money(T.totalDescuentos)}</td>` : ''}<td class="${T.ganancia < 0 ? 'neg' : ''}">${money(T.ganancia)}</td><td>${deCada100}%</td></tr></tfoot>
+  </table></div>`;
+
+  const descTxt = conDesc
+    ? T.descuentos.filter(x => x.pct > 0).map(x => `${esc(x.nombre)} (${String(x.pct).replace('.', ',')}% sobre ${x.base === 'liquidado' ? 'la liquidación' : 'lo facturado'})`).join(', ')
+    : '';
+  const avisos = [];
+  if (d.hayEstimados) avisos.push('Algunos shows tienen el costo de personal estimado porque su quincena todavía no se cerró. El número final puede variar levemente.');
+  if (d.pendientes?.length) avisos.push(d.pendientes.length > 1
+    ? `No incluye ${d.pendientes.length} shows del período que todavía no se facturaron: ${d.pendientes.map(p => esc(p.nombre)).join(', ')}.`
+    : `No incluye un show del período que todavía no se facturó: ${esc(d.pendientes[0].nombre)}.`);
+
+  $('app').innerHTML = `
+    <div class="top">
+      <div class="marca">SBS <span>Show Business Solutions</span></div>
+      <button class="print" onclick="window.print()">Imprimir / PDF</button>
+    </div>
+    ${esPreview ? '<div class="preview-tag">Vista previa, todavía no publicada</div>' : ''}
+    <p class="periodo">Informe de resultados, Movistar Arena, ${esc(d.periodoLabel.toLowerCase())}</p>
+    <h1>${h1}</h1>
+    <p class="bajada">${bajada}</p>
+    <div class="barra" role="img" aria-label="De lo facturado: personal ${pct(T.costo, T.facturado)}%, descuentos ${pct(T.totalDescuentos, T.facturado)}%, ${perdida ? 'pérdida' : nombreRes} ${Math.abs(deCada100)}%">${segmentos({ costo: T.costo, descuentos: T.totalDescuentos, ganancia: T.ganancia }, escala)}</div>
+    <div class="leyenda">${leyenda}</div>
+    ${avisos.map(a => `<div class="aviso">${a}</div>`).join('')}
+    ${d.meses ? `<h2>Mes por mes</h2><p class="nota-h2">El largo de cada barra es lo facturado en el mes; el verde es lo que quedó.</p>${porMes}` : ''}
+    <h2>Show por show</h2>
+    <p class="nota-h2">El largo de cada barra es lo facturado al Arena; el verde es lo que quedó después de pagar al personal${conDesc ? ' y los descuentos' : ''}.</p>
+    ${porShow}
+    <h2>Detalle</h2>
+    <p class="nota-h2">Montos en pesos, sin IVA.</p>
+    ${tabla}
+    <h2>Cómo se calcula</h2>
+    <div class="metodo">
+      <p><strong>Facturado</strong> es lo que SBS le factura al Movistar Arena por el staff de cada show, sin IVA.</p>
+      <p><strong>Personal</strong> es lo liquidado a los colaboradores por esas jornadas.</p>
+      ${conDesc ? `<p><strong>Descuentos</strong>: ${descTxt}.</p>` : `<p>Todavía no se descuentan otros costos (impuestos, cargas), por eso el resultado se informa como <strong>margen bruto</strong>.</p>`}
+      <p>Los números arrancan con el show del ${fecha(d.desde)}, primer show con facturación registrada.</p>
+    </div>
+    <div class="pie">Generado el ${new Date(d.generado).toLocaleDateString('es-AR')}. Documento para uso interno de los socios de SBS.</div>`;
+}
+
+(async function () {
+  const params = new URLSearchParams(location.search);
+  if (params.get('preview')) {
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem('sbs_informe_preview') || 'null'); } catch {}
+    return d ? render(d, true) : estado('No hay una vista previa para mostrar. Generala desde la app.');
+  }
+  const t = params.get('t');
+  if (!t || !/^[0-9a-f-]{36}$/i.test(t)) return estado('El link del informe no es válido.');
+  try {
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data, error } = await sb.rpc('get_informe', { p_token: t });
+    if (error || !data) return estado('No encontramos este informe. Puede que el link esté incompleto o que el informe se haya borrado.');
+    render(data.data, false);
+  } catch (e) {
+    estado('No se pudo cargar el informe. Probá de nuevo en un momento.');
+  }
+})();
+</script>
+</body>
+</html>
