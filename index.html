@@ -719,7 +719,7 @@ async function pgDB(el) {
   <div class="grid3" style="margin-bottom:14px">
     <div class="metric"><div class="metric-l">Facturado (sin IVA)</div><div class="metric-v" style="font-size:17px">${fmt(gFn)}</div><div class="metric-s">shows desde ${fd(RENT_DESDE)}</div></div>
     <div class="metric"><div class="metric-l">Liquidado Arena (costo)</div><div class="metric-v" style="font-size:17px">${fmt(gLi)}</div></div>
-    <div class="metric"><div class="metric-l">Ganancia neta</div><div class="metric-v" style="font-size:17px;color:${gGa>=0?'#1a7a3e':'#b45309'}">${fmt(gGa)}</div><div class="metric-s">margen ${gFn?Math.round(gGa/gFn*100):0}%</div></div>
+    <div class="metric"><div class="metric-l">Margen sobre personal</div><div class="metric-v" style="font-size:17px;color:${gGa>=0?'#1a7a3e':'#b45309'}">${fmt(gGa)}</div><div class="metric-s">margen ${gFn?Math.round(gGa/gFn*100):0}%</div></div>
   </div>
   <div class="grid2">
     <div class="card">
@@ -4015,16 +4015,16 @@ async function pgRentabilidad(el, ac) {
   const col = g => g >= 0 ? '#1a7a3e' : '#b45309';
   el.innerHTML = `
     <div style="margin-bottom:14px"><h2 style="margin:0">Facturación vs Liquidación</h2>
-      <div style="color:var(--text2);font-size:13px">Ganancia neta de Movistar Arena por show, desde el ${fd(RENT_DESDE)}: lo facturado al Arena (sin IVA) menos lo liquidado al personal.</div></div>
+      <div style="color:var(--text2);font-size:13px">Margen de Movistar Arena por show, desde el ${fd(RENT_DESDE)}: lo facturado al Arena (sin IVA) menos lo liquidado al personal.</div></div>
     <div class="grid3" style="margin-bottom:16px">
       <div class="metric"><div class="metric-l">Facturado (sin IVA)</div><div class="metric-v">${fmt(tot.fn)}</div><div class="metric-s">c/IVA ${fmt(tot.fi)}</div></div>
       <div class="metric"><div class="metric-l">Liquidado (costo)</div><div class="metric-v">${fmt(tot.co)}</div></div>
-      <div class="metric"><div class="metric-l">Ganancia neta</div><div class="metric-v" style="color:${col(tot.ga)}">${fmt(tot.ga)}</div><div class="metric-s">margen ${pct(tot.ga, tot.fn)}%</div></div>
+      <div class="metric"><div class="metric-l">Margen sobre personal</div><div class="metric-v" style="color:${col(tot.ga)}">${fmt(tot.ga)}</div><div class="metric-s">margen ${pct(tot.ga, tot.fn)}%</div></div>
     </div>
     <div class="card" style="padding:0;overflow:hidden">
       <table class="tbl"><thead><tr>
         <th>Show</th><th style="text-align:right">Facturado s/IVA</th><th style="text-align:right">Facturado c/IVA</th>
-        <th style="text-align:right">Liquidado</th><th style="text-align:right">Ganancia neta</th><th style="text-align:center">Margen</th>
+        <th style="text-align:right">Liquidado</th><th style="text-align:right">Margen s/ personal</th><th style="text-align:center">Margen</th>
       </tr></thead><tbody>
       ${filas.length ? filas.map(r => `<tr>
         <td><strong>${r.ev.nombre}</strong> <span style="color:var(--text2);font-size:12px">· ${fd(r.fISO)}</span>
@@ -4044,7 +4044,7 @@ async function pgRentabilidad(el, ac) {
       </tr></tfoot></table>
     </div>
     ${pendientes.length ? `<div class="alert alert-warn" style="margin-top:10px"><i class="ti ti-alert-triangle"></i> ${pendientes.length} show${pendientes.length>1?'s':''} sin facturación guardada (costo ${fmt(costoPend)}), no incluido${pendientes.length>1?'s':''} en los totales hasta que lo${pendientes.length>1?'s':''} factures.</div>` : ''}
-    <div style="color:var(--text2);font-size:11.5px;margin-top:8px">Los totales incluyen solo shows facturados. "Estimado": la quincena del show sigue abierta, el costo sale de presentismo × tarifario actual; al cerrarla pasa a usar lo liquidado.</div>`;
+    <div style="color:var(--text2);font-size:11.5px;margin-top:8px">Este margen todavía no descuenta cargas sociales ni impuestos: el resultado neto completo está en Informes a socios. Los totales incluyen solo shows facturados. "Estimado": la quincena del show sigue abierta, el costo sale de presentismo × tarifario actual; al cerrarla pasa a usar lo liquidado.</div>`;
 }
 window.subirFacturaArena = function(input) {
   const file = input.files?.[0]; if (!file) return;
@@ -4064,76 +4064,104 @@ window.subirFacturaArena = function(input) {
 };
 
 // ══════════════════════════════════════════════
-// INFORMES A SOCIOS — foto mensual/anual de la rentabilidad del Arena, publicada como link
+// INFORMES A SOCIOS — foto mensual/anual del resultado del Arena, publicada como link
 // ══════════════════════════════════════════════
-const DESC_KEY = 'sbs_descuentos_informe';
-function getDescuentos() {
-  try { const v = JSON.parse(localStorage.getItem(DESC_KEY)); if (Array.isArray(v)) return v; } catch {}
-  return [
-    { nombre: 'Ingresos Brutos', pct: 0, base: 'facturado' },
-    { nombre: 'Cargas sociales', pct: 0, base: 'liquidado' },
-  ];
+// Estructura de costos (cascada tipo estado de resultados). Porcentajes por defecto tomados de la
+// planilla de referencia de la empresa; se confirman con administración y son editables.
+const EST_KEY = 'sbs_estructura_costos';
+const EST_DEFAULT = {
+  cargas:    [{ nombre: 'Cargas sociales', pct: 55 }],                          // % sobre la liquidación
+  impuestos: [{ nombre: 'Ingresos Brutos', pct: 5 }, { nombre: 'SIRCREB', pct: 2.5 },
+              { nombre: 'Ley Débitos y Créditos', pct: 2.5 }],                   // % sobre las ventas
+  fijosMes:  0,                                                                  // $ por mes
+  iigg:      35,                                                                 // % sobre el EBIT positivo
+};
+function getEstructura() {
+  try {
+    const v = JSON.parse(localStorage.getItem(EST_KEY));
+    if (v && Array.isArray(v.cargas) && Array.isArray(v.impuestos)) return { ...EST_DEFAULT, ...v };
+  } catch {}
+  return JSON.parse(JSON.stringify(EST_DEFAULT));
 }
-function setDescuentos(arr) { try { localStorage.setItem(DESC_KEY, JSON.stringify(arr)); } catch {} }
+function setEstructura(e) { try { localStorage.setItem(EST_KEY, JSON.stringify(e)); } catch {} }
+
+// Cascada hasta EBIT (Ganancias se calcula después sobre el agregado).
+function calcPL(ventas, personal, fijos, E) {
+  const r = n => Math.round(n);
+  const cargas = E.cargas.filter(x => (x.nombre || '').trim()).map(x => ({ nombre: x.nombre.trim(), pct: +x.pct || 0, monto: r(personal * (+x.pct || 0) / 100) }));
+  const impuestos = E.impuestos.filter(x => (x.nombre || '').trim()).map(x => ({ nombre: x.nombre.trim(), pct: +x.pct || 0, monto: r(ventas * (+x.pct || 0) / 100) }));
+  const totCargas = cargas.reduce((s, x) => s + x.monto, 0);
+  const totImp = impuestos.reduce((s, x) => s + x.monto, 0);
+  const utBruta = ventas - personal - totCargas;
+  const contrMarginal = utBruta - totImp;
+  const ebit = contrMarginal - fijos;
+  return { ventas, personal, cargas, totCargas, utBruta, impuestos, totImp, contrMarginal, fijos: r(fijos), ebit };
+}
 
 // Arma la "foto" del período: todo lo que necesita la página pública, ya calculado.
 function buildInforme(tipo, periodo) {
-  const desc = getDescuentos().filter(x => (x.nombre || '').trim());
+  const E = getEstructura();
   const facs = APP.facturaciones || [];
   const enPeriodo = rentPorShow().filter(r => tipo === 'mes' ? r.fISO.slice(0, 7) === periodo : r.fISO.slice(0, 4) === periodo);
-  const calcDesc = (fact, costo) => desc.map(x => {
-    const pct = parseFloat(x.pct) || 0;
-    return { nombre: x.nombre.trim(), pct, base: x.base, monto: Math.round((x.base === 'liquidado' ? costo : fact) * pct / 100) };
-  });
-  const shows = enPeriodo.filter(r => r.nFac).map(r => {
+  const base = enPeriodo.filter(r => r.nFac);
+  const ventasTot = base.reduce((s, r) => s + r.facturado, 0);
+  const nMeses = new Set(base.map(r => r.fISO.slice(0, 7))).size || 1;
+  const fijosTot = (+E.fijosMes || 0) * (tipo === 'mes' ? 1 : nMeses);
+  // Por show: los costos fijos se reparten en proporción a lo vendido
+  let shows = base.map(r => {
     const staff = facs.filter(f => f.evento_id === r.ev.id).reduce((s, f) => s + (f.cant_staff || 0), 0);
-    const totDesc = calcDesc(r.facturado, r.costo).reduce((s, x) => s + x.monto, 0);
-    return { nombre: r.ev.nombre, fecha: r.fISO, staff, facturado: r.facturado, facturadoIva: r.facturadoIva,
-             costo: r.costo, descuentos: totDesc, ganancia: r.facturado - r.costo - totDesc, estimado: r.estimado };
+    const pl = calcPL(r.facturado, r.costo, ventasTot ? fijosTot * r.facturado / ventasTot : 0, E);
+    return { nombre: r.ev.nombre, fecha: r.fISO, staff, estimado: r.estimado, ventasIva: r.facturadoIva,
+             ventas: pl.ventas, personal: pl.personal, cargas: pl.totCargas, utBruta: pl.utBruta,
+             impuestos: pl.totImp, contrMarginal: pl.contrMarginal, fijos: pl.fijos, ebit: pl.ebit };
+  });
+  const T = calcPL(ventasTot, base.reduce((s, r) => s + r.costo, 0), fijosTot, E);
+  // Ganancias: sobre el EBIT total del período; se reparte entre los shows con EBIT positivo
+  T.iigg = { pct: +E.iigg || 0, monto: Math.round(Math.max(0, T.ebit) * (+E.iigg || 0) / 100) };
+  T.neto = T.ebit - T.iigg.monto;
+  const ebitPos = shows.reduce((s, x) => s + Math.max(0, x.ebit), 0);
+  shows = shows.map(x => {
+    const iigg = ebitPos ? Math.round(T.iigg.monto * Math.max(0, x.ebit) / ebitPos) : 0;
+    return { ...x, iigg, neto: x.ebit - iigg };
   }).sort((a, b) => a.fecha.localeCompare(b.fecha));
-  const pendientes = enPeriodo.filter(r => !r.nFac).map(r => ({ nombre: r.ev.nombre, fecha: r.fISO }));
-  const sum = (arr, k) => arr.reduce((s, x) => s + (x[k] || 0), 0);
-  const T = { facturado: sum(shows, 'facturado'), facturadoIva: sum(shows, 'facturadoIva'), costo: sum(shows, 'costo'),
-              staff: sum(shows, 'staff'), shows: shows.length };
-  T.descuentos = calcDesc(T.facturado, T.costo);
-  T.totalDescuentos = T.descuentos.reduce((s, x) => s + x.monto, 0);
-  T.margenBruto = T.facturado - T.costo;
-  T.ganancia = T.margenBruto - T.totalDescuentos;
+  T.ventasIva = shows.reduce((s, x) => s + (x.ventasIva || 0), 0);
+  T.staff = shows.reduce((s, x) => s + (x.staff || 0), 0);
+  T.shows = shows.length;
   let meses = null;
   if (tipo === 'anio') {
     const g = {};
     shows.forEach(s => {
       const k = s.fecha.slice(0, 7);
-      g[k] = g[k] || { periodo: k, label: mesLabel(k), facturado: 0, costo: 0, descuentos: 0, ganancia: 0, shows: 0 };
-      ['facturado', 'costo', 'descuentos', 'ganancia'].forEach(c => g[k][c] += s[c]);
+      g[k] = g[k] || { periodo: k, label: mesLabel(k), shows: 0, ventas: 0, personal: 0, cargas: 0, impuestos: 0, fijos: 0, iigg: 0, neto: 0 };
+      ['ventas', 'personal', 'cargas', 'impuestos', 'fijos', 'iigg', 'neto'].forEach(c => g[k][c] += s[c]);
       g[k].shows++;
     });
     meses = Object.values(g).sort((a, b) => a.periodo.localeCompare(b.periodo));
   }
   const periodoLabel = tipo === 'mes' ? mesLabel(periodo) : `Año ${periodo}`;
   return {
-    tipo, periodo, periodoLabel, titulo: `Informe Movistar Arena, ${periodoLabel.toLowerCase()}`,
-    desde: RENT_DESDE, generado: new Date().toISOString(),
-    conDescuentos: T.descuentos.some(x => x.pct > 0),
-    shows, pendientes, totales: T, meses, hayEstimados: shows.some(s => s.estimado),
+    v: 2, tipo, periodo, periodoLabel, titulo: `Informe Movistar Arena, ${periodoLabel.toLowerCase()}`,
+    desde: RENT_DESDE, generado: new Date().toISOString(), estructura: E,
+    shows, pendientes: enPeriodo.filter(r => !r.nFac).map(r => ({ nombre: r.ev.nombre, fecha: r.fISO })),
+    totales: T, meses, hayEstimados: shows.some(s => s.estimado),
   };
 }
 
 const informeUrl = token => `${location.origin}/informe.html?t=${token}`;
 function informeMailTexto(inf, url) {
   const T = inf.totales;
-  const pct = T.facturado ? Math.round(T.ganancia / T.facturado * 100) : 0;
-  const lineas = [
+  const p = n => T.ventas ? Math.round(n / T.ventas * 100) : 0;
+  const cuerpo = [
     'Hola,', '',
     `Les comparto el informe de resultados del Movistar Arena de ${inf.periodoLabel.toLowerCase()}.`, '',
     `Shows: ${T.shows}`,
-    `Facturado (sin IVA): ${fmt(T.facturado)}`,
-    `Costo de personal: ${fmt(T.costo)}`,
-  ];
-  if (inf.conDescuentos) lineas.push(`Descuentos (${T.descuentos.filter(x => x.pct > 0).map(x => x.nombre).join(', ')}): ${fmt(T.totalDescuentos)}`);
-  lineas.push(`${inf.conDescuentos ? 'Ganancia neta' : 'Margen bruto'}: ${fmt(T.ganancia)} (${pct}% de lo facturado)`, '',
-    `El detalle por show y los gráficos están acá: ${url}`, '', 'Saludos,');
-  return { asunto: `Informe Movistar Arena - ${inf.periodoLabel}`, cuerpo: lineas.join('\n') };
+    `Ventas (sin IVA): ${fmt(T.ventas)}`,
+    `Utilidad bruta (después de personal y cargas sociales): ${fmt(T.utBruta)} (${p(T.utBruta)}%)`,
+    `Contribución marginal (después de impuestos sobre ventas): ${fmt(T.contrMarginal)} (${p(T.contrMarginal)}%)`,
+    `Resultado neto (después de Ganancias): ${fmt(T.neto)} (${p(T.neto)}%)`, '',
+    `El estado de resultados completo, el detalle por show y los gráficos están acá: ${url}`, '', 'Saludos,',
+  ].join('\n');
+  return { asunto: `Informe Movistar Arena - ${inf.periodoLabel}`, cuerpo };
 }
 
 async function pgInformes(el, ac) {
@@ -4148,17 +4176,60 @@ async function pgInformes(el, ac) {
 
   const cab = `
     <div style="margin-bottom:14px"><h2 style="margin:0">Informes a socios</h2>
-      <div style="color:var(--text2);font-size:13px">Elegí el período, revisá los números y publicá un link para mandarles a los socios.</div></div>`;
+      <div style="color:var(--text2);font-size:13px">Elegí el período, revisá el estado de resultados y publicá un link para mandarles a los socios.</div></div>`;
   if (!APP.infPeriodo) {
     el.innerHTML = cab + `<div class="empty-state"><i class="ti ti-presentation-analytics"></i><p>Todavía no hay shows facturados desde el ${fd(RENT_DESDE)}. Guardá facturaciones en "Facturación Movistar Arena" para armar el primer informe.</p></div>`;
     return;
   }
   const inf = buildInforme(APP.infTipo, APP.infPeriodo);
   window._informeActual = inf;
-  const T = inf.totales;
-  const pct = T.facturado ? Math.round(T.ganancia / T.facturado * 100) : 0;
-  const desc = getDescuentos();
-  const yaPub = (pubs || []).find(p => p.tipo === inf.tipo && p.periodo === inf.periodo);
+  const T = inf.totales, E = inf.estructura;
+  const p = n => T.ventas ? (n / T.ventas * 100).toFixed(1).replace('.', ',') + '%' : '—';
+  const yaPub = (pubs || []).find(x => x.tipo === inf.tipo && x.periodo === inf.periodo);
+  const col = n => n >= 0 ? '#1a7a3e' : '#b45309';
+
+  // Filas del estado de resultados
+  const linea = (lbl, monto, { sub = false, neg = false, indent = false } = {}) => `<tr style="${sub ? 'font-weight:700;background:var(--card2)' : ''}">
+    <td style="${indent ? 'padding-left:22px;color:var(--text2)' : ''}">${lbl}</td>
+    <td style="text-align:right;${sub ? 'color:' + col(monto) : ''}">${neg && monto ? '−' + fmt(monto) : fmt(monto)}</td>
+    <td style="text-align:right;color:var(--text2)">${p(neg ? -monto : monto)}</td></tr>`;
+  const plHTML = `
+    <table class="tbl"><thead><tr><th>Estado de resultados</th><th style="text-align:right">Monto</th><th style="text-align:right">% ventas</th></tr></thead><tbody>
+      ${linea('Ventas (sin IVA)', T.ventas, { sub: true })}
+      ${linea('Liquidaciones al personal', T.personal, { neg: true, indent: true })}
+      ${T.cargas.map(c => linea(`${c.nombre} (${String(c.pct).replace('.', ',')}% s/ liquidación)`, c.monto, { neg: true, indent: true })).join('')}
+      ${linea('Utilidad bruta', T.utBruta, { sub: true })}
+      ${T.impuestos.map(c => linea(`${c.nombre} (${String(c.pct).replace('.', ',')}% s/ ventas)`, c.monto, { neg: true, indent: true })).join('')}
+      ${linea('Contribución marginal', T.contrMarginal, { sub: true })}
+      ${linea('Costos fijos', T.fijos, { neg: true, indent: true })}
+      ${linea('EBIT', T.ebit, { sub: true })}
+      ${linea(`Impuesto a las Ganancias (${String(T.iigg.pct).replace('.', ',')}% s/ EBIT)`, T.iigg.monto, { neg: true, indent: true })}
+      ${linea('Resultado neto', T.neto, { sub: true })}
+    </tbody></table>`;
+
+  // Editor de la estructura de costos
+  const filaPct = (grupo, x, i, sobre) => `<tr>
+    <td><input value="${(x.nombre || '').replace(/"/g, '&quot;')}" onchange="editEstructura('${grupo}',${i},'nombre',this.value)" style="width:100%"></td>
+    <td><input type="number" step="0.01" min="0" value="${x.pct || 0}" onchange="editEstructura('${grupo}',${i},'pct',this.value)" style="width:70px;text-align:center"></td>
+    <td style="color:var(--text2);font-size:12px">${sobre}</td>
+    <td><button class="btn btn-sm btn-danger" onclick="borrarEstructura('${grupo}',${i})" title="Quitar"><i class="ti ti-trash"></i></button></td></tr>`;
+  const editorHTML = `
+    <div style="font-size:13px;font-weight:600;margin-bottom:4px">Estructura de costos</div>
+    <div style="font-size:11.5px;color:var(--text2);margin-bottom:10px">Porcentajes de referencia de la empresa, a confirmar con administración. Cada informe publicado guarda la estructura con la que se calculó.</div>
+    <table class="tbl"><thead><tr><th>Concepto</th><th style="width:80px;text-align:center">%</th><th>Sobre</th><th></th></tr></thead><tbody>
+      ${E.cargas.map((x, i) => filaPct('cargas', x, i, 'la liquidación')).join('')}
+      ${E.impuestos.map((x, i) => filaPct('impuestos', x, i, 'las ventas')).join('')}
+      <tr><td>Impuesto a las Ganancias</td>
+        <td><input type="number" step="0.01" min="0" value="${E.iigg}" onchange="editEstructuraCampo('iigg',this.value)" style="width:70px;text-align:center"></td>
+        <td style="color:var(--text2);font-size:12px">el EBIT</td><td></td></tr>
+      <tr><td>Costos fijos del Arena</td>
+        <td colspan="2"><input type="number" min="0" value="${E.fijosMes}" onchange="editEstructuraCampo('fijosMes',this.value)" style="width:140px"> <span style="color:var(--text2);font-size:12px">$ por mes</span></td><td></td></tr>
+    </tbody></table>
+    <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+      <button class="btn btn-sm" onclick="agregarEstructura('cargas')"><i class="ti ti-plus"></i> Costo sobre liquidación</button>
+      <button class="btn btn-sm" onclick="agregarEstructura('impuestos')"><i class="ti ti-plus"></i> Impuesto sobre ventas</button>
+      <button class="btn btn-sm" onclick="resetEstructura()" title="Volver a los porcentajes de referencia"><i class="ti ti-restore"></i> Valores de referencia</button>
+    </div>`;
 
   el.innerHTML = cab + `
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
@@ -4172,67 +4243,61 @@ async function pgInformes(el, ac) {
       <button class="btn btn-success" onclick="publicarInforme()"><i class="ti ti-world-upload"></i> ${yaPub ? 'Actualizar informe publicado' : 'Publicar informe'}</button>
     </div>
     ${inf.hayEstimados ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Hay shows con costo <strong>estimado</strong> (su quincena sigue abierta). Conviene cerrar la quincena antes de mandar el informe, así el costo es el liquidado.</div>` : ''}
-    ${inf.pendientes.length ? `<div class="alert alert-warn"><i class="ti ti-info-circle"></i> ${inf.pendientes.length} show${inf.pendientes.length > 1 ? 's' : ''} del período sin facturación guardada (${inf.pendientes.map(p => p.nombre).join(', ')}): no entran en el informe hasta que los factures.</div>` : ''}
+    ${inf.pendientes.length ? `<div class="alert alert-warn"><i class="ti ti-info-circle"></i> ${inf.pendientes.length} show${inf.pendientes.length > 1 ? 's' : ''} del período sin facturación guardada (${inf.pendientes.map(x => x.nombre).join(', ')}): no entran en el informe hasta que los factures.</div>` : ''}
     <div class="grid4" style="margin-bottom:14px">
-      <div class="metric"><div class="metric-l">Facturado (sin IVA)</div><div class="metric-v" style="font-size:17px">${fmt(T.facturado)}</div><div class="metric-s">${T.shows} show${T.shows !== 1 ? 's' : ''}</div></div>
-      <div class="metric"><div class="metric-l">Costo de personal</div><div class="metric-v" style="font-size:17px">${fmt(T.costo)}</div><div class="metric-s">${T.staff} puestos</div></div>
-      <div class="metric"><div class="metric-l">Descuentos</div><div class="metric-v" style="font-size:17px">${fmt(T.totalDescuentos)}</div><div class="metric-s">${inf.conDescuentos ? 'según porcentajes cargados' : 'sin porcentajes cargados'}</div></div>
-      <div class="metric"><div class="metric-l">${inf.conDescuentos ? 'Ganancia neta' : 'Margen bruto'}</div><div class="metric-v" style="font-size:17px;color:${T.ganancia >= 0 ? '#1a7a3e' : '#b45309'}">${fmt(T.ganancia)}</div><div class="metric-s">${pct}% de lo facturado</div></div>
+      <div class="metric"><div class="metric-l">Ventas (sin IVA)</div><div class="metric-v" style="font-size:17px">${fmt(T.ventas)}</div><div class="metric-s">${T.shows} show${T.shows !== 1 ? 's' : ''} · ${T.staff} puestos</div></div>
+      <div class="metric"><div class="metric-l">Utilidad bruta</div><div class="metric-v" style="font-size:17px;color:${col(T.utBruta)}">${fmt(T.utBruta)}</div><div class="metric-s">${p(T.utBruta)} de las ventas</div></div>
+      <div class="metric"><div class="metric-l">Contribución marginal</div><div class="metric-v" style="font-size:17px;color:${col(T.contrMarginal)}">${fmt(T.contrMarginal)}</div><div class="metric-s">${p(T.contrMarginal)} de las ventas</div></div>
+      <div class="metric"><div class="metric-l">Resultado neto</div><div class="metric-v" style="font-size:17px;color:${col(T.neto)}">${fmt(T.neto)}</div><div class="metric-s">${p(T.neto)} de las ventas</div></div>
     </div>
     <div class="grid2" style="margin-bottom:14px;align-items:start">
-      <div class="card">
-        <div style="font-size:13px;font-weight:600;margin-bottom:4px">Descuentos a aplicar</div>
-        <div style="font-size:11.5px;color:var(--text2);margin-bottom:10px">Porcentajes a definir con administración. Mientras estén en 0%, el informe muestra margen bruto. Cada informe publicado guarda los porcentajes con los que se calculó.</div>
-        <table class="tbl"><thead><tr><th>Concepto</th><th style="width:80px;text-align:center">%</th><th>Sobre</th><th style="text-align:right">Monto</th><th></th></tr></thead><tbody>
-        ${desc.map((x, i) => `<tr>
-          <td><input value="${(x.nombre || '').replace(/"/g, '&quot;')}" onchange="editDescuento(${i},'nombre',this.value)" style="width:100%"></td>
-          <td><input type="number" step="0.01" min="0" value="${x.pct || 0}" onchange="editDescuento(${i},'pct',this.value)" style="width:70px;text-align:center"></td>
-          <td><select onchange="editDescuento(${i},'base',this.value)" style="font-size:12px">
-            <option value="facturado" ${x.base !== 'liquidado' ? 'selected' : ''}>lo facturado</option>
-            <option value="liquidado" ${x.base === 'liquidado' ? 'selected' : ''}>la liquidación</option></select></td>
-          <td style="text-align:right">${fmt(T.descuentos.find(d => d.nombre === (x.nombre || '').trim())?.monto || 0)}</td>
-          <td><button class="btn btn-sm btn-danger" onclick="borrarDescuento(${i})" title="Quitar"><i class="ti ti-trash"></i></button></td>
+      <div class="card" style="padding:0;overflow:hidden">${plHTML}</div>
+      <div class="card">${editorHTML}</div>
+    </div>
+    <div class="grid2" style="margin-bottom:14px;align-items:start">
+      <div class="card" style="padding:0;overflow:auto">
+        <table class="tbl"><thead><tr>
+          <th>Show</th><th style="text-align:right">Ventas</th><th style="text-align:right">Ut. bruta</th><th style="text-align:right">Resultado neto</th><th style="text-align:center">%</th>
+        </tr></thead><tbody>
+        ${inf.shows.map(s => `<tr>
+          <td><strong>${s.nombre}</strong> <span style="color:var(--text2);font-size:12px">${fd(s.fecha)}</span>${s.estimado ? ' <span class="badge bi" style="font-size:10px">estimado</span>' : ''}</td>
+          <td style="text-align:right">${fmt(s.ventas)}</td>
+          <td style="text-align:right">${fmt(s.utBruta)}</td>
+          <td style="text-align:right;font-weight:600;color:${col(s.neto)}">${fmt(s.neto)}</td>
+          <td style="text-align:center">${s.ventas ? Math.round(s.neto / s.ventas * 100) : 0}%</td>
         </tr>`).join('')}
         </tbody></table>
-        <button class="btn btn-sm" style="margin-top:8px" onclick="agregarDescuento()"><i class="ti ti-plus"></i> Agregar concepto</button>
       </div>
       <div class="card">
         <div style="font-size:13px;font-weight:600;margin-bottom:10px">Informes publicados</div>
         ${ePub ? `<div class="alert alert-warn" style="margin:0"><i class="ti ti-database-off"></i> Falta crear la tabla <strong>informes</strong> en Supabase para publicar.</div>`
           : !(pubs || []).length ? '<div style="font-size:12.5px;color:var(--text2)">Todavía no publicaste ninguno.</div>'
-          : pubs.map(p => `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
-              <div><div style="font-size:12.5px;font-weight:500">${p.tipo === 'mes' ? mesLabel(p.periodo) : 'Año ' + p.periodo}</div>
-                <div style="font-size:11px;color:var(--text2)">actualizado ${new Date(p.updated_at).toLocaleDateString('es-AR')}</div></div>
+          : pubs.map(x => `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+              <div><div style="font-size:12.5px;font-weight:500">${x.tipo === 'mes' ? mesLabel(x.periodo) : 'Año ' + x.periodo}</div>
+                <div style="font-size:11px;color:var(--text2)">actualizado ${new Date(x.updated_at).toLocaleDateString('es-AR')}</div></div>
               <div style="white-space:nowrap">
-                <button class="btn btn-sm" title="Link y mail" onclick="abrirLinkInforme('${p.id}')"><i class="ti ti-link"></i></button>
-                <button class="btn btn-sm" title="Abrir" onclick="window.open(informeUrl('${p.token}'),'_blank')"><i class="ti ti-external-link"></i></button>
+                <button class="btn btn-sm" title="Link y mail" onclick="abrirLinkInforme('${x.id}')"><i class="ti ti-link"></i></button>
+                <button class="btn btn-sm" title="Abrir" onclick="window.open(informeUrl('${x.token}'),'_blank')"><i class="ti ti-external-link"></i></button>
               </div></div>`).join('')}
       </div>
-    </div>
-    <div class="card" style="padding:0;overflow:auto">
-      <table class="tbl"><thead><tr>
-        <th>Show</th><th style="text-align:center">Staff</th><th style="text-align:right">Facturado s/IVA</th><th style="text-align:right">Costo</th>
-        <th style="text-align:right">Descuentos</th><th style="text-align:right">${inf.conDescuentos ? 'Ganancia neta' : 'Margen bruto'}</th><th style="text-align:center">%</th>
-      </tr></thead><tbody>
-      ${inf.shows.map(s => `<tr>
-        <td><strong>${s.nombre}</strong> <span style="color:var(--text2);font-size:12px">${fd(s.fecha)}</span>${s.estimado ? ' <span class="badge bi" style="font-size:10px">estimado</span>' : ''}</td>
-        <td style="text-align:center">${s.staff || '—'}</td>
-        <td style="text-align:right">${fmt(s.facturado)}</td><td style="text-align:right">${fmt(s.costo)}</td>
-        <td style="text-align:right">${fmt(s.descuentos)}</td>
-        <td style="text-align:right;font-weight:600;color:${s.ganancia >= 0 ? '#1a7a3e' : '#b45309'}">${fmt(s.ganancia)}</td>
-        <td style="text-align:center">${s.facturado ? Math.round(s.ganancia / s.facturado * 100) : 0}%</td>
-      </tr>`).join('')}
-      </tbody></table>
     </div>`;
 }
 
-window.editDescuento = function(i, campo, valor) {
-  const d = getDescuentos(); if (!d[i]) return;
-  d[i][campo] = campo === 'pct' ? (parseFloat(valor) || 0) : valor;
-  setDescuentos(d); render();
+window.editEstructura = function(grupo, i, campo, valor) {
+  const E = getEstructura(); if (!E[grupo]?.[i]) return;
+  E[grupo][i][campo] = campo === 'pct' ? (parseFloat(valor) || 0) : valor;
+  setEstructura(E); render();
 };
-window.agregarDescuento = function() { const d = getDescuentos(); d.push({ nombre: 'Nuevo concepto', pct: 0, base: 'facturado' }); setDescuentos(d); render(); };
-window.borrarDescuento = function(i) { const d = getDescuentos(); d.splice(i, 1); setDescuentos(d); render(); };
+window.editEstructuraCampo = function(campo, valor) { const E = getEstructura(); E[campo] = parseFloat(valor) || 0; setEstructura(E); render(); };
+window.agregarEstructura = function(grupo) {
+  const E = getEstructura(); E[grupo].push({ nombre: grupo === 'cargas' ? 'Nuevo costo' : 'Nuevo impuesto', pct: 0 });
+  setEstructura(E); render();
+};
+window.borrarEstructura = function(grupo, i) { const E = getEstructura(); E[grupo].splice(i, 1); setEstructura(E); render(); };
+window.resetEstructura = function() {
+  if (!confirm('¿Volver a los porcentajes de referencia (cargas 55%, IIBB 5%, SIRCREB 2,5%, Déb/Créd 2,5%, Ganancias 35%)?')) return;
+  setEstructura(JSON.parse(JSON.stringify(EST_DEFAULT))); render();
+};
 
 window.previewInforme = function() {
   try { localStorage.setItem('sbs_informe_preview', JSON.stringify(window._informeActual)); } catch {}
@@ -4269,6 +4334,7 @@ window.abrirLinkInforme = async function(id) {
   const { data, error } = await sb.from('informes').select('token,data').eq('id', id).single();
   loading(false);
   if (error || !data) { toast('No se pudo abrir el informe', 'err'); return; }
+  if (data.data?.v !== 2) { toast('Ese informe es de una versión anterior: volvé a publicarlo para actualizarlo', 'err'); return; }
   modalLinkInforme(data.token, data.data);
 };
 
@@ -4284,7 +4350,7 @@ function modalLinkInforme(token, inf) {
       <button class="btn btn-sm" onclick="copiarTexto(window._mailInforme.url,'Link copiado')"><i class="ti ti-copy"></i> Copiar</button>
     </div>
     <div style="font-size:12px;color:var(--text2);margin-bottom:6px">Mail para los socios</div>
-    <textarea id="inf-mail" rows="12" style="width:100%;font-size:12px;font-family:inherit">${cuerpo}</textarea>
+    <textarea id="inf-mail" rows="13" style="width:100%;font-size:12px;font-family:inherit">${cuerpo}</textarea>
     <div class="modal-f">
       <button class="btn" onclick="closeModal()">Cerrar</button>
       <button class="btn" onclick="copiarTexto(document.getElementById('inf-mail').value,'Mail copiado')"><i class="ti ti-copy"></i> Copiar mail</button>

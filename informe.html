@@ -14,7 +14,7 @@
   --ink: #16261d; --muted: #5e6e65; --rule: #dde4df;
   --paper: #f5f7f5; --surface: #ffffff;
   --green: #2d6a2d; --mint: #a8e4bc;
-  --cost: #b3c0b8; --desc: #d9c894; --loss: #b45309;
+  --cost: #b3c0b8; --desc: #d9c894; --fijo: #8fa39a; --iigg: #b9a060; --loss: #b45309;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -42,15 +42,19 @@ h1 {
 .bajada strong { color: var(--ink); font-weight: 600; }
 
 /* La barra "a dónde fue cada peso facturado" */
-.barra { display: flex; height: 64px; border-radius: 10px; overflow: hidden; background: var(--rule); }
+.barra { position: relative; display: flex; height: 64px; border-radius: 10px; overflow: hidden; background: var(--rule); }
+.barra .marca-fact { position: absolute; top: 0; bottom: 0; width: 3px; background: var(--ink); }
 .seg { height: 100%; }
 .seg.costo { background: var(--cost); }
 .seg.desc { background: var(--desc); }
 .seg.gan { background: var(--green); }
-.seg.perd { background: repeating-linear-gradient(135deg, var(--loss) 0 6px, #d97a3a 6px 12px); }
-.leyenda { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 14px 0 52px; }
+.seg.fijo { background: #8fa39a; }
+.seg.iigg { background: #b9a060; }
+.leyenda { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 14px; margin: 14px 0 52px; }
 .ley { border-top: 3px solid var(--cost); padding-top: 8px; }
 .ley.desc { border-color: var(--desc); }
+.ley.fijo { border-color: var(--fijo); }
+.ley.iigg { border-color: var(--iigg); }
 .ley.gan { border-color: var(--green); }
 .ley.perd { border-color: var(--loss); }
 .ley .n { font-weight: 600; font-size: 17px; }
@@ -76,6 +80,14 @@ th, td { padding: 10px 11px; border-bottom: 1px solid var(--rule); text-align: r
 th { font-weight: 600; color: var(--muted); font-size: 13px; }
 th:first-child, td:first-child { text-align: left; }
 tfoot td { font-weight: 800; border-bottom: none; }
+table.eerr { min-width: 0; }
+table.eerr td:first-child { white-space: normal; }
+table.eerr tr.menos td { color: var(--muted); }
+table.eerr tr.menos td:first-child { padding-left: 28px; }
+table.eerr tr.total td { font-weight: 800; border-top: 1px solid var(--ink); }
+table.eerr tr.total:first-child td { border-top: none; }
+table.eerr tr.final td { background: #eaf6ee; font-size: 16px; border-bottom: none; }
+table.eerr { margin: 0; }
 td small.f { display: block; color: var(--muted); font-size: 12px; }
 
 .metodo { font-size: 14px; color: var(--muted); max-width: 64ch; }
@@ -119,71 +131,86 @@ const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
 const fecha = iso => { const p = String(iso || '').slice(0, 10).split('-'); return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : ''; };
 
 function estado(msg) { $('app').innerHTML = `<div class="estado">${esc(msg)}</div>`; }
+const p1 = (a, b) => b ? (a / b * 100).toFixed(1).replace('.', ',') + '%' : '—';
 
-// Barra partida: costo | descuentos | ganancia (o pérdida), escalada contra "escala".
-function segmentos(r, escala) {
+// Partes en que se va cada peso vendido, en orden de la cascada.
+function partes(r) {
+  return [
+    { cls: 'costo', v: (r.personal || 0) + (r.cargas || 0), t: 'Personal y cargas sociales' },
+    { cls: 'desc',  v: r.impuestos || 0, t: 'Impuestos sobre ventas' },
+    { cls: 'fijo',  v: r.fijos || 0, t: 'Costos fijos' },
+    { cls: 'iigg',  v: r.iigg || 0, t: 'Impuesto a las Ganancias' },
+  ];
+}
+// Barra partida escalada contra "escala". Si hay pérdida, los costos pasan la marca de lo vendido.
+function barra(r, escala, clase) {
   const w = v => Math.max(0, v) / (escala || 1) * 100;
-  const perdida = r.ganancia < 0 ? -r.ganancia : 0;
-  // Si hay pérdida, costo+descuentos superan lo facturado: la parte que sobra se marca rayada.
-  const costoVisible = perdida ? Math.max(0, r.costo - perdida) : r.costo;
-  return `<div class="seg costo" style="width:${w(costoVisible)}%"></div>`
-    + `<div class="seg desc" style="width:${w(r.descuentos)}%"></div>`
-    + (perdida ? `<div class="seg perd" style="width:${w(perdida)}%"></div>` : `<div class="seg gan" style="width:${w(r.ganancia)}%"></div>`);
+  const segs = partes(r).filter(x => x.v > 0).map(x => `<div class="seg ${x.cls}" style="width:${w(x.v)}%"></div>`).join('');
+  const neto = r.neto > 0 ? `<div class="seg gan" style="width:${w(r.neto)}%"></div>` : '';
+  const marca = r.neto < 0 ? `<div class="marca-fact" style="left:${w(r.ventas)}%" title="Ventas"></div>` : '';
+  return `<div class="${clase}">${segs}${neto}${marca}</div>`;
 }
 
-function filas(items, conDesc, etiqueta, sub) {
-  const escala = Math.max(...items.map(r => Math.max(r.facturado, r.costo + r.descuentos)), 1);
-  return `<div class="filas">${items.map(r => {
-    const label = `${etiqueta(r)}: facturado ${money(r.facturado)}, costo ${money(r.costo)}, ${r.ganancia >= 0 ? 'queda' : 'pérdida'} ${money(Math.abs(r.ganancia))}`;
-    const marca = r.ganancia < 0 ? `<div class="marca-fact" style="left:${r.facturado / escala * 100}%" title="Facturado"></div>` : '';
-    return `<div class="fila">
+function filas(items, etiqueta, sub) {
+  const escala = Math.max(...items.map(r => Math.max(r.ventas, partes(r).reduce((s, x) => s + x.v, 0))), 1);
+  return `<div class="filas">${items.map(r => `<div class="fila">
       <div class="nom">${esc(etiqueta(r))}<small>${esc(sub(r))}</small></div>
-      <div class="mini" role="img" aria-label="${esc(label)}">${segmentos(r, escala)}${marca}</div>
-      <div class="res ${r.ganancia < 0 ? 'neg' : ''}">${money(r.ganancia)}<small>${pct(r.ganancia, r.facturado)}% de ${money(r.facturado)}</small></div>
-    </div>`;
-  }).join('')}</div>`;
+      <div role="img" aria-label="${esc(etiqueta(r))}: ventas ${money(r.ventas)}, resultado neto ${money(r.neto)}">${barra(r, escala, 'mini')}</div>
+      <div class="res ${r.neto < 0 ? 'neg' : ''}">${money(r.neto)}<small>${p1(r.neto, r.ventas)} de ${money(r.ventas)}</small></div>
+    </div>`).join('')}</div>`;
 }
 
 function render(d, esPreview) {
-  const T = d.totales;
-  const conDesc = !!d.conDescuentos;
-  const nombreRes = conDesc ? 'ganancia neta' : 'margen bruto';
+  if (d.v !== 2) return estado('Este informe se generó con una versión anterior. Pedile a quien lo envió que lo vuelva a publicar.');
+  const T = d.totales, E = d.estructura || {};
   const [y, m] = String(d.periodo).split('-');
   const cuando = d.tipo === 'mes' ? `En ${MESES[+m - 1]} de ${y}` : `En ${d.periodo}`;
   document.title = `${d.titulo} · SBS`;
+  const pctTxt = n => String(n).replace('.', ',') + '%';
 
-  const h1 = T.ganancia >= 0
-    ? `${cuando}, el Movistar Arena dejó ${money(T.ganancia)} de ${nombreRes}.`
-    : `${cuando}, el Movistar Arena tuvo una pérdida de ${money(-T.ganancia)}.`;
-  const deCada100 = pct(T.ganancia, T.facturado);
-  const bajada = `Sobre <strong>${money(T.facturado)}</strong> facturados sin IVA en ${T.shows} show${T.shows !== 1 ? 's' : ''}`
-    + (T.ganancia >= 0 ? `: de cada 100 pesos, <strong>${deCada100}</strong> quedaron en la empresa.` : '.');
+  const h1 = T.neto >= 0
+    ? `${cuando}, el Movistar Arena dejó ${money(T.neto)} de resultado neto.`
+    : `${cuando}, el Movistar Arena tuvo un resultado negativo de ${money(-T.neto)}.`;
+  const bajada = `Sobre <strong>${money(T.ventas)}</strong> vendidos sin IVA en ${T.shows} show${T.shows !== 1 ? 's' : ''}`
+    + (T.neto >= 0 ? `: de cada 100 pesos, <strong>${Math.round(T.neto / T.ventas * 100)}</strong> quedaron en la empresa después de pagar al personal, las cargas sociales y los impuestos.` : '.');
 
-  const escala = Math.max(T.facturado, T.costo + T.totalDescuentos, 1);
-  const perdida = T.ganancia < 0;
-  const leyenda = `
-    <div class="ley"><div class="n">${money(T.costo)}</div><div class="t">Personal liquidado, ${pct(T.costo, T.facturado)}%</div></div>
-    <div class="ley desc"><div class="n">${money(T.totalDescuentos)}</div><div class="t">${conDesc ? `Descuentos, ${pct(T.totalDescuentos, T.facturado)}%` : 'Descuentos (sin cargar)'}</div></div>
-    <div class="ley ${perdida ? 'perd' : 'gan'}"><div class="n">${money(Math.abs(T.ganancia))}</div><div class="t">${perdida ? 'Pérdida' : (conDesc ? 'Ganancia neta' : 'Margen bruto')}, ${Math.abs(deCada100)}%</div></div>`;
+  const tot = { ventas: T.ventas, personal: T.personal, cargas: T.totCargas, impuestos: T.totImp, fijos: T.fijos, iigg: T.iigg.monto, neto: T.neto };
+  const escala = Math.max(T.ventas, partes(tot).reduce((s, x) => s + x.v, 0), 1);
+  const leyenda = partes(tot).filter(x => x.v > 0).map(x => `<div class="ley ${x.cls}"><div class="n">${money(x.v)}</div><div class="t">${x.t}, ${p1(x.v, T.ventas)}</div></div>`).join('')
+    + `<div class="ley ${T.neto >= 0 ? 'gan' : 'perd'}"><div class="n">${money(T.neto)}</div><div class="t">Resultado neto, ${p1(T.neto, T.ventas)}</div></div>`;
 
-  const porShow = filas(d.shows, conDesc, r => r.nombre, r => `${fecha(r.fecha)}${r.staff ? `, ${r.staff} puestos` : ''}${r.estimado ? ', costo estimado' : ''}`);
-  const porMes = d.meses ? filas(d.meses, conDesc, r => r.label, r => `${r.shows} show${r.shows !== 1 ? 's' : ''}`) : '';
+  // Estado de resultados, con la misma cascada que la planilla de referencia
+  const fila = (lbl, v, tipo) => `<tr class="${tipo}"><td>${lbl}</td><td>${tipo === 'menos' && v ? '−' + money(v) : money(v)}</td><td>${p1(tipo === 'menos' ? -v : v, T.ventas)}</td></tr>`;
+  const eerr = `<div class="tabla-wrap"><table class="eerr">
+    <thead><tr><th>Concepto</th><th>Monto</th><th>% ventas</th></tr></thead><tbody>
+    ${fila('Ventas (sin IVA)', T.ventas, 'total')}
+    ${fila('Liquidaciones al personal', T.personal, 'menos')}
+    ${T.cargas.map(c => fila(`${esc(c.nombre)}, ${pctTxt(c.pct)} de la liquidación`, c.monto, 'menos')).join('')}
+    ${fila('Utilidad bruta', T.utBruta, 'total')}
+    ${T.impuestos.map(c => fila(`${esc(c.nombre)}, ${pctTxt(c.pct)} de las ventas`, c.monto, 'menos')).join('')}
+    ${fila('Contribución marginal', T.contrMarginal, 'total')}
+    ${T.fijos ? fila('Costos fijos', T.fijos, 'menos') : ''}
+    ${T.fijos ? fila('EBIT', T.ebit, 'total') : ''}
+    ${fila(`Impuesto a las Ganancias, ${pctTxt(T.iigg.pct)} del ${T.fijos ? 'EBIT' : 'resultado antes de impuestos'}`, T.iigg.monto, 'menos')}
+    ${fila('Resultado neto', T.neto, 'total final')}
+    </tbody></table></div>`;
 
-  const tabla = `<div class="tabla-wrap"><table>
-    <thead><tr><th>Show</th><th>Staff</th><th>Facturado s/IVA</th><th>Personal</th>${conDesc ? '<th>Descuentos</th>' : ''}<th>${conDesc ? 'Ganancia' : 'Margen'}</th><th>%</th></tr></thead>
-    <tbody>${d.shows.map(s => `<tr><td>${esc(s.nombre)}<small class="f">${fecha(s.fecha)}</small></td><td>${s.staff || '—'}</td><td>${money(s.facturado)}</td><td>${money(s.costo)}</td>${conDesc ? `<td>${money(s.descuentos)}</td>` : ''}<td class="${s.ganancia < 0 ? 'neg' : ''}">${money(s.ganancia)}</td><td>${pct(s.ganancia, s.facturado)}%</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td>Total</td><td>${T.staff || '—'}</td><td>${money(T.facturado)}</td><td>${money(T.costo)}</td>${conDesc ? `<td>${money(T.totalDescuentos)}</td>` : ''}<td class="${T.ganancia < 0 ? 'neg' : ''}">${money(T.ganancia)}</td><td>${deCada100}%</td></tr></tfoot>
+  const porShow = filas(d.shows, r => r.nombre, r => `${fecha(r.fecha)}${r.staff ? `, ${r.staff} puestos` : ''}${r.estimado ? ', costo estimado' : ''}`);
+  const porMes = d.meses ? filas(d.meses, r => r.label, r => `${r.shows} show${r.shows !== 1 ? 's' : ''}`) : '';
+
+  const detalle = `<div class="tabla-wrap"><table>
+    <thead><tr><th>Show</th><th>Ventas</th><th>Personal y cargas</th><th>Impuestos</th><th>Resultado neto</th><th>%</th></tr></thead>
+    <tbody>${d.shows.map(s => `<tr><td>${esc(s.nombre)}<small class="f">${fecha(s.fecha)}</small></td><td>${money(s.ventas)}</td><td>${money(s.personal + s.cargas)}</td><td>${money(s.impuestos + s.iigg)}</td><td class="${s.neto < 0 ? 'neg' : ''}">${money(s.neto)}</td><td>${p1(s.neto, s.ventas)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td>Total</td><td>${money(T.ventas)}</td><td>${money(T.personal + T.totCargas)}</td><td>${money(T.totImp + T.iigg.monto)}</td><td class="${T.neto < 0 ? 'neg' : ''}">${money(T.neto)}</td><td>${p1(T.neto, T.ventas)}</td></tr></tfoot>
   </table></div>`;
 
-  const descTxt = conDesc
-    ? T.descuentos.filter(x => x.pct > 0).map(x => `${esc(x.nombre)} (${String(x.pct).replace('.', ',')}% sobre ${x.base === 'liquidado' ? 'la liquidación' : 'lo facturado'})`).join(', ')
-    : '';
   const avisos = [];
   if (d.hayEstimados) avisos.push('Algunos shows tienen el costo de personal estimado porque su quincena todavía no se cerró. El número final puede variar levemente.');
   if (d.pendientes?.length) avisos.push(d.pendientes.length > 1
     ? `No incluye ${d.pendientes.length} shows del período que todavía no se facturaron: ${d.pendientes.map(p => esc(p.nombre)).join(', ')}.`
     : `No incluye un show del período que todavía no se facturó: ${esc(d.pendientes[0].nombre)}.`);
 
+  const listaImp = T.impuestos.map(c => `${esc(c.nombre)} ${pctTxt(c.pct)}`).join(', ');
   $('app').innerHTML = `
     <div class="top">
       <div class="marca">SBS <span>Show Business Solutions</span></div>
@@ -193,21 +220,26 @@ function render(d, esPreview) {
     <p class="periodo">Informe de resultados, Movistar Arena, ${esc(d.periodoLabel.toLowerCase())}</p>
     <h1>${h1}</h1>
     <p class="bajada">${bajada}</p>
-    <div class="barra" role="img" aria-label="De lo facturado: personal ${pct(T.costo, T.facturado)}%, descuentos ${pct(T.totalDescuentos, T.facturado)}%, ${perdida ? 'pérdida' : nombreRes} ${Math.abs(deCada100)}%">${segmentos({ costo: T.costo, descuentos: T.totalDescuentos, ganancia: T.ganancia }, escala)}</div>
+    <div role="img" aria-label="A dónde fue cada peso vendido">${barra(tot, escala, 'barra')}</div>
     <div class="leyenda">${leyenda}</div>
     ${avisos.map(a => `<div class="aviso">${a}</div>`).join('')}
-    ${d.meses ? `<h2>Mes por mes</h2><p class="nota-h2">El largo de cada barra es lo facturado en el mes; el verde es lo que quedó.</p>${porMes}` : ''}
+    <h2>Estado de resultados</h2>
+    <p class="nota-h2">Cada renglón se descuenta del anterior, de las ventas al resultado neto.</p>
+    ${eerr}
+    ${d.meses ? `<h2>Mes por mes</h2><p class="nota-h2">El largo de cada barra son las ventas del mes; el verde es el resultado neto.</p>${porMes}` : ''}
     <h2>Show por show</h2>
-    <p class="nota-h2">El largo de cada barra es lo facturado al Arena; el verde es lo que quedó después de pagar al personal${conDesc ? ' y los descuentos' : ''}.</p>
+    <p class="nota-h2">El largo de cada barra son las ventas del show; el verde es lo que quedó al final de la cascada.</p>
     ${porShow}
     <h2>Detalle</h2>
-    <p class="nota-h2">Montos en pesos, sin IVA.</p>
-    ${tabla}
+    <p class="nota-h2">Montos en pesos, sin IVA. "Impuestos" incluye los impuestos sobre ventas y Ganancias.</p>
+    ${detalle}
     <h2>Cómo se calcula</h2>
     <div class="metodo">
-      <p><strong>Facturado</strong> es lo que SBS le factura al Movistar Arena por el staff de cada show, sin IVA.</p>
-      <p><strong>Personal</strong> es lo liquidado a los colaboradores por esas jornadas.</p>
-      ${conDesc ? `<p><strong>Descuentos</strong>: ${descTxt}.</p>` : `<p>Todavía no se descuentan otros costos (impuestos, cargas), por eso el resultado se informa como <strong>margen bruto</strong>.</p>`}
+      <p><strong>Ventas</strong> es lo que SBS le factura al Movistar Arena por el staff de cada show, sin IVA.</p>
+      <p><strong>Utilidad bruta</strong> descuenta lo liquidado a los colaboradores y ${T.cargas.map(c => `${esc(c.nombre.toLowerCase())} (${pctTxt(c.pct)} de la liquidación)`).join(' y ') || 'las cargas'}.</p>
+      <p><strong>Contribución marginal</strong> descuenta los impuestos sobre ventas: ${listaImp}.</p>
+      ${T.fijos ? `<p><strong>EBIT</strong> descuenta los costos fijos del Arena (${money(E.fijosMes)} por mes), repartidos entre los shows según lo vendido.</p>` : ''}
+      <p><strong>Resultado neto</strong> descuenta el Impuesto a las Ganancias estimado (${pctTxt(T.iigg.pct)}). Ganancias se liquida una vez por año sobre el resultado de toda la empresa; acá se estima para mostrar lo que queda después de impuestos.</p>
       <p>Los números arrancan con el show del ${fecha(d.desde)}, primer show con facturación registrada.</p>
     </div>
     <div class="pie">Generado el ${new Date(d.generado).toLocaleDateString('es-AR')}. Documento para uso interno de los socios de SBS.</div>`;
