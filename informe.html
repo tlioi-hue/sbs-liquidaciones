@@ -124,13 +124,73 @@ td.res { font-weight: 600; color: var(--c-neto); }
   .notas, .pie { break-inside: avoid; }
   td small { font-size: 10px; }
   .kpi .v { font-size: 18px; }
-  .chart { height: 230px; }
-  .torta { grid-template-columns: 1fr; gap: 8px; }
-  .torta .chart { height: 140px; max-width: 160px; margin: 0 auto; width: 100%; }
+  .chart { height: 190px; }
+  .torta { grid-template-columns: 1fr; gap: 6px; }
+  .torta .chart { height: 120px; max-width: 140px; margin: 0 auto; width: 100%; }
+  .subhead { padding: 12px 18px; margin-bottom: 10px; } .subhead p { font-size: 12.5px; }
+  .head { padding: 14px 18px; } .head img { width: 46px; height: 46px; }
+  .aviso { padding: 6px 10px; font-size: 11px; margin-bottom: 8px; }
+  .kpis { gap: 8px; margin-bottom: 10px; } .kpi { padding: 9px 11px; }
+  .dests { gap: 8px; margin-bottom: 10px; } .dest { padding: 8px 11px; } .dest .n { font-size: 12.5px; }
+  .panel .desc { margin-bottom: 8px; }
   .leg { font-size: 11px; }
   .leg li { padding: 3px 0; }
   .leg small.pp { font-size: 10px; }
   .chart canvas { max-width: 100% !important; }
+}
+
+/* Barra de herramientas y controles */
+.tagrow { margin-bottom: 10px; }
+.toolbar { position: sticky; top: 0; z-index: 5; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: rgba(242,243,242,.94); backdrop-filter: blur(6px); padding: 10px 0; margin-bottom: 12px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { font: inherit; font-size: 12.5px; font-weight: 500; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 6px 14px; cursor: pointer; }
+.chip.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+.tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button { font: inherit; font-size: 12.5px; font-weight: 500; border: 0; background: transparent; padding: 7px 12px; cursor: pointer; color: var(--muted); }
+.seg button.on { background: var(--brand); color: #fff; }
+.btn { font: inherit; font-size: 12.5px; font-weight: 500; background: var(--surface); color: var(--ink); border: 1px solid var(--rule); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+.btn:disabled { opacity: .4; cursor: default; }
+.btn:hover:not(:disabled), .chip:hover { border-color: var(--muted); }
+button:focus-visible, tr.clic:focus-visible { outline: 2px solid var(--c-neto); outline-offset: 2px; }
+.hint { font-size: 12px; color: var(--muted); margin: -8px 0 12px; }
+.dl { display: block; font-size: 11.5px; font-weight: 600; margin-top: 4px; }
+.dl.up { color: var(--c-neto); } .dl.down { color: var(--loss); }
+.dests { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+.dest { text-align: left; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 12px 14px; cursor: pointer; }
+.dest:hover { border-color: var(--muted); }
+.dest .l { font-size: 12px; color: var(--muted); } .dest .n { font-weight: 600; font-size: 14.5px; margin: 2px 0; } .dest .s { font-size: 12.5px; color: var(--muted); }
+th button.sort { font: inherit; font-size: 12px; font-weight: 600; color: var(--muted); background: none; border: 0; padding: 0; cursor: pointer; }
+th button.sort:hover { color: var(--ink); }
+th button.sort .ar { margin-left: 4px; color: var(--ink); font-size: 10px; }
+tr.clic { cursor: pointer; } tr.clic:hover td { background: #f7f8f7; }
+/* Detalle de show */
+.ov { position: fixed; inset: 0; background: rgba(20,24,22,.45); display: flex; align-items: center; justify-content: center; padding: 20px; z-index: 50; }
+.md { background: var(--surface); border-radius: 12px; width: min(580px, 100%); max-height: 92vh; overflow: auto; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+.md-h { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 18px 20px 12px; border-bottom: 1px solid var(--rule); }
+.md-h h3 { margin: 0; font-size: 18px; font-weight: 600; } .md-h span { color: var(--muted); font-size: 12.5px; }
+.md-b { padding: 14px 20px 16px; }
+.md-f { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-top: 1px solid var(--rule); }
+.md-pos { font-size: 12.5px; color: var(--muted); }
+.x { font: inherit; font-size: 22px; line-height: 1; background: none; border: 0; cursor: pointer; color: var(--muted); padding: 2px 6px; border-radius: 6px; }
+.mini-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.mini-kpis div { background: #f7f8f7; border-radius: 8px; padding: 9px 11px; }
+.mini-kpis span { font-size: 11.5px; color: var(--muted); } .mini-kpis b { display: block; font-size: 15px; font-weight: 600; } .mini-kpis b.pos { color: var(--c-neto); }
+.prop { display: flex; height: 14px; border-radius: 4px; overflow: hidden; background: var(--rule); }
+.prop div { height: 100%; }
+.prop-l { font-size: 12px; color: var(--muted); margin: 6px 0 12px; }
+.eerr.mini td { padding: 6px 8px; font-size: 13px; }
+@media screen and (max-width: 760px) {
+  .toolbar { position: static; }
+  .dests { grid-template-columns: 1fr; }
+  .tools { width: 100%; }
+  .md-b, .md-h, .md-f { padding-left: 14px; padding-right: 14px; }
+}
+@media print {
+  .toolbar, .ov, .hint, .tagrow, #modal { display: none !important; }
+  .dest { cursor: default; }
+  .dests { break-inside: avoid; }
 }
 </style>
 </head>
@@ -153,15 +213,62 @@ const fecha = iso => { const p = String(iso || '').slice(0, 10).split('-'); retu
 const pctTxt = n => String(n).replace('.', ',') + '%';
 function estado(msg) { $('app').innerHTML = `<div class="estado">${esc(msg)}</div>`; }
 
+// ══ Estado de la vista (filtro de mes, montos/%, orden de la tabla, show abierto) ══
+const S = { d: null, preview: false, mes: null, modo: 'monto', orden: { col: 'fecha', dir: 1 }, abierto: null, fuentes: false };
+const egr = s => s.ventas - s.neto;
+const nf1 = v => v.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
 function render(d, esPreview) {
   if (d.v !== 2) return estado('Este informe se generó con una versión anterior. Pedile a quien lo envió que lo vuelva a publicar.');
-  const T = d.totales, E = d.estructura || {};
-  const [y, m] = String(d.periodo).split('-');
-  const periodoTxt = d.tipo === 'mes' ? `${MESES[+m - 1]} de ${y}` : `el año ${d.periodo}`;
+  d.shows.forEach((s, i) => s._i = i);
+  S.d = d; S.preview = esPreview;
   document.title = `${d.titulo} · SBS`;
-  const egresosTot = T.ventas - T.neto;
+  document.addEventListener('keydown', teclas);
+  dibujar();
+}
 
-  // Composición de los egresos (solo gastos: el resultado no es un egreso)
+function showsVisibles() { return S.mes ? S.d.shows.filter(s => s.fecha.slice(0, 7) === S.mes) : S.d.shows; }
+// Totales de un subconjunto de shows (mismas fórmulas lineales que la app)
+function totalesDe(shows) {
+  const E = S.d.estructura || {};
+  const sum = k => shows.reduce((a, x) => a + (x[k] || 0), 0);
+  const ventas = sum('ventas'), personal = sum('personal');
+  const cargas = (E.cargas || []).filter(x => (x.nombre || '').trim()).map(x => ({ nombre: x.nombre.trim(), pct: +x.pct || 0, monto: Math.round(personal * (+x.pct || 0) / 100) }));
+  const impuestos = (E.impuestos || []).filter(x => (x.nombre || '').trim()).map(x => ({ nombre: x.nombre.trim(), pct: +x.pct || 0, monto: Math.round(ventas * (+x.pct || 0) / 100) }));
+  const totCargas = cargas.reduce((a, x) => a + x.monto, 0), totImp = impuestos.reduce((a, x) => a + x.monto, 0);
+  const utBruta = ventas - personal - totCargas, contrMarginal = utBruta - totImp, fijos = sum('fijos'), ebit = contrMarginal - fijos;
+  const iigg = { pct: +E.iigg || 0, monto: sum('iigg') };
+  return { ventas, personal, cargas, totCargas, utBruta, impuestos, totImp, contrMarginal, fijos, ebit, iigg, neto: ebit - iigg.monto,
+           ventasIva: sum('ventasIva'), staff: sum('staff'), shows: shows.length };
+}
+function totalesVista() { return S.mes ? totalesDe(showsVisibles()) : S.d.totales; }
+const nombreMes = per => MESES[+String(per).split('-')[1] - 1];
+
+// ══ Armado del informe ══
+function dibujar() {
+  const d = S.d, T = totalesVista(), shows = showsVisibles(), E = d.estructura || {};
+  const egresosTot = T.ventas - T.neto, pct = S.modo === 'pct';
+  const esAnual = d.tipo === 'anio' && d.meses?.length;
+  const [y, m] = (S.mes || String(d.periodo)).split('-');
+  const periodoTxt = (d.tipo === 'mes' || S.mes) ? `${MESES[+m - 1]} de ${y}` : `el año ${d.periodo}`;
+  const etiquetaPer = S.mes ? d.meses.find(x => x.periodo === S.mes).label : d.periodoLabel;
+
+  // Comparación contra el mes anterior (solo con un mes filtrado en el anual)
+  let prev = null, prevNom = '';
+  if (S.mes) {
+    const i = d.meses.findIndex(x => x.periodo === S.mes);
+    if (i > 0) { prev = totalesDe(d.shows.filter(s => s.fecha.slice(0, 7) === d.meses[i - 1].periodo)); prevNom = nombreMes(d.meses[i - 1].periodo); }
+  }
+  const delta = (act, ant, { invertir = false, pp = false } = {}) => {
+    if (ant == null) return '';
+    let v, txt;
+    if (pp) { v = act - ant; txt = `${nf1(Math.abs(v))} p.p.`; }
+    else { if (!ant) return ''; v = (act - ant) / Math.abs(ant) * 100; txt = `${nf1(Math.abs(v))}%`; }
+    const bueno = invertir ? v <= 0 : v >= 0;
+    return `<span class="dl ${bueno ? 'up' : 'down'}">${v >= 0 ? '▲' : '▼'} ${txt} vs ${prevNom}</span>`;
+  };
+  const margen = t => t.ventas ? t.neto / t.ventas * 100 : 0;
+
   const egresos = [
     { t: 'Liquidaciones al personal', v: T.personal, c: C.personal },
     { t: 'Cargas sociales', v: T.totCargas, c: C.cargas },
@@ -170,26 +277,37 @@ function render(d, esPreview) {
     { t: 'Impuesto a las Ganancias', v: T.iigg.monto, c: C.iigg },
   ].filter(x => x.v > 0);
 
-  const resumen = T.neto >= 0
-    ? `En ${periodoTxt}, el Movistar Arena tuvo ingresos por <strong>${money(T.ventas)}</strong> (sin IVA) en ${T.shows} show${T.shows !== 1 ? 's' : ''} y egresos por <strong>${money(egresosTot)}</strong>, con un <strong>resultado neto de ${money(T.neto)}</strong>, equivalente al ${p1(T.neto, T.ventas)} de los ingresos.`
-    : `En ${periodoTxt}, el Movistar Arena tuvo ingresos por <strong>${money(T.ventas)}</strong> (sin IVA) en ${T.shows} show${T.shows !== 1 ? 's' : ''} y egresos por <strong>${money(egresosTot)}</strong>, con un <strong>resultado neto negativo de ${money(-T.neto)}</strong>.`;
+  const resumen = `En ${periodoTxt}, el Movistar Arena tuvo ingresos por <strong>${money(T.ventas)}</strong> (sin IVA) en ${T.shows} show${T.shows !== 1 ? 's' : ''} y egresos por <strong>${money(egresosTot)}</strong>, con un `
+    + (T.neto >= 0 ? `<strong>resultado neto de ${money(T.neto)}</strong>, equivalente al ${p1(T.neto, T.ventas)} de los ingresos.` : `<strong>resultado neto negativo de ${money(-T.neto)}</strong>.`);
 
   const avisos = [];
-  if (d.hayEstimados) avisos.push('Algunos shows tienen el costo de personal estimado porque su quincena todavía no se cerró. El número final puede variar levemente.');
-  if (d.pendientes?.length) avisos.push(d.pendientes.length > 1
-    ? `No incluye ${d.pendientes.length} shows del período que todavía no se facturaron: ${d.pendientes.map(p => esc(p.nombre)).join(', ')}.`
-    : `No incluye un show del período que todavía no se facturó: ${esc(d.pendientes[0].nombre)}.`);
+  if (shows.some(s => s.estimado)) avisos.push('Algunos shows tienen el costo de personal estimado porque su quincena todavía no se cerró. El número final puede variar levemente.');
+  const pend = (d.pendientes || []).filter(p => !S.mes || p.fecha.slice(0, 7) === S.mes);
+  if (pend.length) avisos.push(pend.length > 1
+    ? `No incluye ${pend.length} shows del período que todavía no se facturaron: ${pend.map(p => esc(p.nombre)).join(', ')}.`
+    : `No incluye un show del período que todavía no se facturó: ${esc(pend[0].nombre)}.`);
 
-  const kpi = (cls, l, v, s, esPct) => `<div class="kpi ${cls}"><div class="l">${l}</div><div class="v ${v < 0 ? 'neg' : ''}">${esPct ? p1(v, T.ventas) : money(v)}</div><div class="s">${s}</div></div>`;
+  const kpi = (cls, l, v, s, extra = '') => `<div class="kpi ${cls}"><div class="l">${l}</div><div class="v ${String(v).startsWith('-') || String(v).startsWith('−') ? 'neg' : ''}">${v}</div><div class="s">${s}</div>${extra}</div>`;
 
-  // Estado de resultados agrupado en Ingresos / Egresos / Resultado
+  // Destacados
+  let dests = '';
+  if (shows.length >= 2) {
+    const porRes = [...shows].sort((a, b) => b.neto - a.neto);
+    const porMar = [...shows].sort((a, b) => b.neto / b.ventas - a.neto / a.ventas);
+    const card = (l, s, sub) => `<button class="dest" onclick="abrirShow(${s._i})"><div class="l">${l}</div><div class="n">${esc(s.nombre)}</div><div class="s">${sub}</div></button>`;
+    dests = `<section class="dests" aria-label="Destacados">
+      ${card('Mayor resultado', porRes[0], `${money(porRes[0].neto)}, ${fecha(porRes[0].fecha)}`)}
+      ${card('Mayor margen', porMar[0], `${p1(porMar[0].neto, porMar[0].ventas)} de sus ingresos`)}
+      ${card('Menor margen', porMar[porMar.length - 1], `${p1(porMar[porMar.length - 1].neto, porMar[porMar.length - 1].ventas)} de sus ingresos`)}
+    </section>`;
+  }
+
+  // Estado de resultados
   const f = (lbl, v, tipo = '') => `<tr class="${tipo}"><td>${lbl}</td><td>${tipo === 'menos' && v ? '−' + money(v) : money(v)}</td><td>${p1(tipo === 'menos' ? -v : v, T.ventas)}</td></tr>`;
   const sec = t => `<tr class="sec"><td colspan="3">${t}</td></tr>`;
   const eerr = `<table class="eerr"><thead><tr><th>Concepto</th><th>Monto</th><th>% ingresos</th></tr></thead><tbody>
-    ${sec('Ingresos')}
-    ${f('Ventas al Movistar Arena (sin IVA)', T.ventas, 'sub')}
-    ${sec('Egresos')}
-    ${f('Liquidaciones al personal', T.personal, 'menos')}
+    ${sec('Ingresos')}${f('Ventas al Movistar Arena (sin IVA)', T.ventas, 'sub')}
+    ${sec('Egresos')}${f('Liquidaciones al personal', T.personal, 'menos')}
     ${T.cargas.map(c => f(`${esc(c.nombre)} (${pctTxt(c.pct)} de la liquidación)`, c.monto, 'menos')).join('')}
     ${f('Utilidad bruta', T.utBruta, 'parcial')}
     ${T.impuestos.map(c => f(`${esc(c.nombre)} (${pctTxt(c.pct)} de las ventas)`, c.monto, 'menos')).join('')}
@@ -197,37 +315,66 @@ function render(d, esPreview) {
     ${T.fijos ? f('Costos fijos', T.fijos, 'menos') + f('EBIT', T.ebit, 'parcial') : ''}
     ${f(`Impuesto a las Ganancias (${pctTxt(T.iigg.pct)})`, T.iigg.monto, 'menos')}
     ${f('Total egresos', egresosTot, 'totegr')}
-    ${sec('Resultado')}
-    ${f('Resultado neto', T.neto, 'final')}
+    ${sec('Resultado')}${f('Resultado neto', T.neto, 'final')}
   </tbody></table>`;
 
-  const detalle = `<table><thead><tr><th>Show</th><th>Staff</th><th>Ingresos</th><th>Egresos</th><th>Resultado neto</th><th>Margen</th></tr></thead>
-    <tbody>${d.shows.map(s => `<tr><td>${esc(s.nombre)}<small>${fecha(s.fecha)}${s.estimado ? ', costo estimado' : ''}</small></td><td>${s.staff || '—'}</td><td>${money(s.ventas)}</td><td>${money(s.ventas - s.neto)}</td><td class="res ${s.neto < 0 ? 'neg' : ''}">${money(s.neto)}</td><td>${p1(s.neto, s.ventas)}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td>Total</td><td>${T.staff || '—'}</td><td>${money(T.ventas)}</td><td>${money(egresosTot)}</td><td class="res ${T.neto < 0 ? 'neg' : ''}">${money(T.neto)}</td><td>${p1(T.neto, T.ventas)}</td></tr></tfoot></table>`;
+  // Detalle por show, ordenable
+  const cols = [
+    { k: 'fecha', t: 'Show', v: s => s.fecha },
+    { k: 'staff', t: 'Staff', v: s => s.staff || 0 },
+    { k: 'ventas', t: 'Ingresos', v: s => s.ventas },
+    { k: 'egresos', t: 'Egresos', v: s => egr(s) },
+    { k: 'neto', t: 'Resultado neto', v: s => s.neto },
+    ...(pct ? [] : [{ k: 'margen', t: 'Margen', v: s => s.ventas ? s.neto / s.ventas : 0 }]),
+  ];
+  if (!cols.find(c => c.k === S.orden.col)) S.orden = { col: 'fecha', dir: 1 };
+  const cOrd = cols.find(c => c.k === S.orden.col);
+  const orden = [...shows].sort((a, b) => { const va = cOrd.v(a), vb = cOrd.v(b); return (va > vb ? 1 : va < vb ? -1 : 0) * S.orden.dir; });
+  S.ordenVisible = orden.map(s => s._i);
+  const val = (v, base) => pct ? p1(v, base) : money(v);
+  const th = c => { const on = S.orden.col === c.k; return `<th aria-sort="${on ? (S.orden.dir > 0 ? 'ascending' : 'descending') : 'none'}"><button class="sort" onclick="ordenar('${c.k}')">${c.t}<span class="ar">${on ? (S.orden.dir > 0 ? '▲' : '▼') : ''}</span></button></th>`; };
+  const detalle = `<table class="det"><thead><tr>${cols.map(th).join('')}</tr></thead>
+    <tbody>${orden.map(s => `<tr class="clic" tabindex="0" onclick="abrirShow(${s._i})" onkeydown="if(event.key==='Enter'){abrirShow(${s._i})}">
+      <td>${esc(s.nombre)}<small>${fecha(s.fecha)}${s.estimado ? ', costo estimado' : ''}</small></td><td>${s.staff || '—'}</td>
+      <td>${val(s.ventas, s.ventas)}</td><td>${val(egr(s), s.ventas)}</td><td class="res ${s.neto < 0 ? 'neg' : ''}">${val(s.neto, s.ventas)}</td>
+      ${pct ? '' : `<td>${p1(s.neto, s.ventas)}</td>`}</tr>`).join('')}</tbody>
+    <tfoot><tr><td>Total</td><td>${T.staff || '—'}</td><td>${val(T.ventas, T.ventas)}</td><td>${val(egresosTot, T.ventas)}</td><td class="res ${T.neto < 0 ? 'neg' : ''}">${val(T.neto, T.ventas)}</td>${pct ? '' : `<td>${p1(T.neto, T.ventas)}</td>`}</tr></tfoot></table>`;
 
-  const altoShows = Math.max(200, d.shows.length * 70 + 70);
+  const altoShows = Math.max(200, shows.length * (pct ? 44 : 70) + 70);
   $('app').innerHTML = `
-    <div class="acciones">
-      ${esPreview ? '<span class="tag">Vista previa, todavía no publicada</span>' : ''}
-      <button onclick="window.print()">Imprimir / guardar PDF</button>
-    </div>
+    ${S.preview ? '<div class="tagrow"><span class="tag">Vista previa, todavía no publicada</span></div>' : ''}
     <header class="head">
       <img src="${LOGO}" alt="SBS">
       <div class="emp"><b>Show Business Solutions</b><span>Informe de resultados, Movistar Arena</span></div>
-      <div class="per"><b>${esc(d.periodoLabel)}</b><span>${d.tipo === 'mes' ? 'Informe mensual' : 'Informe anual'}</span></div>
+      <div class="per"><b>${esc(etiquetaPer)}</b><span>${d.tipo === 'mes' ? 'Informe mensual' : (S.mes ? `Informe anual ${d.periodo}, vista del mes` : 'Informe anual')}</span></div>
     </header>
     <div class="subhead"><p>${resumen}</p></div>
+    <div class="toolbar" role="toolbar" aria-label="Opciones del informe">
+      ${esAnual ? `<div class="chips" aria-label="Período">
+        <button class="chip ${!S.mes ? 'on' : ''}" aria-pressed="${!S.mes}" onclick="filtrarMes(null)">Todo el año</button>
+        ${d.meses.map(x => `<button class="chip ${S.mes === x.periodo ? 'on' : ''}" aria-pressed="${S.mes === x.periodo}" onclick="filtrarMes('${x.periodo}')">${x.label.split(' ')[0]}</button>`).join('')}
+      </div>` : '<div></div>'}
+      <div class="tools">
+        <div class="seg" role="group" aria-label="Mostrar valores como">
+          <button class="${!pct ? 'on' : ''}" aria-pressed="${!pct}" onclick="cambiarModo('monto')">Montos</button>
+          <button class="${pct ? 'on' : ''}" aria-pressed="${pct}" onclick="cambiarModo('pct')">% de ingresos</button>
+        </div>
+        <button class="btn" onclick="descargarPlanilla()" title="Detalle por show en formato para Excel">Descargar planilla</button>
+        <button class="btn" onclick="window.print()">Imprimir / PDF</button>
+      </div>
+    </div>
     ${avisos.map(a => `<div class="aviso">${a}</div>`).join('')}
     <section class="kpis">
-      ${kpi('ing', 'Ingresos (sin IVA)', T.ventas, `${T.shows} show${T.shows !== 1 ? 's' : ''}, ${T.staff} puestos`)}
-      ${kpi('egr', 'Egresos totales', egresosTot, `${p1(egresosTot, T.ventas)} de los ingresos`)}
-      ${kpi('neto', 'Resultado neto', T.neto, 'ingresos menos egresos')}
-      ${kpi('mar', 'Margen neto', T.neto, 'resultado sobre ingresos', true)}
+      ${kpi('ing', 'Ingresos (sin IVA)', money(T.ventas), `${T.shows} show${T.shows !== 1 ? 's' : ''}, ${T.staff} puestos`, delta(T.ventas, prev?.ventas))}
+      ${kpi('egr', 'Egresos totales', money(egresosTot), `${p1(egresosTot, T.ventas)} de los ingresos`, delta(egresosTot, prev ? prev.ventas - prev.neto : null, { invertir: true }))}
+      ${kpi('neto', 'Resultado neto', money(T.neto), 'ingresos menos egresos', delta(T.neto, prev?.neto))}
+      ${kpi('mar', 'Margen neto', p1(T.neto, T.ventas), 'resultado sobre ingresos', prev ? delta(margen(T), margen(prev), { pp: true }) : '')}
     </section>
+    ${dests}
     <div class="grid2">
       <section class="panel">
         <h2>Ingresos, egresos y resultado</h2>
-        <p class="desc">Lo que entró, lo que salió y lo que quedó.</p>
+        <p class="desc">${pct ? 'Egresos y resultado como porcentaje de los ingresos.' : 'Lo que entró, lo que salió y lo que quedó.'}</p>
         <div class="chart"><canvas id="gIER" aria-label="Ingresos, egresos y resultado" role="img"></canvas></div>
       </section>
       <section class="panel">
@@ -239,50 +386,149 @@ function render(d, esPreview) {
         </div>
       </section>
     </div>
-    ${d.meses ? `<section class="panel"><h2>Evolución mensual</h2><p class="desc">Ingresos y egresos de cada mes, y el resultado neto.</p><div class="chart"><canvas id="gMeses" aria-label="Evolución mensual" role="img"></canvas></div></section>` : ''}
+    ${esAnual && !S.mes ? `<section class="panel"><h2>Evolución mensual</h2><p class="desc">${pct ? 'Egresos y resultado de cada mes, como % de sus ingresos.' : 'Ingresos y egresos de cada mes, y el resultado neto.'}</p>
+      <p class="hint">Tocá un mes para ver el informe solo de ese mes.</p><div class="chart"><canvas id="gMeses" aria-label="Evolución mensual" role="img"></canvas></div></section>` : ''}
     <section class="panel">
       <h2>Resultado por show</h2>
-      <p class="desc">Ingresos, egresos y resultado neto de cada show.</p>
+      <p class="desc">${pct ? 'Qué parte de los ingresos de cada show se fue en egresos y qué parte quedó.' : 'Ingresos, egresos y resultado neto de cada show.'}</p>
+      <p class="hint">Tocá un show para ver su estado de resultados.</p>
       <div class="chart" style="height:${altoShows}px"><canvas id="gShows" aria-label="Resultado por show" role="img"></canvas></div>
     </section>
     <section class="panel"><h2>Estado de resultados</h2><p class="desc">Los egresos se restan de los ingresos en orden; los renglones intermedios muestran el resultado parcial en cada etapa.</p><div class="tw">${eerr}</div></section>
-    <section class="panel"><h2>Detalle por show</h2><p class="desc">Montos en pesos, sin IVA. Egresos incluye personal, cargas sociales, impuestos y Ganancias.</p><div class="tw">${detalle}</div></section>
+    <section class="panel"><h2>Detalle por show</h2><p class="desc">Montos en pesos, sin IVA. Egresos incluye personal, cargas sociales, impuestos y Ganancias.</p>
+      <p class="hint">Tocá un encabezado para ordenar; tocá una fila para ver el detalle del show.</p><div class="tw">${detalle}</div></section>
     <section class="notas">
       <p><strong>Ingresos:</strong> lo que SBS le factura al Movistar Arena por el staff de cada show, sin IVA.</p>
       <p><strong>Egresos:</strong> lo liquidado a los colaboradores, ${T.cargas.map(c => `${esc(c.nombre.toLowerCase())} (${pctTxt(c.pct)} de la liquidación)`).join(' y ') || 'las cargas'}, los impuestos sobre ventas (${T.impuestos.map(c => `${esc(c.nombre)} ${pctTxt(c.pct)}`).join(', ')})${T.fijos ? `, los costos fijos del Arena (${money(E.fijosMes)} por mes)` : ''} y el Impuesto a las Ganancias estimado (${pctTxt(T.iigg.pct)}).</p>
       <p><strong>Resultado neto:</strong> ingresos menos egresos. Ganancias se liquida una vez por año sobre el resultado de toda la empresa; acá se estima para mostrar lo que queda después de impuestos.</p>
       <p>Los datos arrancan con el show del ${fecha(d.desde)}, primer show con facturación registrada.</p>
     </section>
-    <footer class="pie"><img src="${LOGO}" alt=""><span>Show Business Solutions. Documento confidencial para uso de los socios. Generado el ${new Date(d.generado).toLocaleDateString('es-AR')}.</span></footer>`;
+    <footer class="pie"><img src="${LOGO}" alt=""><span>Show Business Solutions. Documento confidencial para uso de los socios. Generado el ${new Date(d.generado).toLocaleDateString('es-AR')}.</span></footer>
+    <div id="modal"></div>`;
 
-  // Dibujar los gráficos cuando Poppins ya cargó (si no, los ejes quedan con otra letra)
-  const dibujar = () => graficos(d, egresos);
-  if (document.fonts?.ready) Promise.race([document.fonts.load("12px 'Poppins'").then(() => document.fonts.ready), new Promise(r => setTimeout(r, 1500))]).then(dibujar);
-  else dibujar();
+  const go = () => graficos(T, shows, egresos);
+  if (!S.fuentes && document.fonts?.ready) {
+    Promise.race([document.fonts.load("12px 'Poppins'").then(() => document.fonts.ready), new Promise(r => setTimeout(r, 1500))]).then(() => { S.fuentes = true; go(); });
+  } else go();
+  if (S.abierto != null) abrirShow(S.abierto);
 }
 
+// ══ Interacciones ══
+window.filtrarMes = function(p) { S.mes = p; S.abierto = null; dibujar(); };
+window.cambiarModo = function(m) { if (S.modo === m) return; S.modo = m; dibujar(); };
+window.ordenar = function(col) {
+  S.orden = S.orden.col === col ? { col, dir: -S.orden.dir } : { col, dir: col === 'fecha' ? 1 : -1 };
+  dibujar();
+  document.querySelector(`th button.sort[onclick="ordenar('${col}')"]`)?.focus();
+};
+function teclas(e) {
+  if (S.abierto == null) return;
+  if (e.key === 'Escape') cerrarShow();
+  if (e.key === 'ArrowRight') moverShow(1);
+  if (e.key === 'ArrowLeft') moverShow(-1);
+}
+window.cerrarShow = function() { S.abierto = null; const m = $('modal'); if (m) m.innerHTML = ''; };
+window.moverShow = function(paso) {
+  const lista = S.ordenVisible || [], i = lista.indexOf(S.abierto);
+  if (i < 0) return; const j = i + paso; if (j < 0 || j >= lista.length) return;
+  abrirShow(lista[j]);
+};
+window.abrirShow = function(i) {
+  const s = S.d.shows[i]; if (!s) return;
+  S.abierto = i;
+  const E = S.d.estructura || {};
+  const cargas = (E.cargas || []).filter(x => (x.nombre || '').trim()).map(x => ({ n: x.nombre.trim(), p: +x.pct || 0, m: Math.round(s.personal * (+x.pct || 0) / 100) }));
+  const imps = (E.impuestos || []).filter(x => (x.nombre || '').trim()).map(x => ({ n: x.nombre.trim(), p: +x.pct || 0, m: Math.round(s.ventas * (+x.pct || 0) / 100) }));
+  const f = (lbl, v, tipo = '') => `<tr class="${tipo}"><td>${lbl}</td><td>${tipo === 'menos' && v ? '−' + money(v) : money(v)}</td><td>${p1(tipo === 'menos' ? -v : v, s.ventas)}</td></tr>`;
+  const e = egr(s);
+  const escala = Math.max(s.ventas, e);
+  const w = v => Math.max(0, v) / escala * 100;
+  const partes = [[s.personal, C.personal], [s.cargas, C.cargas], [s.impuestos, C.imp], [s.fijos || 0, C.fijo], [s.iigg || 0, C.iigg]];
+  const lista = S.ordenVisible || [], pos = lista.indexOf(i);
+  $('modal').innerHTML = `<div class="ov" onclick="if(event.target===this)cerrarShow()">
+    <div class="md" role="dialog" aria-modal="true" aria-labelledby="mdt">
+      <div class="md-h"><div><h3 id="mdt">${esc(s.nombre)}</h3><span>${fecha(s.fecha)}${s.staff ? `, ${s.staff} puestos` : ''}${s.estimado ? ', costo de personal estimado' : ''}</span></div>
+        <button class="x" onclick="cerrarShow()" aria-label="Cerrar" id="mdx">×</button></div>
+      <div class="md-b">
+        <div class="mini-kpis">
+          <div><span>Ingresos</span><b>${money(s.ventas)}</b></div>
+          <div><span>Egresos</span><b>${money(e)}</b></div>
+          <div><span>Resultado neto</span><b class="${s.neto < 0 ? 'neg' : 'pos'}">${money(s.neto)}</b></div>
+        </div>
+        <div class="prop" role="img" aria-label="Egresos ${p1(e, s.ventas)} y resultado ${p1(s.neto, s.ventas)} de los ingresos">
+          ${partes.filter(x => x[0] > 0).map(x => `<div style="width:${w(x[0])}%;background:${x[1]}"></div>`).join('')}
+          ${s.neto > 0 ? `<div style="width:${w(s.neto)}%;background:${C.neto}"></div>` : ''}
+        </div>
+        <div class="prop-l">De cada 100 pesos de ingresos: ${nf1(e / s.ventas * 100)} fueron egresos y ${nf1(s.neto / s.ventas * 100)} quedaron como resultado.</div>
+        <table class="eerr mini"><tbody>
+          ${f('Ingresos (sin IVA)', s.ventas, 'sub')}
+          ${f('Liquidaciones al personal', s.personal, 'menos')}
+          ${cargas.map(c => f(`${esc(c.n)} (${pctTxt(c.p)})`, c.m, 'menos')).join('')}
+          ${f('Utilidad bruta', s.utBruta, 'parcial')}
+          ${imps.map(c => f(`${esc(c.n)} (${pctTxt(c.p)})`, c.m, 'menos')).join('')}
+          ${f('Contribución marginal', s.contrMarginal, 'parcial')}
+          ${s.fijos ? f('Costos fijos', s.fijos, 'menos') : ''}
+          ${f('Impuesto a las Ganancias', s.iigg || 0, 'menos')}
+          ${f('Resultado neto', s.neto, 'final')}
+        </tbody></table>
+      </div>
+      <div class="md-f">
+        <button class="btn" onclick="moverShow(-1)" ${pos <= 0 ? 'disabled' : ''}>‹ Anterior</button>
+        <span class="md-pos">${pos + 1} de ${lista.length}</span>
+        <button class="btn" onclick="moverShow(1)" ${pos < 0 || pos >= lista.length - 1 ? 'disabled' : ''}>Siguiente ›</button>
+      </div>
+    </div></div>`;
+  $('mdx')?.focus();
+};
 
-// Etiquetas de valor sobre cada barra y % dentro de cada porción, para poder verificar el gráfico contra la tabla
+window.descargarPlanilla = function() {
+  const shows = showsVisibles(), T = totalesVista();
+  const n = v => String(Math.round((v || 0) * 100) / 100).replace('.', ',');
+  const head = ['Show', 'Fecha', 'Staff', 'Ingresos (sin IVA)', 'Liquidaciones al personal', 'Cargas sociales', 'Impuestos sobre ventas', 'Costos fijos', 'Impuesto a las Ganancias', 'Total egresos', 'Resultado neto', 'Margen neto %'];
+  const filas = (S.ordenVisible || shows.map(s => s._i)).map(i => S.d.shows[i]).map(s =>
+    [s.nombre, fecha(s.fecha), s.staff || 0, n(s.ventas), n(s.personal), n(s.cargas), n(s.impuestos), n(s.fijos), n(s.iigg), n(egr(s)), n(s.neto), n(s.ventas ? s.neto / s.ventas * 100 : 0)]);
+  filas.push(['Total', '', T.staff || 0, n(T.ventas), n(T.personal), n(T.totCargas), n(T.totImp), n(T.fijos), n(T.iigg.monto), n(T.ventas - T.neto), n(T.neto), n(T.ventas ? T.neto / T.ventas * 100 : 0)]);
+  const q = x => { const t = String(x); return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+  const csv = '\ufeff' + [head, ...filas].map(r => r.map(q).join(';')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const per = S.mes ? S.d.meses.find(x => x.periodo === S.mes).label : S.d.periodoLabel;
+  a.download = `SBS Movistar Arena - ${per}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+};
+
+// ══ Gráficos ══
+const fmtVal = v => S.modo === 'pct' ? nf1(v) + '%' : corto(v);
+// Etiquetas: monto/% en el extremo de cada barra (o centrado si la barra está apilada) y % dentro de cada porción
 const ETIQUETAS = {
   id: 'etiquetas',
   afterDatasetsDraw(chart) {
     const { ctx } = chart; ctx.save();
+    ctx.font = "600 11px 'Poppins', system-ui, sans-serif";
     chart.data.datasets.forEach((ds, di) => {
       const meta = chart.getDatasetMeta(di);
       if (meta.hidden) return;
       if (meta.type === 'bar') {
         const horiz = chart.options.indexAxis === 'y';
-        ctx.font = "600 11px 'Poppins', system-ui, sans-serif"; ctx.fillStyle = '#1f2421';
+        const apilado = horiz ? chart.options.scales?.x?.stacked : chart.options.scales?.y?.stacked;
         meta.data.forEach((el, i) => {
           const v = ds.data[i]; if (v == null) return;
-          const txt = corto(v);
-          if (horiz) { ctx.textAlign = v >= 0 ? 'left' : 'right'; ctx.textBaseline = 'middle'; ctx.fillText(txt, el.x + (v >= 0 ? 6 : -6), el.y); }
-          else { ctx.textAlign = 'center'; ctx.textBaseline = v >= 0 ? 'bottom' : 'top'; ctx.fillText(txt, el.x, el.y + (v >= 0 ? -5 : 5)); }
+          const txt = fmtVal(v);
+          if (apilado) {
+            const largo = horiz ? Math.abs(el.x - el.base) : Math.abs(el.base - el.y);
+            if (largo < ctx.measureText(txt).width + 10) return;
+            ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            horiz ? ctx.fillText(txt, (el.x + el.base) / 2, el.y) : ctx.fillText(txt, el.x, (el.y + el.base) / 2);
+          } else {
+            ctx.fillStyle = '#1f2421';
+            if (horiz) { ctx.textAlign = v >= 0 ? 'left' : 'right'; ctx.textBaseline = 'middle'; ctx.fillText(txt, el.x + (v >= 0 ? 6 : -6), el.y); }
+            else { ctx.textAlign = 'center'; ctx.textBaseline = v >= 0 ? 'bottom' : 'top'; ctx.fillText(txt, el.x, el.y + (v >= 0 ? -5 : 5)); }
+          }
         });
       } else if (meta.type === 'doughnut') {
         const tot = ds.data.reduce((a, b) => a + b, 0);
-        ctx.font = "600 11px 'Poppins', system-ui, sans-serif"; ctx.fillStyle = '#fff';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         meta.data.forEach((el, i) => {
           const share = ds.data[i] / tot; if (share < 0.07) return;
           const p = el.tooltipPosition(); ctx.fillText(Math.round(share * 100) + '%', p.x, p.y);
@@ -299,31 +545,38 @@ window.addEventListener('beforeprint', reajustarGraficos);
 window.addEventListener('afterprint', reajustarGraficos);
 if (window.matchMedia) window.matchMedia('print').addEventListener?.('change', reajustarGraficos);
 
-function graficos(d, egresos) {
+function graficos(T, shows, egresos) {
+  CHARTS.splice(0).forEach(c => c.destroy());
   if (typeof Chart === 'undefined') return;
   const _Chart = Chart;
-  const nuevo = (el, cfg) => { cfg.plugins = [...(cfg.plugins || []), ETIQUETAS]; const c = new _Chart(el, cfg); CHARTS.push(c); return c; };
-  const T = d.totales;
-  const egresosTot = T.ventas - T.neto;
+  const nuevo = (el, cfg) => { if (!el) return; cfg.plugins = [...(cfg.plugins || []), ETIQUETAS]; const c = new _Chart(el, cfg); CHARTS.push(c); return c; };
+  const pct = S.modo === 'pct', egresosTot = T.ventas - T.neto;
   Chart.defaults.font.family = "'Poppins', system-ui, sans-serif";
   Chart.defaults.font.size = 12;
   Chart.defaults.color = C.muted;
   Chart.defaults.animation = false;
   Chart.defaults.devicePixelRatio = Math.max(2, window.devicePixelRatio || 1);
-  const ejeMoneda = { ticks: { callback: v => corto(v), maxTicksLimit: 6 }, grid: { color: C.rule }, border: { display: false } };
-  const tip = { callbacks: { label: c => ` ${c.dataset.label || c.label}: ${money(c.raw)}` } };
+  const eje = { ticks: { callback: v => pct ? v + '%' : corto(v), maxTicksLimit: 6 }, grid: { color: C.rule }, border: { display: false } };
+  const sinGrilla = { grid: { display: false }, border: { display: false }, ticks: { color: '#1f2421', maxRotation: 0, autoSkip: false } };
+  // Tooltip: siempre muestra monto y porcentaje, sea cual sea el modo
+  const tip = { callbacks: { label: c => { const mm = c.dataset.montos?.[c.dataIndex] ?? c.raw, base = c.dataset.bases?.[c.dataIndex];
+    return ` ${c.dataset.label || c.label}: ${money(mm)}${base ? ` (${p1(mm, base)} de los ingresos)` : ''}`; } } };
   const colRes = v => v >= 0 ? C.neto : C.loss;
+  // Las acciones se difieren un instante: si redibujan, no destruyen el gráfico mientras procesa su propio clic
+  const clicShow = (evt, els) => { if (els.length) { const i = shows[els[0].index]._i; setTimeout(() => abrirShow(i), 0); } };
+  const cursor = (evt, els) => { evt.native.target.style.cursor = els.length ? 'pointer' : 'default'; };
 
-  // Ingresos, egresos y resultado: tres barras comparables
+  // Ingresos, egresos y resultado
+  const vals = [T.ventas, egresosTot, T.neto];
   nuevo($('gIER'), {
     type: 'bar',
-    data: { labels: ['Ingresos', 'Egresos', 'Resultado'],
-      datasets: [{ label: 'Monto', data: [T.ventas, egresosTot, T.neto], backgroundColor: [C.ing, C.egr, colRes(T.neto)], borderRadius: 4, maxBarThickness: 64 }] },
-    options: { maintainAspectRatio: false, layout: { padding: { top: 22 } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${money(c.raw)} (${p1(c.raw, T.ventas)} de los ingresos)` } } },
-      scales: { y: { ...ejeMoneda, beginAtZero: true }, x: { grid: { display: false }, border: { display: false }, ticks: { color: '#1f2421', maxRotation: 0, autoSkip: false } } } },
+    data: { labels: ['Ingresos', 'Egresos', 'Resultado'], datasets: [{ label: 'Monto', data: pct ? vals.map(v => v / T.ventas * 100) : vals,
+      montos: vals, bases: vals.map(() => T.ventas), backgroundColor: [C.ing, C.egr, colRes(T.neto)], borderRadius: 4, maxBarThickness: 64 }] },
+    options: { maintainAspectRatio: false, layout: { padding: { top: 22 } }, plugins: { legend: { display: false }, tooltip: tip },
+      scales: { y: { ...eje, beginAtZero: true }, x: sinGrilla } },
   });
 
-  // Composición de los egresos (solo gastos)
+  // Composición de los egresos
   nuevo($('gTorta'), {
     type: 'doughnut',
     data: { labels: egresos.map(x => x.t), datasets: [{ data: egresos.map(x => x.v), backgroundColor: egresos.map(x => x.c), borderColor: '#fff', borderWidth: 2 }] },
@@ -331,32 +584,42 @@ function graficos(d, egresos) {
       tooltip: { callbacks: { label: c => ` ${c.label}: ${money(c.raw)} (${p1(c.raw, egresosTot)} de los egresos)` } } } },
   });
 
-  // Resultado por show: barras agrupadas ingresos / egresos / resultado
-  nuevo($('gShows'), {
-    type: 'bar',
-    data: { labels: d.shows.map(s => `${s.nombre}  ${fecha(s.fecha).slice(0, 5)}`),
-      datasets: [
-        { label: 'Ingresos', data: d.shows.map(s => s.ventas), backgroundColor: C.ing, borderRadius: 3, maxBarThickness: 18 },
-        { label: 'Egresos', data: d.shows.map(s => s.ventas - s.neto), backgroundColor: C.egr, borderRadius: 3, maxBarThickness: 18 },
-        { label: 'Resultado neto', data: d.shows.map(s => s.neto), backgroundColor: d.shows.map(s => colRes(s.neto)), borderRadius: 3, maxBarThickness: 18 },
-      ] },
-    options: { indexAxis: 'y', maintainAspectRatio: false, layout: { padding: { right: 62 } },
-      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12, padding: 16 } }, tooltip: tip },
-      scales: { x: { ...ejeMoneda, beginAtZero: true }, y: { grid: { display: false }, border: { display: false }, ticks: { color: '#1f2421' } } } },
-  });
+  // Resultado por show: en montos, barras agrupadas; en %, barra 100% apilada (egresos + resultado)
+  const base = { type: 'bar', options: { indexAxis: 'y', maintainAspectRatio: false, onClick: clicShow, onHover: cursor,
+    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12, padding: 16 } }, tooltip: tip } } };
+  const etiquetasShows = shows.map(s => `${s.nombre}  ${fecha(s.fecha).slice(0, 5)}`);
+  if (!pct) {
+    nuevo($('gShows'), { ...base, data: { labels: etiquetasShows, datasets: [
+      { label: 'Ingresos', data: shows.map(s => s.ventas), bases: shows.map(s => s.ventas), backgroundColor: C.ing, borderRadius: 3, maxBarThickness: 18 },
+      { label: 'Egresos', data: shows.map(egr), bases: shows.map(s => s.ventas), backgroundColor: C.egr, borderRadius: 3, maxBarThickness: 18 },
+      { label: 'Resultado neto', data: shows.map(s => s.neto), bases: shows.map(s => s.ventas), backgroundColor: shows.map(s => colRes(s.neto)), borderRadius: 3, maxBarThickness: 18 },
+    ] }, options: { ...base.options, layout: { padding: { right: 62 } }, scales: { x: { ...eje, beginAtZero: true }, y: sinGrilla } } });
+  } else {
+    nuevo($('gShows'), { ...base, data: { labels: etiquetasShows, datasets: [
+      { label: 'Egresos', data: shows.map(s => egr(s) / s.ventas * 100), montos: shows.map(egr), bases: shows.map(s => s.ventas), backgroundColor: C.egr, maxBarThickness: 26 },
+      { label: 'Resultado neto', data: shows.map(s => s.neto / s.ventas * 100), montos: shows.map(s => s.neto), bases: shows.map(s => s.ventas), backgroundColor: shows.map(s => colRes(s.neto)), maxBarThickness: 26 },
+    ] }, options: { ...base.options, scales: { x: { ...eje, stacked: true, min: Math.min(0, ...shows.map(s => s.neto / s.ventas * 100)), max: Math.max(100, ...shows.map(s => egr(s) / s.ventas * 100)) }, y: { ...sinGrilla, stacked: true } } } });
+  }
 
-  // Anual: ingresos y egresos por mes + línea de resultado neto
-  if (d.meses && $('gMeses')) {
-    nuevo($('gMeses'), {
-      data: { labels: d.meses.map(x => x.label.split(' ')[0]),
-        datasets: [
-          { type: 'line', label: 'Resultado neto', data: d.meses.map(x => x.neto), borderColor: C.neto, backgroundColor: C.neto, borderWidth: 2.5, pointRadius: 4, tension: .25, order: 1 },
-          { type: 'bar', label: 'Ingresos', data: d.meses.map(x => x.ventas), backgroundColor: C.ing, borderRadius: 3, maxBarThickness: 36, order: 2 },
-          { type: 'bar', label: 'Egresos', data: d.meses.map(x => x.ventas - x.neto), backgroundColor: C.egr, borderRadius: 3, maxBarThickness: 36, order: 3 },
-        ] },
-      options: { maintainAspectRatio: false, layout: { padding: { top: 22 } }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12 } }, tooltip: tip },
-        scales: { y: { ...ejeMoneda, beginAtZero: true }, x: { grid: { display: false }, border: { display: false } } } },
-    });
+  // Evolución mensual (anual, sin filtro): clic en un mes filtra el informe
+  const meses = S.d.meses;
+  if (meses && $('gMeses')) {
+    const opts = { maintainAspectRatio: false, layout: { padding: { top: 22 } }, onHover: cursor,
+      onClick: (evt, els) => { if (els.length) { const per = meses[els[0].index].periodo; setTimeout(() => filtrarMes(per), 0); } },
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12 } }, tooltip: tip } };
+    const lbl = meses.map(x => x.label.split(' ')[0]);
+    if (!pct) {
+      nuevo($('gMeses'), { data: { labels: lbl, datasets: [
+        { type: 'line', label: 'Resultado neto', data: meses.map(x => x.neto), bases: meses.map(x => x.ventas), borderColor: C.neto, backgroundColor: C.neto, borderWidth: 2.5, pointRadius: 5, tension: .25, order: 1 },
+        { type: 'bar', label: 'Ingresos', data: meses.map(x => x.ventas), bases: meses.map(x => x.ventas), backgroundColor: C.ing, borderRadius: 3, maxBarThickness: 36, order: 2 },
+        { type: 'bar', label: 'Egresos', data: meses.map(x => x.ventas - x.neto), bases: meses.map(x => x.ventas), backgroundColor: C.egr, borderRadius: 3, maxBarThickness: 36, order: 3 },
+      ] }, options: { ...opts, scales: { y: { ...eje, beginAtZero: true }, x: sinGrilla } } });
+    } else {
+      nuevo($('gMeses'), { type: 'bar', data: { labels: lbl, datasets: [
+        { label: 'Egresos', data: meses.map(x => (x.ventas - x.neto) / x.ventas * 100), montos: meses.map(x => x.ventas - x.neto), bases: meses.map(x => x.ventas), backgroundColor: C.egr, maxBarThickness: 48 },
+        { label: 'Resultado neto', data: meses.map(x => x.neto / x.ventas * 100), montos: meses.map(x => x.neto), bases: meses.map(x => x.ventas), backgroundColor: meses.map(x => colRes(x.neto)), maxBarThickness: 48 },
+      ] }, options: { ...opts, layout: {}, scales: { y: { ...eje, stacked: true, min: 0, max: Math.max(100, ...meses.map(x => (x.ventas - x.neto) / x.ventas * 100)) }, x: { ...sinGrilla, stacked: true } } } });
+    }
   }
 }
 
