@@ -192,6 +192,22 @@ tr.clic { cursor: pointer; } tr.clic:hover td { background: #f7f8f7; }
   .dest { cursor: default; }
   .dests { break-inside: avoid; }
 }
+
+/* Reproductor de video */
+.btn-video { background: var(--brand); color: #fff; border-color: var(--brand); }
+.btn-video:hover { background: #111; }
+.vov { position: fixed; inset: 0; background: rgba(15,18,16,.72); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 60; }
+.vbox { background: var(--surface); border-radius: 12px; width: min(1180px, 100%); overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.35); }
+.vtop { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--rule); }
+.vtop b { font-weight: 600; } .vtop span { color: var(--muted); font-size: 13px; }
+.vbox canvas { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: #fff; }
+.vctl { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--rule); flex-wrap: wrap; }
+.vctl input[type=range] { flex: 1; min-width: 120px; accent-color: #2b2b2b; }
+.vtime { font-size: 12.5px; color: var(--muted); min-width: 84px; text-align: center; }
+.btn-dl { background: var(--c-neto); color: #fff; border-color: var(--c-neto); }
+.btn-dl:disabled { opacity: .85; }
+.vrec { font-size: 12px; color: var(--muted); padding: 0 14px 10px; min-height: 4px; }
+@media print { .vov { display: none !important; } }
 </style>
 </head>
 <body>
@@ -359,6 +375,7 @@ function dibujar() {
           <button class="${!pct ? 'on' : ''}" aria-pressed="${!pct}" onclick="cambiarModo('monto')">Montos</button>
           <button class="${pct ? 'on' : ''}" aria-pressed="${pct}" onclick="cambiarModo('pct')">% de ingresos</button>
         </div>
+        <button class="btn btn-video" onclick="abrirVideo()">▶ Ver en video</button>
         <button class="btn" onclick="descargarPlanilla()" title="Detalle por show en formato para Excel">Descargar planilla</button>
         <button class="btn" onclick="window.print()">Imprimir / PDF</button>
       </div>
@@ -422,6 +439,11 @@ window.ordenar = function(col) {
   document.querySelector(`th button.sort[onclick="ordenar('${col}')"]`)?.focus();
 };
 function teclas(e) {
+  if ($('vov')?.style.display === 'flex') {
+    if (e.key === 'Escape') cerrarVideo();
+    if (e.key === ' ' && e.target.tagName !== 'BUTTON') { e.preventDefault(); vToggle(); }
+    return;
+  }
   if (S.abierto == null) return;
   if (e.key === 'Escape') cerrarShow();
   if (e.key === 'ArrowRight') moverShow(1);
@@ -622,6 +644,423 @@ function graficos(T, shows, egresos) {
     }
   }
 }
+
+
+// ══════════════════════════════════════════════
+// VERSIÓN EN VIDEO — presentación animada 16:9 dibujada con los mismos datos del informe
+// ══════════════════════════════════════════════
+const V = { W: 1920, H: 1080, escenas: [], dur: 0, t: 0, play: false, last: null, raf: null, cv: null, ctx: null, logo: null, rec: null, grabando: false, med: [] };
+const vF = (peso, px) => `${peso} ${px}px Poppins, system-ui, sans-serif`;
+const vClamp = x => Math.max(0, Math.min(1, x));
+const vEase = x => 1 - Math.pow(1 - vClamp(x), 3);
+const vIn = (t, ini, dur = 0.5) => vClamp((t - ini) / dur);
+function vRR(ctx, x, y, w, h, r) {
+  r = Math.max(0, Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2));
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function vLinea(ctx, x1, y1, x2, y2) { ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); }
+function vWrap(ctx, txt, x, y, maxW, lh) {
+  const pal = String(txt).split(' '); let l = ''; const ls = [];
+  for (const p of pal) { const t = l ? l + ' ' + p : p; if (ctx.measureText(t).width > maxW && l) { ls.push(l); l = p; } else l = t; }
+  if (l) ls.push(l); ls.forEach((x_, i) => ctx.fillText(x_, x, y + i * lh)); return ls.length;
+}
+// Eje con valores redondos: paso "lindo" y límites múltiplos del paso (la escala arranca en cero)
+function vEje(min, max) {
+  const lindo = v => { if (v <= 0) return 1; const e = Math.pow(10, Math.floor(Math.log10(v))); const f = v / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * e; };
+  const paso = lindo(Math.max(Math.abs(min), Math.abs(max)) / 4);
+  return { min: Math.min(0, Math.floor(min / paso) * paso), max: Math.max(paso, Math.ceil(max / paso) * paso), paso };
+}
+
+function vFondo(ctx, i) {
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, V.W, V.H);
+  ctx.fillStyle = C.ing; ctx.fillRect(0, 0, V.W, 10);
+  const e = V.escenas[i];
+  if (e.marco !== false) {
+    if (V.logo) { ctx.save(); vRR(ctx, 120, 990, 46, 46, 8); ctx.clip(); ctx.drawImage(V.logo, 120, 990, 46, 46); ctx.restore(); }
+    ctx.fillStyle = C.muted; ctx.font = vF(400, 22); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText(`Show Business Solutions · Informe de resultados, Movistar Arena · ${V.data.per}`, 184, 1013);
+    // avance por escenas
+    const n = V.escenas.length;
+    for (let k = 0; k < n; k++) { ctx.fillStyle = k === i ? C.ing : '#d4d8d5'; ctx.beginPath(); ctx.arc(V.W - 120 - (n - 1 - k) * 26, 1013, k === i ? 7 : 5, 0, Math.PI * 2); ctx.fill(); }
+  }
+}
+function vTitulo(ctx, t, titulo, sub) {
+  const a = vEase(vIn(t, 0.1, 0.6)); ctx.save(); ctx.globalAlpha *= a;
+  ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 58); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText(titulo, 120, 150 + (1 - a) * 20);
+  if (sub) { ctx.fillStyle = C.muted; ctx.font = vF(400, 30); ctx.fillText(sub, 120, 200 + (1 - a) * 20); }
+  ctx.restore();
+}
+function vTexto(ctx, t, ini, txt) {
+  const a = vEase(vIn(t, ini, 0.6)); if (!a) return;
+  ctx.save(); ctx.globalAlpha *= a;
+  ctx.fillStyle = C.neto; ctx.fillRect(120, 884, 7, 74);
+  ctx.fillStyle = '#1f2421'; ctx.font = vF(500, 34); ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  vWrap(ctx, txt, 152, 884, 1640, 44);
+  ctx.restore();
+}
+const vLeyenda = (ctx, items, xDer, y) => {
+  ctx.font = vF(500, 24); ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  let x = xDer; const anchos = items.map(([t]) => ctx.measureText(t).width + 70);
+  x -= anchos.reduce((a, b) => a + b, 0);
+  items.forEach(([t, c], i) => { ctx.fillStyle = c; vRR(ctx, x, y - 11, 22, 22, 4); ctx.fill(); ctx.fillStyle = '#1f2421'; ctx.fillText(t, x + 32, y); x += anchos[i]; });
+};
+
+// ── Escenas ──
+function escPortada(ctx, t) {
+  const a = vEase(vIn(t, 0.2, 0.9)), s = 0.94 + 0.06 * a, L = 200;
+  ctx.save(); ctx.globalAlpha *= a;
+  if (V.logo) { ctx.save(); ctx.translate(V.W / 2, 330); ctx.scale(s, s); vRR(ctx, -L / 2, -L / 2, L, L, 28); ctx.clip(); ctx.drawImage(V.logo, -L / 2, -L / 2, L, L); ctx.restore(); }
+  ctx.restore();
+  const b = vEase(vIn(t, 0.9, 0.8));
+  ctx.save(); ctx.globalAlpha *= b; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 104); ctx.fillText(V.data.per, V.W / 2, 590 + (1 - b) * 24);
+  ctx.fillStyle = C.muted; ctx.font = vF(400, 40); ctx.fillText('Informe de resultados · Movistar Arena', V.W / 2, 665 + (1 - b) * 24);
+  ctx.restore();
+  const c = vEase(vIn(t, 1.8, 0.8));
+  ctx.save(); ctx.globalAlpha *= c; ctx.textAlign = 'center'; ctx.fillStyle = C.muted; ctx.font = vF(500, 28);
+  ctx.fillText('Show Business Solutions', V.W / 2, 930); ctx.restore();
+}
+
+function escResumen(ctx, t) {
+  const { T, eg } = V.data;
+  vTitulo(ctx, t, 'Resultado del período', `${T.shows} show${T.shows !== 1 ? 's' : ''} facturado${T.shows !== 1 ? 's' : ''} al Movistar Arena`);
+  const p = vEase(vIn(t, 0.7, 1.8));
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.save(); ctx.globalAlpha *= vIn(t, 0.5, 0.5);
+  ctx.fillStyle = C.muted; ctx.font = vF(500, 34); ctx.fillText('Resultado neto', V.W / 2, 360);
+  ctx.fillStyle = T.neto >= 0 ? C.neto : C.loss; ctx.font = vF(700, 150); ctx.fillText(money(T.neto * p), V.W / 2, 520);
+  ctx.fillStyle = '#1f2421'; ctx.font = vF(500, 38); ctx.fillText(`${p1(T.neto, T.ventas)} de los ingresos`, V.W / 2, 590);
+  ctx.restore();
+  const cajas = [['Ingresos (sin IVA)', T.ventas, C.ing], ['Egresos', eg, C.egr], ['Puestos cubiertos', T.staff, null]];
+  cajas.forEach(([l, v, c], i) => {
+    const a = vEase(vIn(t, 1.6 + i * 0.3, 0.6)); if (!a) return;
+    const w = 440, x = V.W / 2 - (w * 1.5 + 40) + i * (w + 40), y = 660 + (1 - a) * 20;
+    ctx.save(); ctx.globalAlpha *= a;
+    ctx.fillStyle = '#f5f6f5'; vRR(ctx, x, y, w, 150, 16); ctx.fill();
+    ctx.fillStyle = c || C.neto; ctx.fillRect(x, y, w, 6);
+    ctx.textAlign = 'left'; ctx.fillStyle = C.muted; ctx.font = vF(500, 26); ctx.fillText(l, x + 30, y + 58);
+    ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 46); ctx.fillText(c ? money(v * vEase(vIn(t, 1.6 + i * 0.3, 1.4))) : String(Math.round(v * vEase(vIn(t, 1.6 + i * 0.3, 1.4)))), x + 30, y + 118);
+    ctx.restore();
+  });
+  vTexto(ctx, t, 3.4, `Ingresos por ${money(T.ventas)} y egresos por ${money(eg)}: quedaron ${money(T.neto)} de resultado neto.`);
+}
+
+function escIER(ctx, t) {
+  const { T, eg } = V.data;
+  vTitulo(ctx, t, 'Ingresos, egresos y resultado', 'Lo que entró, lo que salió y lo que quedó');
+  const vals = [T.ventas, eg, T.neto], cols = [C.ing, C.egr, T.neto >= 0 ? C.neto : C.loss], labs = ['Ingresos', 'Egresos', 'Resultado neto'];
+  const ax = vEje(Math.min(0, ...vals), Math.max(...vals));
+  const x0 = 380, x1 = 1540, yT = 290, yB = 790;
+  const yv = v => yB - (v - ax.min) / (ax.max - ax.min) * (yB - yT);
+  ctx.save(); ctx.globalAlpha *= vIn(t, 0.2, 0.5);
+  ctx.font = vF(400, 24); ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let v = ax.min; v <= ax.max + ax.paso / 1e6; v += ax.paso) {
+    const y = yv(v); ctx.strokeStyle = Math.abs(v) < ax.paso / 1e6 ? '#aab1ad' : C.rule; ctx.lineWidth = Math.abs(v) < ax.paso / 1e6 ? 2.5 : 1.5;
+    vLinea(ctx, x0, y, x1, y); ctx.fillStyle = C.muted; ctx.fillText(corto(v), x0 - 20, y);
+  }
+  ctx.restore();
+  const gw = (x1 - x0) / 3, bw = 210, y0 = yv(0);
+  vals.forEach((v, i) => {
+    const p = vEase(vIn(t, 0.7 + i * 0.8, 1.2)), cx = x0 + gw * (i + 0.5), y = yv(v * p);
+    ctx.fillStyle = cols[i]; vRR(ctx, cx - bw / 2, Math.min(y, y0), bw, Math.abs(y0 - y), 8); ctx.fill();
+    if (p === 1) V.med.push({ esc: 'ier', v, px: y0 - y });
+    ctx.fillStyle = '#1f2421'; ctx.font = vF(500, 28); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.globalAlpha = Math.min(ctx.globalAlpha, 1); ctx.fillText(labs[i], cx, yB + 20);
+    const a = vIn(t, 1.7 + i * 0.8, 0.5);
+    if (a) {
+      ctx.save(); ctx.globalAlpha *= a; ctx.textBaseline = 'alphabetic';
+      const yl = v >= 0 ? y - 18 : y + 46;
+      ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 34); ctx.fillText(money(v), cx, yl);
+      ctx.fillStyle = C.muted; ctx.font = vF(500, 24); ctx.fillText(i ? `${p1(v, T.ventas)} de los ingresos` : '100%', cx, yl - 40);
+      ctx.restore();
+    }
+  });
+  vTexto(ctx, t, 3.9, `De cada 100 pesos que entraron, ${nf1(eg / T.ventas * 100)} fueron egresos y ${nf1(T.neto / T.ventas * 100)} quedaron como resultado neto.`);
+}
+
+function escTorta(ctx, t) {
+  const { eg, T, egresos } = V.data;
+  vTitulo(ctx, t, 'Composición de los egresos', `En qué se fueron los ${money(eg)} de egresos`);
+  const cx = 560, cy = 560, R = 270, r = 165, A = Math.PI * 2 * vEase(vIn(t, 0.5, 2.4));
+  let ang = -Math.PI / 2;
+  egresos.forEach(x => {
+    const w = x.v / eg * Math.PI * 2, fin = Math.min(ang + w, -Math.PI / 2 + A);
+    if (fin > ang) { ctx.beginPath(); ctx.arc(cx, cy, R, ang, fin); ctx.arc(cx, cy, r, fin, ang, true); ctx.closePath(); ctx.fillStyle = x.c; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.stroke(); }
+    if (A >= Math.PI * 2 - 1e-9) V.med.push({ esc: 'torta', v: x.v, ang: w });
+    const share = x.v / eg, a = vIn(t, 3.0, 0.5);
+    if (a && share >= 0.06) { const m = ang + w / 2; ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#fff'; ctx.font = vF(600, 30); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(Math.round(share * 100) + '%', cx + Math.cos(m) * (R + r) / 2, cy + Math.sin(m) * (R + r) / 2); ctx.restore(); }
+    ang += w;
+  });
+  const c = vIn(t, 2.9, 0.5);
+  if (c) { ctx.save(); ctx.globalAlpha *= c; ctx.textAlign = 'center'; ctx.fillStyle = C.muted; ctx.font = vF(500, 26); ctx.textBaseline = 'alphabetic'; ctx.fillText('Total egresos', cx, cy - 10); ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 36); ctx.fillText(corto(eg), cx, cy + 36); ctx.restore(); }
+  egresos.forEach((x, i) => {
+    const a = vEase(vIn(t, 0.9 + i * 0.4, 0.6)); if (!a) return;
+    const y = 320 + i * 118 + (1 - a) * 16;
+    ctx.save(); ctx.globalAlpha *= a; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = x.c; vRR(ctx, 990, y - 30, 32, 32, 6); ctx.fill();
+    ctx.fillStyle = '#1f2421'; ctx.font = vF(500, 32); ctx.textAlign = 'left'; ctx.fillText(x.t, 1044, y);
+    ctx.font = vF(700, 32); ctx.textAlign = 'right'; ctx.fillText(money(x.v), 1800, y);
+    ctx.fillStyle = C.muted; ctx.font = vF(400, 24); ctx.textAlign = 'left'; ctx.fillText(`${p1(x.v, eg)} de los egresos · ${p1(x.v, T.ventas)} de los ingresos`, 1044, y + 38);
+    ctx.restore();
+  });
+  const top = [...egresos].sort((a, b) => b.v - a.v)[0];
+  vTexto(ctx, t, 3.6, `El principal egreso es ${top.t.toLowerCase()}: ${money(top.v)}, el ${p1(top.v, eg)} del total de egresos.`);
+}
+
+function escShows(ctx, t) {
+  const { lista, recorte, shows } = V.data, n = lista.length;
+  vTitulo(ctx, t, 'Resultado por show', recorte ? `Los ${n} shows con más ingresos del período` : 'Ingresos, egresos y resultado neto de cada show');
+  ctx.save(); ctx.globalAlpha *= vIn(t, 0.3, 0.5); vLeyenda(ctx, [['Ingresos', C.ing], ['Egresos', C.egr], ['Resultado neto', C.neto]], 1800, 250); ctx.restore();
+  const ax = vEje(Math.min(0, ...lista.map(s => s.neto)), Math.max(...lista.map(s => Math.max(s.ventas, egr(s)))));
+  const x0 = 520, x1 = 1640, yT = 290, yB = 810, rowH = (yB - yT) / n, bh = Math.min(30, rowH * 0.22);
+  const xv = v => x0 + (v - ax.min) / (ax.max - ax.min) * (x1 - x0);
+  ctx.save(); ctx.globalAlpha *= vIn(t, 0.2, 0.5);
+  ctx.font = vF(400, 22); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let v = ax.min; v <= ax.max + ax.paso / 1e6; v += ax.paso) { const x = xv(v); const cero = Math.abs(v) < ax.paso / 1e6; ctx.strokeStyle = cero ? '#aab1ad' : C.rule; ctx.lineWidth = cero ? 2.5 : 1.5; vLinea(ctx, x, yT - 10, x, yB); ctx.fillStyle = C.muted; ctx.fillText(corto(v), x, yB + 12); }
+  ctx.restore();
+  const x0v = xv(0);
+  lista.forEach((s, k) => {
+    const cy = yT + rowH * (k + 0.5), p = vEase(vIn(t, 0.6 + k * 0.3, 1.1));
+    ctx.save(); ctx.globalAlpha *= vIn(t, 0.4 + k * 0.3, 0.4);
+    ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 28); ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic'; ctx.fillText(s.nombre, x0 - 26, cy + 2);
+    ctx.fillStyle = C.muted; ctx.font = vF(400, 22); ctx.fillText(fecha(s.fecha), x0 - 26, cy + 30);
+    ctx.restore();
+    [[s.ventas, C.ing], [egr(s), C.egr], [s.neto, s.neto >= 0 ? C.neto : C.loss]].forEach(([v, c], j) => {
+      const y = cy + (j - 1.5) * (bh + 6) + 3, xe = xv(v * p);
+      ctx.fillStyle = c; vRR(ctx, Math.min(x0v, xe), y, Math.abs(xe - x0v), bh, 5); ctx.fill();
+      if (p === 1) V.med.push({ esc: 'shows', v, px: xe - x0v });
+      const a = vIn(t, 1.6 + k * 0.3, 0.4);
+      if (a) { ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 20); ctx.textBaseline = 'middle'; ctx.textAlign = v >= 0 ? 'left' : 'right'; ctx.fillText(corto(v), xe + (v >= 0 ? 10 : -10), y + bh / 2); ctx.restore(); }
+    });
+  });
+  const tt = 1.9 + n * 0.3;
+  if (shows.length >= 2) {
+    const br = [...shows].sort((a, b) => b.neto - a.neto)[0], bm = [...shows].sort((a, b) => b.neto / b.ventas - a.neto / a.ventas)[0];
+    const neg = shows.filter(s => s.neto < 0);
+    vTexto(ctx, t, tt, neg.length
+      ? `Mayor resultado: ${br.nombre} (${money(br.neto)}). ${neg.length === 1 ? `${neg[0].nombre} cerró con un resultado negativo de ${money(-neg[0].neto)}.` : `${neg.length} shows cerraron con resultado negativo.`}`
+      : `Mayor resultado: ${br.nombre} (${money(br.neto)}). Mayor margen: ${bm.nombre} (${p1(bm.neto, bm.ventas)} de sus ingresos).`);
+  } else vTexto(ctx, t, tt, `${shows[0].nombre}: resultado neto de ${money(shows[0].neto)}, el ${p1(shows[0].neto, shows[0].ventas)} de sus ingresos.`);
+}
+
+function escMeses(ctx, t) {
+  const m = S.d.meses, k = m.length;
+  vTitulo(ctx, t, 'Evolución mensual', 'Ingresos y egresos de cada mes, y el resultado neto');
+  ctx.save(); ctx.globalAlpha *= vIn(t, 0.3, 0.5); vLeyenda(ctx, [['Ingresos', C.ing], ['Egresos', C.egr], ['Resultado neto', C.neto]], 1800, 250); ctx.restore();
+  const ax = vEje(Math.min(0, ...m.map(x => x.neto)), Math.max(...m.map(x => Math.max(x.ventas, x.ventas - x.neto))));
+  const x0 = 380, x1 = 1640, yT = 300, yB = 790, gw = (x1 - x0) / k, bw = Math.min(110, gw * 0.26);
+  const yv = v => yB - (v - ax.min) / (ax.max - ax.min) * (yB - yT), y0 = yv(0);
+  ctx.save(); ctx.globalAlpha *= vIn(t, 0.2, 0.5);
+  ctx.font = vF(400, 24); ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let v = ax.min; v <= ax.max + ax.paso / 1e6; v += ax.paso) { const y = yv(v); const cero = Math.abs(v) < ax.paso / 1e6; ctx.strokeStyle = cero ? '#aab1ad' : C.rule; ctx.lineWidth = cero ? 2.5 : 1.5; vLinea(ctx, x0, y, x1, y); ctx.fillStyle = C.muted; ctx.fillText(corto(v), x0 - 20, y); }
+  ctx.restore();
+  const pts = [];
+  m.forEach((x, i) => {
+    const cx = x0 + gw * (i + 0.5), p = vEase(vIn(t, 0.6 + i * 0.35, 1.1));
+    [[x.ventas, C.ing, -1], [x.ventas - x.neto, C.egr, 1]].forEach(([v, c, lado]) => {
+      const bx = cx + (lado < 0 ? -bw - 6 : 6), y = yv(v * p);
+      ctx.fillStyle = c; vRR(ctx, bx, Math.min(y, y0), bw, Math.abs(y0 - y), 6); ctx.fill();
+      if (p === 1) V.med.push({ esc: 'meses', v, px: y0 - y });
+      const a = vIn(t, 1.6 + i * 0.35, 0.4);
+      if (a) { ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 20); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText(corto(v), bx + bw / 2, y - 10); ctx.restore(); }
+    });
+    ctx.fillStyle = '#1f2421'; ctx.font = vF(500, 26); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(x.label.split(' ')[0], cx, yB + 18);
+    pts.push([cx, yv(x.neto), x.neto]);
+  });
+  const q = vEase(vIn(t, 1.2 + k * 0.35, 1.4)) * (pts.length - 1);
+  ctx.strokeStyle = C.neto; ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.beginPath();
+  pts.forEach(([x, y], i) => { if (i > Math.ceil(q)) return; if (i === 0) ctx.moveTo(x, y); else if (i <= q) ctx.lineTo(x, y); else { const f = q - (i - 1); ctx.lineTo(pts[i - 1][0] + (x - pts[i - 1][0]) * f, pts[i - 1][1] + (y - pts[i - 1][1]) * f); } });
+  if (pts.length > 1 && q > 0) ctx.stroke();
+  pts.forEach(([x, y, v], i) => {
+    if (i > q + 1e-9 && !(pts.length === 1 && vIn(t, 1.2 + k * 0.35, 0.4))) return;
+    ctx.fillStyle = v >= 0 ? C.neto : C.loss; ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke();
+    const al = vIn(t, 2.4 + k * 0.35, 0.4);
+    if (al) { ctx.save(); ctx.globalAlpha *= al; ctx.font = vF(600, 22); const tx = corto(v), tw = ctx.measureText(tx).width + 22;
+      ctx.fillStyle = '#fff'; ctx.strokeStyle = C.neto; ctx.lineWidth = 2; vRR(ctx, x - tw / 2, y - 58, tw, 34, 17); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = C.neto; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(tx, x, y - 41); ctx.restore(); }
+  });
+  const mejor = [...m].sort((a, b) => b.neto - a.neto)[0];
+  vTexto(ctx, t, 2.8 + k * 0.35, `El mejor mes fue ${mejor.label.split(' ')[0].toLowerCase()}, con un resultado neto de ${money(mejor.neto)}.`);
+}
+
+function escEERR(ctx, t) {
+  const { T, eg } = V.data;
+  vTitulo(ctx, t, 'Estado de resultados', 'De los ingresos al resultado neto');
+  const filas = [
+    ['Ingresos (sin IVA)', T.ventas, 'sub'],
+    ['Liquidaciones al personal', -T.personal, 'menos'],
+    ['Cargas sociales', -T.totCargas, 'menos'],
+    ['Utilidad bruta', T.utBruta, 'parcial'],
+    ['Impuestos sobre ventas', -T.totImp, 'menos'],
+    ['Contribución marginal', T.contrMarginal, 'parcial'],
+    T.fijos ? ['Costos fijos', -T.fijos, 'menos'] : null,
+    ['Impuesto a las Ganancias', -T.iigg.monto, 'menos'],
+    ['Resultado neto', T.neto, 'final'],
+  ].filter(Boolean);
+  const xL = 260, xM = 1400, xP = 1660, y0 = 270, h = Math.min(66, 590 / filas.length);
+  ctx.save(); ctx.globalAlpha *= vIn(t, 0.3, 0.4); ctx.fillStyle = C.muted; ctx.font = vF(600, 22); ctx.textBaseline = 'middle';
+  ctx.textAlign = 'right'; ctx.fillText('Monto', xM, y0); ctx.fillText('% ingresos', xP, y0); ctx.restore();
+  filas.forEach(([l, v, tipo], i) => {
+    const a = vEase(vIn(t, 0.6 + i * 0.42, 0.5)); if (!a) return;
+    const y = y0 + 40 + i * h, dx = (1 - a) * 30;
+    ctx.save(); ctx.globalAlpha *= a; ctx.textBaseline = 'middle';
+    if (tipo === 'final') { ctx.fillStyle = C.ing; vRR(ctx, xL - 24, y - h / 2 + 4, xP - xL + 48, h - 8, 8); ctx.fill(); }
+    else { ctx.strokeStyle = tipo === 'parcial' ? '#c9cfcb' : C.rule; ctx.lineWidth = 1.5; vLinea(ctx, xL - 24, y + h / 2, xP + 24, y + h / 2); }
+    const col = tipo === 'final' ? '#fff' : tipo === 'menos' ? C.muted : '#1f2421';
+    ctx.fillStyle = col; ctx.font = vF(tipo === 'menos' ? 400 : tipo === 'parcial' ? 500 : 700, tipo === 'final' ? 34 : 30);
+    ctx.textAlign = 'left'; ctx.fillText(l, xL + (tipo === 'menos' ? 40 : 0) + dx, y);
+    ctx.textAlign = 'right'; ctx.fillText(v < 0 ? '−' + money(-v) : money(v), xM + dx, y);
+    ctx.fillText(p1(v, T.ventas), xP + dx, y);
+    ctx.restore();
+  });
+  vTexto(ctx, t, 0.9 + filas.length * 0.42, `Resultado neto: ${money(T.neto)}, el ${p1(T.neto, T.ventas)} de los ingresos del período.`);
+}
+
+function escCierre(ctx, t) {
+  const a = vEase(vIn(t, 0.2, 0.8)), L = 170;
+  ctx.save(); ctx.globalAlpha *= a;
+  if (V.logo) { ctx.save(); vRR(ctx, V.W / 2 - L / 2, 250, L, L, 24); ctx.clip(); ctx.drawImage(V.logo, V.W / 2 - L / 2, 250, L, L); ctx.restore(); }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 60); ctx.fillText('Show Business Solutions', V.W / 2, 530);
+  ctx.fillStyle = C.muted; ctx.font = vF(400, 34); ctx.fillText(`Informe de resultados, Movistar Arena · ${V.data.per}`, V.W / 2, 590);
+  ctx.restore();
+  const b = vIn(t, 1.2, 0.8);
+  ctx.save(); ctx.globalAlpha *= b; ctx.textAlign = 'center'; ctx.fillStyle = C.muted; ctx.font = vF(400, 28);
+  ctx.fillText('El detalle completo por show está en la versión escrita del informe.', V.W / 2, 720);
+  ctx.font = vF(500, 26); ctx.fillText('Documento confidencial para uso de los socios.', V.W / 2, 770);
+  ctx.restore();
+}
+
+function vPreparar() {
+  const T = totalesVista(), shows = showsVisibles(), d = S.d, eg = T.ventas - T.neto;
+  const per = S.mes ? d.meses.find(x => x.periodo === S.mes).label : d.periodoLabel;
+  const egresos = [
+    { t: 'Liquidaciones al personal', v: T.personal, c: C.personal },
+    { t: 'Cargas sociales', v: T.totCargas, c: C.cargas },
+    { t: 'Impuestos sobre ventas', v: T.totImp, c: C.imp },
+    { t: 'Costos fijos', v: T.fijos, c: C.fijo },
+    { t: 'Impuesto a las Ganancias', v: T.iigg.monto, c: C.iigg },
+  ].filter(x => x.v > 0);
+  const MAX = 8;
+  let lista = [...shows], recorte = false;
+  if (lista.length > MAX) { lista = lista.sort((a, b) => b.ventas - a.ventas).slice(0, MAX); recorte = true; }
+  lista.sort((a, b) => a.fecha.localeCompare(b.fecha));
+  V.data = { T, shows, eg, per, egresos, lista, recorte };
+  V.escenas = [
+    { dur: 5, draw: escPortada, marco: false },
+    { dur: 8, draw: escResumen },
+    { dur: 9.5, draw: escIER },
+    { dur: 9.5, draw: escTorta },
+    { dur: 6.5 + lista.length * 0.45, draw: escShows },
+    ...(d.tipo === 'anio' && !S.mes && d.meses?.length > 1 ? [{ dur: 7 + d.meses.length * 0.4, draw: escMeses }] : []),
+    { dur: 8.5, draw: escEERR },
+    { dur: 5.5, draw: escCierre, marco: false },
+  ];
+  V.dur = V.escenas.reduce((a, e) => a + e.dur, 0);
+}
+
+function vDibujar() {
+  const ctx = V.ctx; if (!ctx) return;
+  V.med = [];
+  let acc = 0;
+  for (let i = 0; i < V.escenas.length; i++) {
+    const e = V.escenas[i];
+    if (V.t < acc + e.dur || i === V.escenas.length - 1) {
+      const lt = Math.min(Math.max(0, V.t - acc), e.dur);
+      vFondo(ctx, i);
+      ctx.save();
+      const ultima = i === V.escenas.length - 1;
+      ctx.globalAlpha = Math.min(1, i === 0 ? 1 : lt / 0.45, ultima ? 1 : (e.dur - lt) / 0.45);
+      e.draw(ctx, lt, e.dur);
+      ctx.restore();
+      break;
+    }
+    acc += e.dur;
+  }
+  const mmss = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  const tm = $('vtime'); if (tm) tm.textContent = `${mmss(V.t)} / ${mmss(V.dur)}`;
+  const sk = $('vseek'); if (sk && !V.arrastrando) sk.value = Math.round(V.t / V.dur * 1000);
+  const pb = $('vplay'); if (pb) pb.textContent = V.play ? 'Pausa' : (V.t >= V.dur ? 'Ver de nuevo' : 'Reproducir');
+}
+function vBucle(ts) {
+  if (!V.play) return;
+  if (V.last == null) V.last = ts;
+  V.t += Math.min(0.1, (ts - V.last) / 1000); V.last = ts;
+  if (V.t >= V.dur) { V.t = V.dur; V.play = false; vDibujar(); V.alTerminar?.(); return; }
+  vDibujar();
+  V.raf = requestAnimationFrame(vBucle);
+}
+function vReproducir() { if (V.t >= V.dur) V.t = 0; V.play = true; V.last = null; cancelAnimationFrame(V.raf); V.raf = requestAnimationFrame(vBucle); vDibujar(); }
+function vPausar() { V.play = false; cancelAnimationFrame(V.raf); vDibujar(); }
+window.vToggle = function() { if (V.grabando) return; V.play ? vPausar() : vReproducir(); };
+window.vReiniciar = function() { if (V.grabando) return; V.t = 0; vReproducir(); };
+window.vSeek = function(v) { if (V.grabando) return; V.t = v / 1000 * V.dur; vDibujar(); };
+
+window.abrirVideo = async function() {
+  vPreparar();
+  if (!$('vov')) {
+    const ov = document.createElement('div');
+    ov.id = 'vov'; ov.className = 'vov';
+    ov.innerHTML = `<div class="vbox" role="dialog" aria-modal="true" aria-label="Versión en video del informe">
+      <div class="vtop"><div><b>Versión en video</b><span id="vper"></span></div><button class="x" onclick="cerrarVideo()" aria-label="Cerrar">×</button></div>
+      <canvas id="vcv" width="${V.W}" height="${V.H}" aria-label="Presentación animada del informe"></canvas>
+      <div class="vctl">
+        <button class="btn" id="vplay" onclick="vToggle()">Pausa</button>
+        <button class="btn" onclick="vReiniciar()">Reiniciar</button>
+        <input type="range" id="vseek" min="0" max="1000" value="0" aria-label="Avance del video"
+          onpointerdown="V.arrastrando=true" onpointerup="V.arrastrando=false" oninput="vSeek(this.value)">
+        <span id="vtime" class="vtime">0:00</span>
+        <button class="btn btn-dl" id="vdl" onclick="descargarVideo()">Descargar video</button>
+      </div>
+      <div id="vrec" class="vrec"></div>
+    </div>`;
+    ov.addEventListener('click', e => { if (e.target === ov) cerrarVideo(); });
+    document.body.appendChild(ov);
+  }
+  $('vov').style.display = 'flex';
+  $('vper').textContent = ` · ${V.data.per}`;
+  V.cv = $('vcv'); V.ctx = V.cv.getContext('2d');
+  if (!V.logo) { V.logo = new Image(); V.logo.src = LOGO; await V.logo.decode().catch(() => {}); }
+  if (document.fonts?.load) await Promise.race([Promise.all(['400', '500', '600', '700'].map(w => document.fonts.load(`${w} 40px Poppins`))), new Promise(r => setTimeout(r, 1500))]);
+  V.t = 0; vReproducir();
+};
+window.cerrarVideo = function() {
+  if (V.grabando && !confirm('Se está grabando el video. ¿Cancelar la grabación?')) return;
+  if (V.grabando) { V.cancelada = true; V.rec?.stop(); }
+  vPausar(); const ov = $('vov'); if (ov) ov.style.display = 'none';
+};
+
+window.descargarVideo = function() {
+  if (V.grabando) return;
+  if (!window.MediaRecorder || !V.cv?.captureStream) { alert('Este navegador no permite grabar el video. Probá con Google Chrome.'); return; }
+  const tipos = ['video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
+  const tipo = tipos.find(x => MediaRecorder.isTypeSupported(x));
+  if (!tipo) { alert('Este navegador no permite grabar el video. Probá con Google Chrome.'); return; }
+  const ext = tipo.startsWith('video/mp4') ? 'mp4' : 'webm';
+  const stream = V.cv.captureStream(30);
+  const rec = new MediaRecorder(stream, { mimeType: tipo, videoBitsPerSecond: 8000000 });
+  const partes = [];
+  rec.ondataavailable = e => { if (e.data && e.data.size) partes.push(e.data); };
+  rec.onstop = () => {
+    V.grabando = false; V.alTerminar = null; stream.getTracks().forEach(tr => tr.stop());
+    $('vdl').disabled = false; $('vdl').textContent = 'Descargar video';
+    document.querySelectorAll('#vov .vctl button:not(#vdl), #vseek').forEach(b => b.disabled = false);
+    if (V.cancelada) { V.cancelada = false; $('vrec').textContent = ''; return; }
+    const blob = new Blob(partes, { type: tipo.split(';')[0] });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `SBS Movistar Arena - ${V.data.per}.${ext}`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+    $('vrec').textContent = `Video descargado (${ext.toUpperCase()}, ${(blob.size / 1048576).toFixed(1)} MB).`;
+  };
+  V.rec = rec; V.grabando = true; V.cancelada = false;
+  $('vdl').disabled = true;
+  document.querySelectorAll('#vov .vctl button:not(#vdl), #vseek').forEach(b => b.disabled = true);
+  const tick = () => { if (!V.grabando) return; $('vdl').textContent = `Grabando ${Math.floor(V.t)} de ${Math.round(V.dur)} s`; $('vrec').textContent = 'El video se graba en tiempo real: mantené esta pestaña abierta y visible hasta que termine.'; setTimeout(tick, 250); };
+  V.alTerminar = () => setTimeout(() => rec.state !== 'inactive' && rec.stop(), 300);
+  V.t = 0; vPausar(); rec.start(500); vReproducir(); tick();
+};
 
 (async function () {
   const params = new URLSearchParams(location.search);
