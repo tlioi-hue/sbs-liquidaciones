@@ -481,7 +481,7 @@ window.ordenar = function(col) {
 function teclas(e) {
   if (S.abierto == null && $('vov')?.style.display === 'flex') {
     if (e.key === 'f' || e.key === 'F') { e.preventDefault(); vPantallaCompleta(); return; }
-    if (e.key === 'Escape') { if (vEnPantalla()) { vSalirPantalla(); return; } cerrarVideo(); }
+    if (e.key === 'Escape') { if (V.tipFijo) { vSoltarTip(); return; } if (vEnPantalla()) { vSalirPantalla(); return; } cerrarVideo(); }
     if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); e.target?.blur?.(); vToggle(); }
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
       e.preventDefault(); const k = vCapActual(), ini = vInicios();
@@ -792,7 +792,7 @@ function escResumen(ctx, t) {
     const w = 440, x = V.W / 2 - (w * 1.5 + 40) + i * (w + 40), y = 660 + (1 - a) * 20;
     ctx.save(); ctx.globalAlpha *= a;
     ctx.fillStyle = '#f5f6f5'; vRR(ctx, x, y, w, 150, 16); ctx.fill();
-    if (a === 1) V.hits.push({ r: [x, y, w, 150], tip: [l, c ? money(v) : `${v} puestos`, c && i ? `${p1(v, T.ventas)} de los ingresos` : ''] });
+    if (a > 0.3) V.hits.push({ r: [x, y, w, 150], tip: [l, c ? money(v) : `${v} puestos`, c && i ? `${p1(v, T.ventas)} de los ingresos` : ''] });
     ctx.fillStyle = c || C.neto; ctx.fillRect(x, y, w, 6);
     ctx.textAlign = 'left'; ctx.fillStyle = C.muted; ctx.font = vF(500, 26); ctx.fillText(l, x + 30, y + 58);
     ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 46); ctx.fillText(c ? money(v * vEase(vIn(t, 1.6 + i * 0.3, 1.4))) : String(Math.round(v * vEase(vIn(t, 1.6 + i * 0.3, 1.4)))), x + 30, y + 118);
@@ -819,7 +819,8 @@ function escIER(ctx, t) {
   vals.forEach((v, i) => {
     const p = vEase(vIn(t, 0.7 + i * 0.8, 1.2)), cx = x0 + gw * (i + 0.5), y = yv(v * p);
     ctx.fillStyle = cols[i]; vRR(ctx, cx - bw / 2, Math.min(y, y0), bw, Math.abs(y0 - y), 8); ctx.fill();
-    if (p === 1) { V.med.push({ esc: 'ier', v, px: y0 - y }); V.hits.push({ r: [cx - bw / 2, Math.min(y, y0), bw, Math.max(8, Math.abs(y0 - y))], tip: [labs[i], money(v), i ? `${p1(v, T.ventas)} de los ingresos` : 'Base: 100%'] }); }
+    if (p === 1) V.med.push({ esc: 'ier', v, px: y0 - y });
+    if (p > 0.05) { V.hits.push({ r: [cx - bw / 2, Math.min(y, y0), bw, Math.max(8, Math.abs(y0 - y))], tip: [labs[i], money(v), i ? `${p1(v, T.ventas)} de los ingresos` : 'Base: 100%'] }); }
     ctx.fillStyle = '#1f2421'; ctx.font = vF(500, 28); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.globalAlpha = Math.min(ctx.globalAlpha, 1); ctx.fillText(labs[i], cx, yB + 20);
     const a = vIn(t, 1.7 + i * 0.8, 0.5);
@@ -842,7 +843,8 @@ function escTorta(ctx, t) {
   egresos.forEach(x => {
     const w = x.v / eg * Math.PI * 2, fin = Math.min(ang + w, -Math.PI / 2 + A);
     if (fin > ang) { ctx.beginPath(); ctx.arc(cx, cy, R, ang, fin); ctx.arc(cx, cy, r, fin, ang, true); ctx.closePath(); ctx.fillStyle = x.c; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.stroke(); }
-    if (A >= Math.PI * 2 - 1e-9) { V.med.push({ esc: 'torta', v: x.v, ang: w }); V.hits.push({ arc: { cx, cy, r, R, a0: ang, a1: ang + w }, tip: [x.t, money(x.v), `${p1(x.v, eg)} de los egresos`, `${p1(x.v, T.ventas)} de los ingresos`] }); }
+    if (A >= Math.PI * 2 - 1e-9) V.med.push({ esc: 'torta', v: x.v, ang: w });
+    if (fin > ang) { V.hits.push({ arc: { cx, cy, r, R, a0: ang, a1: fin }, tip: [x.t, money(x.v), `${p1(x.v, eg)} de los egresos`, `${p1(x.v, T.ventas)} de los ingresos`] }); }
     const share = x.v / eg, a = vIn(t, 3.0, 0.5);
     if (a && share >= 0.06) { const m = ang + w / 2; ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#fff'; ctx.font = vF(600, 30); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(Math.round(share * 100) + '%', cx + Math.cos(m) * (R + r) / 2, cy + Math.sin(m) * (R + r) / 2); ctx.restore(); }
     ang += w;
@@ -881,11 +883,12 @@ function escShows(ctx, t) {
     ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 28); ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic'; ctx.fillText(s.nombre, x0 - 26, cy + 2);
     ctx.fillStyle = C.muted; ctx.font = vF(400, 22); ctx.fillText(fecha(s.fecha), x0 - 26, cy + 30);
     ctx.restore();
-    if (p === 1) V.hits.push({ r: [120, cy - 34, x0 - 130, 74], tip: [s.nombre, `Resultado neto: ${money(s.neto)}`, `${p1(s.neto, s.ventas)} de sus ingresos`, 'Tocá para ver el detalle'], accion: () => { vPausar(); abrirShow(s._i); } });
+    if (p > 0.05) V.hits.push({ r: [120, cy - 34, x0 - 130, 74], tip: [s.nombre, `Resultado neto: ${money(s.neto)}`, `${p1(s.neto, s.ventas)} de sus ingresos`, 'Tocá para ver el detalle'], accion: () => { vPausar(); abrirShow(s._i); } });
     [[s.ventas, C.ing], [egr(s), C.egr], [s.neto, s.neto >= 0 ? C.neto : C.loss]].forEach(([v, c], j) => {
       const y = cy + (j - 1.5) * (bh + 6) + 3, xe = xv(v * p);
       ctx.fillStyle = c; vRR(ctx, Math.min(x0v, xe), y, Math.abs(xe - x0v), bh, 5); ctx.fill();
-      if (p === 1) { V.med.push({ esc: 'shows', v, px: xe - x0v });
+      if (p === 1) V.med.push({ esc: 'shows', v, px: xe - x0v });
+      if (p > 0.05) {
         const serie = ['Ingresos', 'Egresos', 'Resultado neto'][j];
         V.hits.push({ r: [Math.min(x0v, xe), y - 3, Math.max(10, Math.abs(xe - x0v)), bh + 6], tip: [`${s.nombre} · ${fecha(s.fecha)}`, `${serie}: ${money(v)}`, j ? `${p1(v, s.ventas)} de sus ingresos` : '', 'Tocá para ver el detalle'], accion: () => { vPausar(); abrirShow(s._i); } }); }
       const a = vIn(t, 1.6 + k * 0.3, 0.4);
@@ -919,7 +922,8 @@ function escMeses(ctx, t) {
     [[x.ventas, C.ing, -1], [x.ventas - x.neto, C.egr, 1]].forEach(([v, c, lado]) => {
       const bx = cx + (lado < 0 ? -bw - 6 : 6), y = yv(v * p);
       ctx.fillStyle = c; vRR(ctx, bx, Math.min(y, y0), bw, Math.abs(y0 - y), 6); ctx.fill();
-      if (p === 1) { V.med.push({ esc: 'meses', v, px: y0 - y });
+      if (p === 1) V.med.push({ esc: 'meses', v, px: y0 - y });
+      if (p > 0.05) {
         V.hits.push({ r: [bx, Math.min(y, y0), bw, Math.max(8, Math.abs(y0 - y))], tip: [x.label, `${lado < 0 ? 'Ingresos' : 'Egresos'}: ${money(v)}`, lado > 0 ? `${p1(v, x.ventas)} de los ingresos` : '', `Resultado neto del mes: ${money(x.neto)}`, 'Tocá para ver el video de este mes'], accion: () => vFiltrar(x.periodo) }); }
       const a = vIn(t, 1.6 + i * 0.35, 0.4);
       if (a) { ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 20); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText(corto(v), bx + bw / 2, y - 10); ctx.restore(); }
@@ -966,7 +970,7 @@ function escEERR(ctx, t) {
     ctx.save(); ctx.globalAlpha *= a; ctx.textBaseline = 'middle';
     if (tipo === 'final') { ctx.fillStyle = C.ing; vRR(ctx, xL - 24, y - h / 2 + 4, xP - xL + 48, h - 8, 8); ctx.fill(); }
     else { ctx.strokeStyle = tipo === 'parcial' ? '#c9cfcb' : C.rule; ctx.lineWidth = 1.5; vLinea(ctx, xL - 24, y + h / 2, xP + 24, y + h / 2); }
-    if (a === 1) V.hits.push({ r: [xL - 24, y - h / 2, xP - xL + 48, h], tip: [l, v < 0 ? '−' + money(-v) : money(v), `${p1(v, T.ventas)} de los ingresos`] });
+    if (a > 0.3) V.hits.push({ r: [xL - 24, y - h / 2, xP - xL + 48, h], tip: [l, v < 0 ? '−' + money(-v) : money(v), `${p1(v, T.ventas)} de los ingresos`] });
     const col = tipo === 'final' ? '#fff' : tipo === 'menos' ? C.muted : '#1f2421';
     ctx.fillStyle = col; ctx.font = vF(tipo === 'menos' ? 400 : tipo === 'parcial' ? 500 : 700, tipo === 'final' ? 34 : 30);
     ctx.textAlign = 'left'; ctx.fillText(l, xL + (tipo === 'menos' ? 40 : 0) + dx, y);
@@ -1044,37 +1048,30 @@ function vTip(e, h) {
 }
 function vConectarEventos() {
   const cv = V.cv;
-  const fs = () => vEnPantalla();
+  const hitEn = e => vHit(...Object.values(vPos(e)));
+  // Fijar un valor: pausa el video para que el gráfico quede quieto y el valor no desaparezca
+  const fijar = (e, h) => { if (V.play) vPausar(); vTip(e, h); V.tipFijo = true; };
   cv.addEventListener('pointermove', e => {
     if (V.grabando || e.pointerType === 'touch') return;
-    const h = vHit(...Object.values(vPos(e)));
-    if (fs()) {                                   // en pantalla completa: sin valores al pasar; se cierran al salir del elemento
-      cv.style.cursor = h ? 'context-menu' : 'default';
-      if (V.tipFijo && V.tipFijo !== h) { $('vtip').style.display = 'none'; V.tipFijo = null; }
-      return;
-    }
-    cv.style.cursor = h?.accion ? 'pointer' : 'default'; vTip(e, h);
+    const h = hitEn(e);
+    cv.style.cursor = h ? 'pointer' : 'default';
+    if (V.tipFijo) return;                                   // un valor fijado queda hasta otra acción
+    if (vEnPantalla() && V.play) { $('vtip').style.display = 'none'; return; }   // presentación limpia mientras corre
+    vTip(e, h);
   });
-  cv.addEventListener('pointerleave', () => { $('vtip').style.display = 'none'; V.tipFijo = null; });
-  // Clic izquierdo: en pantalla completa pausa/reanuda; en ventana, interactúa como antes
-  cv.addEventListener('click', e => {
+  cv.addEventListener('pointerleave', () => { if (!V.tipFijo) $('vtip').style.display = 'none'; });
+  const interactuar = (e, enVacio) => {
     if (V.grabando) return;
-    if (fs()) { $('vtip').style.display = 'none'; V.tipFijo = null; vToggle(); return; }
-    const h = vHit(...Object.values(vPos(e)));
-    if (h?.accion) { $('vtip').style.display = 'none'; h.accion(); return; }
-    if (h) { vTip(e, h); return; }
-    vToggle();
-  });
-  // Clic derecho: interactuar (abrir detalle, filtrar mes o ver el valor exacto), en ventana y en pantalla completa
-  cv.addEventListener('contextmenu', e => {
-    e.preventDefault();
-    if (V.grabando) return;
-    const h = vHit(...Object.values(vPos(e)));
-    if (!h) return;
-    if (h.accion) { $('vtip').style.display = 'none'; V.tipFijo = null; h.accion(); return; }
-    vTip(e, h); V.tipFijo = h;
-  });
+    const h = hitEn(e);
+    if (h?.accion) { vSoltarTip(); h.accion(); return; }    // show: detalle / mes: video de ese mes
+    if (h) { fijar(e, h); return; }                          // barra, porción o renglón: valor exacto
+    if (V.tipFijo) { vSoltarTip(); return; }                 // tocar afuera cierra el valor
+    enVacio?.();
+  };
+  cv.addEventListener('click', e => interactuar(e, vToggle));                        // izquierdo: interactúa, o pausa en zona vacía
+  cv.addEventListener('contextmenu', e => { e.preventDefault(); interactuar(e, null); });   // derecho: interactúa
 }
+function vSoltarTip() { const t = $('vtip'); if (t) t.style.display = 'none'; V.tipFijo = false; }
 
 function vPreparar() {
   const T = totalesVista(), shows = showsVisibles(), d = S.d, eg = T.ventas - T.neto;
@@ -1137,7 +1134,7 @@ function vBucle(ts) {
   vDibujar();
   V.raf = requestAnimationFrame(vBucle);
 }
-function vReproducir() { if (V.t >= V.dur) V.t = 0; V.play = true; V.last = null; cancelAnimationFrame(V.raf); V.raf = requestAnimationFrame(vBucle); vDibujar(); vMostrarControles(); vEstadoPausa(); }
+function vReproducir() { if (V.tipFijo) vSoltarTip(); if (V.t >= V.dur) V.t = 0; V.play = true; V.last = null; cancelAnimationFrame(V.raf); V.raf = requestAnimationFrame(vBucle); vDibujar(); vMostrarControles(); vEstadoPausa(); }
 function vPausar() { V.play = false; cancelAnimationFrame(V.raf); vDibujar(); vMostrarControles(); vEstadoPausa(); }
 window.vToggle = function() { if (V.grabando) return; V.play ? vPausar() : vReproducir(); };
 window.vReiniciar = function() { if (V.grabando) return; V.t = 0; vReproducir(); };
@@ -1173,8 +1170,8 @@ function vFsUI() {
   const antes = box?.classList.contains('esfull');
   box?.classList.toggle('esfull', en);
   // El aviso de controles espera a que desaparezca el cartel de Chrome ("pulsá Esc para salir"), que aparece arriba al centro
-  if (en && !antes) { document.activeElement?.blur?.(); clearTimeout(V.tAvisoIni); V.tAvisoIni = setTimeout(() => { if (vEnPantalla()) vAviso('Espacio: pausa  ·  ← →: capítulos  ·  Clic derecho: ver valores y detalles  ·  Esc: salir', 4500); }, 3000); }
-  if (!en) { $('vtip').style.display = 'none'; V.tipFijo = null; }
+  if (en && !antes) { document.activeElement?.blur?.(); clearTimeout(V.tAvisoIni); V.tAvisoIni = setTimeout(() => { if (vEnPantalla()) vAviso('Clic sobre un gráfico: ver valores y detalles  ·  Espacio: pausa  ·  ← →: capítulos  ·  Esc: salir', 4500); }, 3000); }
+  if (!en) vSoltarTip();
   vMostrarControles(); vEstadoPausa();
 }
 // En pantalla completa, los controles se esconden solos mientras se reproduce
@@ -1207,7 +1204,7 @@ window.abrirVideo = async function() {
         <button class="btn btn-dl" id="vdl" onclick="descargarVideo()">Descargar video</button>
       </div>
       <div class="vmeses" id="vmeses" aria-label="Período del video"></div>
-      <div class="vayuda">Pasá el mouse por los gráficos para ver los valores. Clic (o clic derecho) sobre un show para ver su detalle${S.d.tipo === 'anio' ? ', o sobre un mes para ver el video de ese mes' : ''}. Atajos: espacio pausa, ← → cambian de capítulo, F pantalla completa, Esc cierra.</div>
+      <div class="vayuda">Clic sobre un gráfico para ver su valor exacto (el video se pausa); sobre un show, para ver su detalle${S.d.tipo === 'anio' ? '; sobre un mes, para ver el video de ese mes' : ''}. Atajos: espacio pausa, ← → capítulos, F pantalla completa, Esc cierra.</div>
       <div id="vrec" class="vrec"></div>
       </div>
     </div>`;
