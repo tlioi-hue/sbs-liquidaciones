@@ -208,6 +208,36 @@ tr.clic { cursor: pointer; } tr.clic:hover td { background: #f7f8f7; }
 .btn-dl:disabled { opacity: .85; }
 .vrec { font-size: 12px; color: var(--muted); padding: 0 14px 10px; min-height: 4px; }
 @media print { .vov { display: none !important; } }
+
+/* Interacción del video */
+.vstage { position: relative; }
+.vtip { position: absolute; display: none; pointer-events: none; background: #1f2421; color: #fff; border-radius: 8px; padding: 8px 11px; font-size: 12.5px; line-height: 1.45; max-width: 300px; box-shadow: 0 6px 20px rgba(0,0,0,.25); z-index: 2; }
+.vtip b { display: block; font-weight: 600; font-size: 13px; margin-bottom: 2px; }
+.vtip span { display: block; color: #d9dedb; }
+.vtip em { display: block; font-style: normal; color: #a8e4bc; margin-top: 3px; font-size: 12px; }
+.vcaps { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 14px 0; }
+.vcaps button { font: inherit; font-size: 12px; font-weight: 500; color: var(--muted); background: #f5f6f5; border: 1px solid var(--rule); border-radius: 999px; padding: 5px 11px; cursor: pointer; }
+.vcaps button.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+.vcaps button:hover:not(.on):not(:disabled) { color: var(--ink); border-color: var(--muted); }
+.vmeses { display: none; gap: 6px; align-items: center; flex-wrap: wrap; padding: 0 14px 10px; }
+.vmeses span { font-size: 12px; color: var(--muted); margin-right: 2px; }
+.vmeses .chip { padding: 5px 12px; font-size: 12px; }
+.vayuda { font-size: 12px; color: var(--muted); padding: 0 14px 8px; }
+button:disabled { cursor: default; opacity: .55; }
+.ov { z-index: 70; }
+@media screen and (max-width: 760px) { .vayuda { display: none; } }
+
+/* Pantalla completa del video */
+.vbox.esfull { width: 100vw; height: 100vh; max-width: none; border-radius: 0; box-shadow: none; display: flex; flex-direction: column; background: #fff; position: relative; overflow: hidden; }
+.vbox.esfull .vtop { display: none; }
+.vbox.esfull .vstage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.vbox.esfull .vstage canvas { width: min(100vw, calc(100vh * 16 / 9)); max-height: 100vh; height: auto; }
+.vbox.esfull .vpanel { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,.95); border-top: 1px solid var(--rule); box-shadow: 0 -6px 24px rgba(0,0,0,.08); transition: opacity .35s ease; }
+.vbox.esfull.quieto .vpanel { opacity: 0; pointer-events: none; }
+.vbox.esfull.quieto .vstage, .vbox.esfull.quieto .vstage canvas { cursor: none !important; }
+.vov.vfull { padding: 0; }
+.vbox:fullscreen { width: 100vw; height: 100vh; }
+.vbox::backdrop { background: #fff; }
 </style>
 </head>
 <body>
@@ -439,9 +469,12 @@ window.ordenar = function(col) {
   document.querySelector(`th button.sort[onclick="ordenar('${col}')"]`)?.focus();
 };
 function teclas(e) {
-  if ($('vov')?.style.display === 'flex') {
-    if (e.key === 'Escape') cerrarVideo();
-    if (e.key === ' ' && e.target.tagName !== 'BUTTON') { e.preventDefault(); vToggle(); }
+  if (S.abierto == null && $('vov')?.style.display === 'flex') {
+    if (e.key === 'f' || e.key === 'F') { e.preventDefault(); vPantallaCompleta(); return; }
+    if (e.key === 'Escape') { if (vEnPantalla()) { vSalirPantalla(); return; } cerrarVideo(); }
+    if (e.key === ' ' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') { e.preventDefault(); vToggle(); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); vIrCap(vCapActual() + 1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); const k = vCapActual(), ini = vInicios(); vIrCap(V.t - ini[k] > 1.5 ? k : k - 1); }
     return;
   }
   if (S.abierto == null) return;
@@ -449,7 +482,13 @@ function teclas(e) {
   if (e.key === 'ArrowRight') moverShow(1);
   if (e.key === 'ArrowLeft') moverShow(-1);
 }
-window.cerrarShow = function() { S.abierto = null; const m = $('modal'); if (m) m.innerHTML = ''; };
+// Donde se abre el detalle de un show: en pantalla completa, dentro del reproductor (si no, no se vería)
+function modalHost() {
+  const fs = document.fullscreenElement || document.webkitFullscreenElement;
+  if (fs) { let m = fs.querySelector('#vmodal'); if (!m) { m = document.createElement('div'); m.id = 'vmodal'; fs.appendChild(m); } return m; }
+  return $('modal');
+}
+window.cerrarShow = function() { S.abierto = null; ['modal', 'vmodal'].forEach(id => { const m = $(id); if (m) m.innerHTML = ''; }); };
 window.moverShow = function(paso) {
   const lista = S.ordenVisible || [], i = lista.indexOf(S.abierto);
   if (i < 0) return; const j = i + paso; if (j < 0 || j >= lista.length) return;
@@ -467,7 +506,8 @@ window.abrirShow = function(i) {
   const w = v => Math.max(0, v) / escala * 100;
   const partes = [[s.personal, C.personal], [s.cargas, C.cargas], [s.impuestos, C.imp], [s.fijos || 0, C.fijo], [s.iigg || 0, C.iigg]];
   const lista = S.ordenVisible || [], pos = lista.indexOf(i);
-  $('modal').innerHTML = `<div class="ov" onclick="if(event.target===this)cerrarShow()">
+  ['modal', 'vmodal'].forEach(id => { const m = $(id); if (m) m.innerHTML = ''; });
+  modalHost().innerHTML = `<div class="ov" onclick="if(event.target===this)cerrarShow()">
     <div class="md" role="dialog" aria-modal="true" aria-labelledby="mdt">
       <div class="md-h"><div><h3 id="mdt">${esc(s.nombre)}</h3><span>${fecha(s.fecha)}${s.staff ? `, ${s.staff} puestos` : ''}${s.estimado ? ', costo de personal estimado' : ''}</span></div>
         <button class="x" onclick="cerrarShow()" aria-label="Cerrar" id="mdx">×</button></div>
@@ -649,7 +689,7 @@ function graficos(T, shows, egresos) {
 // ══════════════════════════════════════════════
 // VERSIÓN EN VIDEO — presentación animada 16:9 dibujada con los mismos datos del informe
 // ══════════════════════════════════════════════
-const V = { W: 1920, H: 1080, escenas: [], dur: 0, t: 0, play: false, last: null, raf: null, cv: null, ctx: null, logo: null, rec: null, grabando: false, med: [] };
+const V = { W: 1920, H: 1080, escenas: [], dur: 0, t: 0, play: false, last: null, raf: null, cv: null, ctx: null, logo: null, rec: null, grabando: false, med: [], hits: [] };
 const vF = (peso, px) => `${peso} ${px}px Poppins, system-ui, sans-serif`;
 const vClamp = x => Math.max(0, Math.min(1, x));
 const vEase = x => 1 - Math.pow(1 - vClamp(x), 3);
@@ -739,6 +779,7 @@ function escResumen(ctx, t) {
     const w = 440, x = V.W / 2 - (w * 1.5 + 40) + i * (w + 40), y = 660 + (1 - a) * 20;
     ctx.save(); ctx.globalAlpha *= a;
     ctx.fillStyle = '#f5f6f5'; vRR(ctx, x, y, w, 150, 16); ctx.fill();
+    if (a === 1) V.hits.push({ r: [x, y, w, 150], tip: [l, c ? money(v) : `${v} puestos`, c && i ? `${p1(v, T.ventas)} de los ingresos` : ''] });
     ctx.fillStyle = c || C.neto; ctx.fillRect(x, y, w, 6);
     ctx.textAlign = 'left'; ctx.fillStyle = C.muted; ctx.font = vF(500, 26); ctx.fillText(l, x + 30, y + 58);
     ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 46); ctx.fillText(c ? money(v * vEase(vIn(t, 1.6 + i * 0.3, 1.4))) : String(Math.round(v * vEase(vIn(t, 1.6 + i * 0.3, 1.4)))), x + 30, y + 118);
@@ -765,7 +806,7 @@ function escIER(ctx, t) {
   vals.forEach((v, i) => {
     const p = vEase(vIn(t, 0.7 + i * 0.8, 1.2)), cx = x0 + gw * (i + 0.5), y = yv(v * p);
     ctx.fillStyle = cols[i]; vRR(ctx, cx - bw / 2, Math.min(y, y0), bw, Math.abs(y0 - y), 8); ctx.fill();
-    if (p === 1) V.med.push({ esc: 'ier', v, px: y0 - y });
+    if (p === 1) { V.med.push({ esc: 'ier', v, px: y0 - y }); V.hits.push({ r: [cx - bw / 2, Math.min(y, y0), bw, Math.max(8, Math.abs(y0 - y))], tip: [labs[i], money(v), i ? `${p1(v, T.ventas)} de los ingresos` : 'Base: 100%'] }); }
     ctx.fillStyle = '#1f2421'; ctx.font = vF(500, 28); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.globalAlpha = Math.min(ctx.globalAlpha, 1); ctx.fillText(labs[i], cx, yB + 20);
     const a = vIn(t, 1.7 + i * 0.8, 0.5);
@@ -788,7 +829,7 @@ function escTorta(ctx, t) {
   egresos.forEach(x => {
     const w = x.v / eg * Math.PI * 2, fin = Math.min(ang + w, -Math.PI / 2 + A);
     if (fin > ang) { ctx.beginPath(); ctx.arc(cx, cy, R, ang, fin); ctx.arc(cx, cy, r, fin, ang, true); ctx.closePath(); ctx.fillStyle = x.c; ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.stroke(); }
-    if (A >= Math.PI * 2 - 1e-9) V.med.push({ esc: 'torta', v: x.v, ang: w });
+    if (A >= Math.PI * 2 - 1e-9) { V.med.push({ esc: 'torta', v: x.v, ang: w }); V.hits.push({ arc: { cx, cy, r, R, a0: ang, a1: ang + w }, tip: [x.t, money(x.v), `${p1(x.v, eg)} de los egresos`, `${p1(x.v, T.ventas)} de los ingresos`] }); }
     const share = x.v / eg, a = vIn(t, 3.0, 0.5);
     if (a && share >= 0.06) { const m = ang + w / 2; ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#fff'; ctx.font = vF(600, 30); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(Math.round(share * 100) + '%', cx + Math.cos(m) * (R + r) / 2, cy + Math.sin(m) * (R + r) / 2); ctx.restore(); }
     ang += w;
@@ -827,10 +868,13 @@ function escShows(ctx, t) {
     ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 28); ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic'; ctx.fillText(s.nombre, x0 - 26, cy + 2);
     ctx.fillStyle = C.muted; ctx.font = vF(400, 22); ctx.fillText(fecha(s.fecha), x0 - 26, cy + 30);
     ctx.restore();
+    if (p === 1) V.hits.push({ r: [120, cy - 34, x0 - 130, 74], tip: [s.nombre, `Resultado neto: ${money(s.neto)}`, `${p1(s.neto, s.ventas)} de sus ingresos`, 'Tocá para ver el detalle'], accion: () => { vPausar(); abrirShow(s._i); } });
     [[s.ventas, C.ing], [egr(s), C.egr], [s.neto, s.neto >= 0 ? C.neto : C.loss]].forEach(([v, c], j) => {
       const y = cy + (j - 1.5) * (bh + 6) + 3, xe = xv(v * p);
       ctx.fillStyle = c; vRR(ctx, Math.min(x0v, xe), y, Math.abs(xe - x0v), bh, 5); ctx.fill();
-      if (p === 1) V.med.push({ esc: 'shows', v, px: xe - x0v });
+      if (p === 1) { V.med.push({ esc: 'shows', v, px: xe - x0v });
+        const serie = ['Ingresos', 'Egresos', 'Resultado neto'][j];
+        V.hits.push({ r: [Math.min(x0v, xe), y - 3, Math.max(10, Math.abs(xe - x0v)), bh + 6], tip: [`${s.nombre} · ${fecha(s.fecha)}`, `${serie}: ${money(v)}`, j ? `${p1(v, s.ventas)} de sus ingresos` : '', 'Tocá para ver el detalle'], accion: () => { vPausar(); abrirShow(s._i); } }); }
       const a = vIn(t, 1.6 + k * 0.3, 0.4);
       if (a) { ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 20); ctx.textBaseline = 'middle'; ctx.textAlign = v >= 0 ? 'left' : 'right'; ctx.fillText(corto(v), xe + (v >= 0 ? 10 : -10), y + bh / 2); ctx.restore(); }
     });
@@ -862,7 +906,8 @@ function escMeses(ctx, t) {
     [[x.ventas, C.ing, -1], [x.ventas - x.neto, C.egr, 1]].forEach(([v, c, lado]) => {
       const bx = cx + (lado < 0 ? -bw - 6 : 6), y = yv(v * p);
       ctx.fillStyle = c; vRR(ctx, bx, Math.min(y, y0), bw, Math.abs(y0 - y), 6); ctx.fill();
-      if (p === 1) V.med.push({ esc: 'meses', v, px: y0 - y });
+      if (p === 1) { V.med.push({ esc: 'meses', v, px: y0 - y });
+        V.hits.push({ r: [bx, Math.min(y, y0), bw, Math.max(8, Math.abs(y0 - y))], tip: [x.label, `${lado < 0 ? 'Ingresos' : 'Egresos'}: ${money(v)}`, lado > 0 ? `${p1(v, x.ventas)} de los ingresos` : '', `Resultado neto del mes: ${money(x.neto)}`, 'Tocá para ver el video de este mes'], accion: () => vFiltrar(x.periodo) }); }
       const a = vIn(t, 1.6 + i * 0.35, 0.4);
       if (a) { ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 20); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText(corto(v), bx + bw / 2, y - 10); ctx.restore(); }
     });
@@ -908,6 +953,7 @@ function escEERR(ctx, t) {
     ctx.save(); ctx.globalAlpha *= a; ctx.textBaseline = 'middle';
     if (tipo === 'final') { ctx.fillStyle = C.ing; vRR(ctx, xL - 24, y - h / 2 + 4, xP - xL + 48, h - 8, 8); ctx.fill(); }
     else { ctx.strokeStyle = tipo === 'parcial' ? '#c9cfcb' : C.rule; ctx.lineWidth = 1.5; vLinea(ctx, xL - 24, y + h / 2, xP + 24, y + h / 2); }
+    if (a === 1) V.hits.push({ r: [xL - 24, y - h / 2, xP - xL + 48, h], tip: [l, v < 0 ? '−' + money(-v) : money(v), `${p1(v, T.ventas)} de los ingresos`] });
     const col = tipo === 'final' ? '#fff' : tipo === 'menos' ? C.muted : '#1f2421';
     ctx.fillStyle = col; ctx.font = vF(tipo === 'menos' ? 400 : tipo === 'parcial' ? 500 : 700, tipo === 'final' ? 34 : 30);
     ctx.textAlign = 'left'; ctx.fillText(l, xL + (tipo === 'menos' ? 40 : 0) + dx, y);
@@ -931,6 +977,72 @@ function escCierre(ctx, t) {
   ctx.fillText('El detalle completo por show está en la versión escrita del informe.', V.W / 2, 720);
   ctx.font = vF(500, 26); ctx.fillText('Documento confidencial para uso de los socios.', V.W / 2, 770);
   ctx.restore();
+}
+
+
+// ── Interacción con el video (solo en la página; el archivo descargado es fijo) ──
+const V_CAP = { escPortada: 'Portada', escResumen: 'Resumen', escIER: 'Ingresos y egresos', escTorta: 'Egresos', escShows: 'Por show', escMeses: 'Por mes', escEERR: 'Estado de resultados', escCierre: 'Cierre' };
+function vInicios() { let a = 0; return V.escenas.map(e => { const r = a; a += e.dur; return r; }); }
+function vCapActual() { const ini = vInicios(); let k = 0; ini.forEach((v, i) => { if (V.t >= v - 1e-6) k = i; }); return k; }
+window.vIrCap = function(i) {
+  if (V.grabando) return;
+  const ini = vInicios(); i = Math.max(0, Math.min(V.escenas.length - 1, i));
+  V.t = ini[i] + (i ? 0.01 : 0); vReproducir();
+};
+window.vFiltrar = function(p) {
+  if (V.grabando) return;
+  if ((S.mes || null) === (p || null)) { V.t = 0; vReproducir(); return; }
+  filtrarMes(p);          // el informe escrito de fondo también queda filtrado
+  vPreparar(); vUI(); V.t = 0; vReproducir();
+};
+function vUI() {
+  $('vper').textContent = ` · ${V.data.per}`;
+  $('vcaps').innerHTML = V.escenas.map((e, i) => `<button onclick="vIrCap(${i})">${V_CAP[e.draw.name] || 'Escena'}</button>`).join('');
+  const d = S.d, box = $('vmeses');
+  if (d.tipo === 'anio' && d.meses?.length > 1) {
+    box.style.display = 'flex';
+    box.innerHTML = `<span>Período:</span><button class="chip ${!S.mes ? 'on' : ''}" onclick="vFiltrar(null)">Todo el año</button>`
+      + d.meses.map(x => `<button class="chip ${S.mes === x.periodo ? 'on' : ''}" onclick="vFiltrar('${x.periodo}')">${x.label.split(' ')[0]}</button>`).join('');
+  } else box.style.display = 'none';
+}
+function vHit(x, y) {
+  for (let i = V.hits.length - 1; i >= 0; i--) {
+    const h = V.hits[i];
+    if (h.r) { const [a, b, w, hh] = h.r; if (x >= a && x <= a + w && y >= b && y <= b + hh) return h; }
+    else if (h.arc) {
+      const { cx, cy, r, R, a0, a1 } = h.arc, d = Math.hypot(x - cx, y - cy);
+      if (d < r || d > R) continue;
+      let an = Math.atan2(y - cy, x - cx); while (an < a0) an += Math.PI * 2;
+      if (an <= a1) return h;
+    }
+  }
+  return null;
+}
+function vPos(e) { const rc = V.cv.getBoundingClientRect(); return { x: (e.clientX - rc.left) / rc.width * V.W, y: (e.clientY - rc.top) / rc.height * V.H }; }
+function vTip(e, h) {
+  const tip = $('vtip'); if (!h) { tip.style.display = 'none'; return; }
+  tip.innerHTML = h.tip.filter(Boolean).map((l, i) => i === 0 ? `<b>${esc(l)}</b>` : (l.startsWith('Tocá') ? `<em>${esc(l)}</em>` : `<span>${esc(l)}</span>`)).join('');
+  tip.style.display = 'block';
+  const st = $('vstage').getBoundingClientRect();
+  let x = e.clientX - st.left + 16, y = e.clientY - st.top + 16;
+  if (x + tip.offsetWidth > st.width - 6) x = e.clientX - st.left - tip.offsetWidth - 16;
+  if (y + tip.offsetHeight > st.height - 6) y = e.clientY - st.top - tip.offsetHeight - 16;
+  tip.style.left = Math.max(6, x) + 'px'; tip.style.top = Math.max(6, y) + 'px';
+}
+function vConectarEventos() {
+  const cv = V.cv;
+  cv.addEventListener('pointermove', e => {
+    if (V.grabando || e.pointerType === 'touch') return;
+    const h = vHit(...Object.values(vPos(e))); cv.style.cursor = h?.accion ? 'pointer' : 'default'; vTip(e, h);
+  });
+  cv.addEventListener('pointerleave', () => { $('vtip').style.display = 'none'; });
+  cv.addEventListener('click', e => {
+    if (V.grabando) return;
+    const h = vHit(...Object.values(vPos(e)));
+    if (h?.accion) { $('vtip').style.display = 'none'; h.accion(); return; }
+    if (h) { vTip(e, h); return; }          // en el celular, tocar muestra el valor
+    vToggle();                              // tocar una zona vacía pausa / reanuda
+  });
 }
 
 function vPreparar() {
@@ -963,7 +1075,7 @@ function vPreparar() {
 
 function vDibujar() {
   const ctx = V.ctx; if (!ctx) return;
-  V.med = [];
+  V.med = []; V.hits = [];
   let acc = 0;
   for (let i = 0; i < V.escenas.length; i++) {
     const e = V.escenas[i];
@@ -983,6 +1095,8 @@ function vDibujar() {
   const tm = $('vtime'); if (tm) tm.textContent = `${mmss(V.t)} / ${mmss(V.dur)}`;
   const sk = $('vseek'); if (sk && !V.arrastrando) sk.value = Math.round(V.t / V.dur * 1000);
   const pb = $('vplay'); if (pb) pb.textContent = V.play ? 'Pausa' : (V.t >= V.dur ? 'Ver de nuevo' : 'Reproducir');
+  const ci = vCapActual();
+  document.querySelectorAll('#vcaps button').forEach((b, k) => b.classList.toggle('on', k === ci));
 }
 function vBucle(ts) {
   if (!V.play) return;
@@ -992,11 +1106,43 @@ function vBucle(ts) {
   vDibujar();
   V.raf = requestAnimationFrame(vBucle);
 }
-function vReproducir() { if (V.t >= V.dur) V.t = 0; V.play = true; V.last = null; cancelAnimationFrame(V.raf); V.raf = requestAnimationFrame(vBucle); vDibujar(); }
-function vPausar() { V.play = false; cancelAnimationFrame(V.raf); vDibujar(); }
+function vReproducir() { if (V.t >= V.dur) V.t = 0; V.play = true; V.last = null; cancelAnimationFrame(V.raf); V.raf = requestAnimationFrame(vBucle); vDibujar(); vMostrarControles(); }
+function vPausar() { V.play = false; cancelAnimationFrame(V.raf); vDibujar(); vMostrarControles(); }
 window.vToggle = function() { if (V.grabando) return; V.play ? vPausar() : vReproducir(); };
 window.vReiniciar = function() { if (V.grabando) return; V.t = 0; vReproducir(); };
 window.vSeek = function(v) { if (V.grabando) return; V.t = v / 1000 * V.dur; vDibujar(); };
+
+
+// ── Pantalla completa (modo presentación) ──
+function vEnPantalla() { return !!(document.fullscreenElement || document.webkitFullscreenElement) || !!$('vov')?.classList.contains('vfull'); }
+window.vPantallaCompleta = async function() {
+  if (vEnPantalla()) { await vSalirPantalla(); return; }
+  const box = document.querySelector('#vov .vbox');
+  const pedir = box.requestFullscreen || box.webkitRequestFullscreen;
+  if (pedir) { try { await pedir.call(box); vFsUI(); return; } catch {} }
+  $('vov').classList.add('vfull'); vFsUI();          // alternativa: ocupa toda la ventana
+};
+async function vSalirPantalla() {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else if (document.webkitFullscreenElement) document.webkitExitFullscreen?.();
+  } catch {}
+  $('vov')?.classList.remove('vfull'); vFsUI();
+}
+function vFsUI() {
+  const en = vEnPantalla(), b = $('vfs');
+  if (b) b.textContent = en ? '✕ Salir de pantalla completa' : '⛶ Pantalla completa';
+  document.querySelector('#vov .vbox')?.classList.toggle('esfull', en);
+  vMostrarControles();
+}
+// En pantalla completa, los controles se esconden solos mientras se reproduce
+function vMostrarControles() {
+  const box = document.querySelector('#vov .vbox'); if (!box) return;
+  box.classList.remove('quieto'); clearTimeout(V.tQuieto);
+  if (vEnPantalla() && V.play && !V.grabando) V.tQuieto = setTimeout(() => box.classList.add('quieto'), 2600);
+}
+document.addEventListener('fullscreenchange', vFsUI);
+document.addEventListener('webkitfullscreenchange', vFsUI);
 
 window.abrirVideo = async function() {
   vPreparar();
@@ -1005,23 +1151,32 @@ window.abrirVideo = async function() {
     ov.id = 'vov'; ov.className = 'vov';
     ov.innerHTML = `<div class="vbox" role="dialog" aria-modal="true" aria-label="Versión en video del informe">
       <div class="vtop"><div><b>Versión en video</b><span id="vper"></span></div><button class="x" onclick="cerrarVideo()" aria-label="Cerrar">×</button></div>
-      <canvas id="vcv" width="${V.W}" height="${V.H}" aria-label="Presentación animada del informe"></canvas>
+      <div class="vstage" id="vstage"><canvas id="vcv" width="${V.W}" height="${V.H}" aria-label="Presentación animada del informe"></canvas><div class="vtip" id="vtip" role="status"></div></div>
+      <div class="vpanel" id="vpanel">
+      <div class="vcaps" id="vcaps" aria-label="Capítulos"></div>
       <div class="vctl">
         <button class="btn" id="vplay" onclick="vToggle()">Pausa</button>
         <button class="btn" onclick="vReiniciar()">Reiniciar</button>
         <input type="range" id="vseek" min="0" max="1000" value="0" aria-label="Avance del video"
           onpointerdown="V.arrastrando=true" onpointerup="V.arrastrando=false" oninput="vSeek(this.value)">
         <span id="vtime" class="vtime">0:00</span>
+        <button class="btn" id="vfs" onclick="vPantallaCompleta()" title="Pantalla completa (tecla F)">⛶ Pantalla completa</button>
         <button class="btn btn-dl" id="vdl" onclick="descargarVideo()">Descargar video</button>
       </div>
+      <div class="vmeses" id="vmeses" aria-label="Período del video"></div>
+      <div class="vayuda">Pasá el mouse por los gráficos para ver los valores. Tocá un show para ver su detalle${S.d.tipo === 'anio' ? ' o un mes para ver el video de ese mes' : ''}. Atajos: espacio pausa, ← → cambian de capítulo, F pantalla completa, Esc cierra.</div>
       <div id="vrec" class="vrec"></div>
+      </div>
     </div>`;
     ov.addEventListener('click', e => { if (e.target === ov) cerrarVideo(); });
+    ov.addEventListener('pointermove', vMostrarControles);
+    ov.addEventListener('pointerdown', vMostrarControles);
     document.body.appendChild(ov);
   }
   $('vov').style.display = 'flex';
-  $('vper').textContent = ` · ${V.data.per}`;
   V.cv = $('vcv'); V.ctx = V.cv.getContext('2d');
+  if (!V.eventos) { vConectarEventos(); V.eventos = true; }
+  vUI();
   if (!V.logo) { V.logo = new Image(); V.logo.src = LOGO; await V.logo.decode().catch(() => {}); }
   if (document.fonts?.load) await Promise.race([Promise.all(['400', '500', '600', '700'].map(w => document.fonts.load(`${w} 40px Poppins`))), new Promise(r => setTimeout(r, 1500))]);
   V.t = 0; vReproducir();
@@ -1029,7 +1184,7 @@ window.abrirVideo = async function() {
 window.cerrarVideo = function() {
   if (V.grabando && !confirm('Se está grabando el video. ¿Cancelar la grabación?')) return;
   if (V.grabando) { V.cancelada = true; V.rec?.stop(); }
-  vPausar(); const ov = $('vov'); if (ov) ov.style.display = 'none';
+  vPausar(); vSalirPantalla(); const ov = $('vov'); if (ov) ov.style.display = 'none';
 };
 
 window.descargarVideo = function() {
@@ -1046,7 +1201,7 @@ window.descargarVideo = function() {
   rec.onstop = () => {
     V.grabando = false; V.alTerminar = null; stream.getTracks().forEach(tr => tr.stop());
     $('vdl').disabled = false; $('vdl').textContent = 'Descargar video';
-    document.querySelectorAll('#vov .vctl button:not(#vdl), #vseek').forEach(b => b.disabled = false);
+    document.querySelectorAll('#vov .vctl button:not(#vdl), #vseek, #vcaps button, #vmeses button').forEach(b => b.disabled = false);
     if (V.cancelada) { V.cancelada = false; $('vrec').textContent = ''; return; }
     const blob = new Blob(partes, { type: tipo.split(';')[0] });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
@@ -1056,7 +1211,7 @@ window.descargarVideo = function() {
   };
   V.rec = rec; V.grabando = true; V.cancelada = false;
   $('vdl').disabled = true;
-  document.querySelectorAll('#vov .vctl button:not(#vdl), #vseek').forEach(b => b.disabled = true);
+  document.querySelectorAll('#vov .vctl button:not(#vdl), #vseek, #vcaps button, #vmeses button').forEach(b => b.disabled = true); $('vtip').style.display = 'none';
   const tick = () => { if (!V.grabando) return; $('vdl').textContent = `Grabando ${Math.floor(V.t)} de ${Math.round(V.dur)} s`; $('vrec').textContent = 'El video se graba en tiempo real: mantené esta pestaña abierta y visible hasta que termine.'; setTimeout(tick, 250); };
   V.alTerminar = () => setTimeout(() => rec.state !== 'inactive' && rec.stop(), 300);
   V.t = 0; vPausar(); rec.start(500); vReproducir(); tick();
