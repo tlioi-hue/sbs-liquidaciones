@@ -82,7 +82,7 @@ td small { display: block; color: var(--muted); font-size: 11.5px; }
 tfoot td { font-weight: 700; border-top: 2px solid var(--brand); border-bottom: none; }
 .eerr td:first-child { white-space: normal; }
 .eerr tr.menos td { color: var(--muted); }
-.eerr tr.menos td:first-child { padding-left: 26px; }
+.eerr tr.menos td:first-child { padding-left: 22px; }
 .eerr tr.sub td { font-weight: 600; }
 .eerr tr.sec td { font-size: 11.5px; font-weight: 600; color: var(--muted); background: #f7f8f7; padding-top: 10px; letter-spacing: .02em; }
 .eerr tr.parcial td { font-style: italic; color: var(--muted); border-top: 1px dashed #c9cfcb; }
@@ -238,6 +238,33 @@ button:disabled { cursor: default; opacity: .55; }
 .vov.vfull { padding: 0; }
 .vbox:fullscreen { width: 100vw; height: 100vh; }
 .vbox::backdrop { background: #fff; }
+
+/* Pantalla completa sin barra: solo la presentación */
+.vbox.esfull .vpanel { display: none !important; }
+.vaviso { position: absolute; left: 50%; top: 2.2%; transform: translate(-50%, -10px); background: rgba(31,36,33,.9); color: #fff; font-size: 15px; font-weight: 500;
+  padding: 10px 18px; border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity .3s, transform .3s; white-space: nowrap; z-index: 3; }
+.vaviso.on { opacity: 1; transform: translate(-50%, 0); }
+.vpausa { position: absolute; top: 3%; right: 2%; background: rgba(31,36,33,.85); color: #fff; font-size: 13px; font-weight: 500; padding: 7px 13px; border-radius: 999px;
+  opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 3; }
+.vpausa.on { opacity: 1; }
+.vbox:not(.esfull) .vaviso { font-size: 12.5px; }
+
+/* Versión concisa */
+.kpis.k3 { grid-template-columns: repeat(3, 1fr); }
+.nota-top { font-size: 12.5px; color: var(--muted); margin: -6px 0 16px; padding-left: 12px; border-left: 3px solid #e5c97a; }
+.grid2.eg { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: start; }
+.lnk { font: inherit; color: var(--ink); font-weight: 600; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-decoration-color: #c9cfcb; text-underline-offset: 3px; }
+.lnk:hover { text-decoration-color: var(--ink); }
+details.plegable { margin-top: 10px; }
+details.plegable > summary { cursor: pointer; font-size: 13px; font-weight: 500; color: var(--muted); list-style: none; padding: 6px 0; }
+details.plegable > summary::-webkit-details-marker { display: none; }
+details.plegable > summary::before { content: '▸'; display: inline-block; margin-right: 6px; transition: transform .15s; }
+details.plegable[open] > summary::before { transform: rotate(90deg); }
+details.plegable > summary:hover { color: var(--ink); }
+details.notas-p { margin: 0 0 14px; }
+.leg .m small { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
+@media screen and (max-width: 760px) { .kpis.k3 { grid-template-columns: 1fr; } .grid2.eg { grid-template-columns: 1fr; } }
+@media print { details.plegable > summary { display: none; } .nota-top { margin-top: 0; } }
 </style>
 </head>
 <body>
@@ -351,17 +378,17 @@ function dibujar() {
   // Estado de resultados
   const f = (lbl, v, tipo = '') => `<tr class="${tipo}"><td>${lbl}</td><td>${tipo === 'menos' && v ? '−' + money(v) : money(v)}</td><td>${p1(tipo === 'menos' ? -v : v, T.ventas)}</td></tr>`;
   const sec = t => `<tr class="sec"><td colspan="3">${t}</td></tr>`;
-  const eerr = `<table class="eerr"><thead><tr><th>Concepto</th><th>Monto</th><th>% ingresos</th></tr></thead><tbody>
-    ${sec('Ingresos')}${f('Ventas al Movistar Arena (sin IVA)', T.ventas, 'sub')}
+  const eerr = `<table class="eerr"><thead><tr><th>Concepto</th><th>Monto</th><th>%</th></tr></thead><tbody>
+    ${f('Ventas (sin IVA)', T.ventas, 'sub')}
     ${sec('Egresos')}${f('Liquidaciones al personal', T.personal, 'menos')}
-    ${T.cargas.map(c => f(`${esc(c.nombre)} (${pctTxt(c.pct)} de la liquidación)`, c.monto, 'menos')).join('')}
+    ${T.cargas.map(c => f(`${esc(c.nombre)} (${pctTxt(c.pct)})`, c.monto, 'menos')).join('')}
     ${f('Utilidad bruta', T.utBruta, 'parcial')}
-    ${T.impuestos.map(c => f(`${esc(c.nombre)} (${pctTxt(c.pct)} de las ventas)`, c.monto, 'menos')).join('')}
+    ${T.impuestos.map(c => f(`${esc(c.nombre)} (${pctTxt(c.pct)})`, c.monto, 'menos')).join('')}
     ${f('Contribución marginal', T.contrMarginal, 'parcial')}
     ${T.fijos ? f('Costos fijos', T.fijos, 'menos') + f('EBIT', T.ebit, 'parcial') : ''}
     ${f(`Impuesto a las Ganancias (${pctTxt(T.iigg.pct)})`, T.iigg.monto, 'menos')}
     ${f('Total egresos', egresosTot, 'totegr')}
-    ${sec('Resultado')}${f('Resultado neto', T.neto, 'final')}
+    ${f('Resultado neto', T.neto, 'final')}
   </tbody></table>`;
 
   // Detalle por show, ordenable
@@ -380,76 +407,80 @@ function dibujar() {
   const val = (v, base) => pct ? p1(v, base) : money(v);
   const th = c => { const on = S.orden.col === c.k; return `<th aria-sort="${on ? (S.orden.dir > 0 ? 'ascending' : 'descending') : 'none'}"><button class="sort" onclick="ordenar('${c.k}')">${c.t}<span class="ar">${on ? (S.orden.dir > 0 ? '▲' : '▼') : ''}</span></button></th>`; };
   const detalle = `<table class="det"><thead><tr>${cols.map(th).join('')}</tr></thead>
-    <tbody>${orden.map(s => `<tr class="clic" tabindex="0" onclick="abrirShow(${s._i})" onkeydown="if(event.key==='Enter'){abrirShow(${s._i})}">
+    <tbody>${orden.map(s => `<tr class="clic" tabindex="0" title="Ver detalle del show" onclick="abrirShow(${s._i})" onkeydown="if(event.key==='Enter'){abrirShow(${s._i})}">
       <td>${esc(s.nombre)}<small>${fecha(s.fecha)}${s.estimado ? ', costo estimado' : ''}</small></td><td>${s.staff || '—'}</td>
       <td>${val(s.ventas, s.ventas)}</td><td>${val(egr(s), s.ventas)}</td><td class="res ${s.neto < 0 ? 'neg' : ''}">${val(s.neto, s.ventas)}</td>
       ${pct ? '' : `<td>${p1(s.neto, s.ventas)}</td>`}</tr>`).join('')}</tbody>
     <tfoot><tr><td>Total</td><td>${T.staff || '—'}</td><td>${val(T.ventas, T.ventas)}</td><td>${val(egresosTot, T.ventas)}</td><td class="res ${T.neto < 0 ? 'neg' : ''}">${val(T.neto, T.ventas)}</td>${pct ? '' : `<td>${p1(T.neto, T.ventas)}</td>`}</tr></tfoot></table>`;
 
   const altoShows = Math.max(200, shows.length * (pct ? 44 : 70) + 70);
+  // Avisos en una sola línea discreta
+  const notasTop = [];
+  const est = shows.filter(s => s.estimado).length;
+  if (est) notasTop.push(`Costo de personal estimado en ${est === shows.length ? (est > 1 ? 'todos los shows' : 'el show') : `${est} show${est > 1 ? 's' : ''}`} (quincena todavía abierta).`);
+  if (pend.length) notasTop.push(`Sin facturar todavía, no incluido${pend.length > 1 ? 's' : ''}: ${pend.map(p => esc(p.nombre)).join(', ')}.`);
+  // Destacados en una frase (solo si hay más de un show)
+  let frase = '';
+  if (shows.length >= 2) {
+    const porRes = [...shows].sort((a, b) => b.neto - a.neto), porMar = [...shows].sort((a, b) => b.neto / b.ventas - a.neto / a.ventas);
+    const lk = s => `<button class="lnk" onclick="abrirShow(${s._i})">${esc(s.nombre)}</button>`;
+    const peor = porMar[porMar.length - 1];
+    frase = `Mayor resultado: ${lk(porRes[0])} (${money(porRes[0].neto)}). ${peor.neto < 0 ? `Resultado negativo: ${lk(peor)} (${money(peor.neto)}).` : `Menor margen: ${lk(peor)} (${p1(peor.neto, peor.ventas)}).`}`;
+  }
+  const variosShows = shows.length >= 2;
   $('app').innerHTML = `
     ${S.preview ? '<div class="tagrow"><span class="tag">Vista previa, todavía no publicada</span></div>' : ''}
     <header class="head">
       <img src="${LOGO}" alt="SBS">
       <div class="emp"><b>Show Business Solutions</b><span>Informe de resultados, Movistar Arena</span></div>
-      <div class="per"><b>${esc(etiquetaPer)}</b><span>${d.tipo === 'mes' ? 'Informe mensual' : (S.mes ? `Informe anual ${d.periodo}, vista del mes` : 'Informe anual')}</span></div>
+      <div class="per"><b>${esc(etiquetaPer)}</b><span>${d.tipo === 'mes' ? 'Informe mensual' : (S.mes ? `Informe anual ${d.periodo}, vista del mes` : 'Informe anual')} · ${T.shows} show${T.shows !== 1 ? 's' : ''}</span></div>
     </header>
-    <div class="subhead"><p>${resumen}</p></div>
     <div class="toolbar" role="toolbar" aria-label="Opciones del informe">
       ${esAnual ? `<div class="chips" aria-label="Período">
         <button class="chip ${!S.mes ? 'on' : ''}" aria-pressed="${!S.mes}" onclick="filtrarMes(null)">Todo el año</button>
         ${d.meses.map(x => `<button class="chip ${S.mes === x.periodo ? 'on' : ''}" aria-pressed="${S.mes === x.periodo}" onclick="filtrarMes('${x.periodo}')">${x.label.split(' ')[0]}</button>`).join('')}
       </div>` : '<div></div>'}
       <div class="tools">
-        <div class="seg" role="group" aria-label="Mostrar valores como">
+        ${variosShows || esAnual ? `<div class="seg" role="group" aria-label="Mostrar valores como">
           <button class="${!pct ? 'on' : ''}" aria-pressed="${!pct}" onclick="cambiarModo('monto')">Montos</button>
           <button class="${pct ? 'on' : ''}" aria-pressed="${pct}" onclick="cambiarModo('pct')">% de ingresos</button>
-        </div>
+        </div>` : ''}
         <button class="btn btn-video" onclick="abrirVideo()">▶ Ver en video</button>
-        <button class="btn" onclick="descargarPlanilla()" title="Detalle por show en formato para Excel">Descargar planilla</button>
+        <button class="btn" onclick="descargarPlanilla()" title="Detalle por show en formato para Excel">Planilla</button>
         <button class="btn" onclick="window.print()">Imprimir / PDF</button>
       </div>
     </div>
-    ${avisos.map(a => `<div class="aviso">${a}</div>`).join('')}
-    <section class="kpis">
-      ${kpi('ing', 'Ingresos (sin IVA)', money(T.ventas), `${T.shows} show${T.shows !== 1 ? 's' : ''}, ${T.staff} puestos`, delta(T.ventas, prev?.ventas))}
-      ${kpi('egr', 'Egresos totales', money(egresosTot), `${p1(egresosTot, T.ventas)} de los ingresos`, delta(egresosTot, prev ? prev.ventas - prev.neto : null, { invertir: true }))}
-      ${kpi('neto', 'Resultado neto', money(T.neto), 'ingresos menos egresos', delta(T.neto, prev?.neto))}
-      ${kpi('mar', 'Margen neto', p1(T.neto, T.ventas), 'resultado sobre ingresos', prev ? delta(margen(T), margen(prev), { pp: true }) : '')}
+    <section class="kpis k3">
+      ${kpi('ing', 'Ingresos (sin IVA)', money(T.ventas), `${T.staff} puestos cubiertos`, delta(T.ventas, prev?.ventas))}
+      ${kpi('egr', 'Egresos', money(egresosTot), `${p1(egresosTot, T.ventas)} de los ingresos`, delta(egresosTot, prev ? prev.ventas - prev.neto : null, { invertir: true }))}
+      ${kpi('neto', 'Resultado neto', money(T.neto), `Margen ${p1(T.neto, T.ventas)}`, delta(T.neto, prev?.neto))}
     </section>
-    ${dests}
-    <div class="grid2">
-      <section class="panel">
-        <h2>Ingresos, egresos y resultado</h2>
-        <p class="desc">${pct ? 'Egresos y resultado como porcentaje de los ingresos.' : 'Lo que entró, lo que salió y lo que quedó.'}</p>
-        <div class="chart"><canvas id="gIER" aria-label="Ingresos, egresos y resultado" role="img"></canvas></div>
-      </section>
+    ${notasTop.length ? `<p class="nota-top">${notasTop.join(' ')}</p>` : ''}
+    <div class="grid2 eg">
+      <section class="panel"><h2>Estado de resultados</h2><p class="desc">Porcentajes sobre los ingresos.</p><div class="tw">${eerr}</div></section>
       <section class="panel">
         <h2>Composición de los egresos</h2>
-        <p class="desc">En qué se fueron los ${money(egresosTot)} de egresos. En la torta, cada porción es su parte del total de egresos.</p>
+        <p class="desc">Porcentajes sobre el total de egresos (${money(egresosTot)}).</p>
         <div class="torta">
           <div class="chart"><canvas id="gTorta" aria-label="Composición de los egresos" role="img"></canvas></div>
-          <ul class="leg">${egresos.map(x => `<li><i style="background:${x.c}"></i><span>${x.t}</span><span class="m">${money(x.v)}</span><small class="pp">${p1(x.v, egresosTot)} egresos · ${p1(x.v, T.ventas)} ingresos</small></li>`).join('')}</ul>
+          <ul class="leg">${egresos.map(x => `<li><i style="background:${x.c}"></i><span>${x.t}</span><span class="m">${money(x.v)}<small>${p1(x.v, egresosTot)}</small></span></li>`).join('')}</ul>
         </div>
       </section>
     </div>
-    ${esAnual && !S.mes ? `<section class="panel"><h2>Evolución mensual</h2><p class="desc">${pct ? 'Egresos y resultado de cada mes, como % de sus ingresos.' : 'Ingresos y egresos de cada mes, y el resultado neto.'}</p>
-      <p class="hint">Tocá un mes para ver el informe solo de ese mes.</p><div class="chart"><canvas id="gMeses" aria-label="Evolución mensual" role="img"></canvas></div></section>` : ''}
-    <section class="panel">
+    ${esAnual && !S.mes ? `<section class="panel"><h2>Evolución mensual</h2><p class="desc">${pct ? 'Egresos y resultado de cada mes, como % de sus ingresos.' : 'Ingresos y egresos por mes; la línea es el resultado neto.'}</p>
+      <div class="chart" title="Tocá un mes para ver solo ese mes"><canvas id="gMeses" aria-label="Evolución mensual" role="img"></canvas></div></section>` : ''}
+    ${variosShows ? `<section class="panel">
       <h2>Resultado por show</h2>
-      <p class="desc">${pct ? 'Qué parte de los ingresos de cada show se fue en egresos y qué parte quedó.' : 'Ingresos, egresos y resultado neto de cada show.'}</p>
-      <p class="hint">Tocá un show para ver su estado de resultados.</p>
-      <div class="chart" style="height:${altoShows}px"><canvas id="gShows" aria-label="Resultado por show" role="img"></canvas></div>
-    </section>
-    <section class="panel"><h2>Estado de resultados</h2><p class="desc">Los egresos se restan de los ingresos en orden; los renglones intermedios muestran el resultado parcial en cada etapa.</p><div class="tw">${eerr}</div></section>
-    <section class="panel"><h2>Detalle por show</h2><p class="desc">Montos en pesos, sin IVA. Egresos incluye personal, cargas sociales, impuestos y Ganancias.</p>
-      <p class="hint">Tocá un encabezado para ordenar; tocá una fila para ver el detalle del show.</p><div class="tw">${detalle}</div></section>
+      <p class="desc">${frase}</p>
+      <div class="chart" style="height:${altoShows}px" title="Tocá un show para ver su detalle"><canvas id="gShows" aria-label="Resultado por show" role="img"></canvas></div>
+      <details class="plegable" ${S.tablaAbierta ? 'open' : ''} ontoggle="S.tablaAbierta = this.open"><summary>Tabla por show</summary><div class="tw">${detalle}</div></details>
+    </section>` : ''}
+    <details class="plegable notas-p" ${S.notasAbiertas ? 'open' : ''} ontoggle="S.notasAbiertas = this.open"><summary>Cómo se calcula</summary>
     <section class="notas">
       <p><strong>Ingresos:</strong> lo que SBS le factura al Movistar Arena por el staff de cada show, sin IVA.</p>
-      <p><strong>Egresos:</strong> lo liquidado a los colaboradores, ${T.cargas.map(c => `${esc(c.nombre.toLowerCase())} (${pctTxt(c.pct)} de la liquidación)`).join(' y ') || 'las cargas'}, los impuestos sobre ventas (${T.impuestos.map(c => `${esc(c.nombre)} ${pctTxt(c.pct)}`).join(', ')})${T.fijos ? `, los costos fijos del Arena (${money(E.fijosMes)} por mes)` : ''} y el Impuesto a las Ganancias estimado (${pctTxt(T.iigg.pct)}).</p>
-      <p><strong>Resultado neto:</strong> ingresos menos egresos. Ganancias se liquida una vez por año sobre el resultado de toda la empresa; acá se estima para mostrar lo que queda después de impuestos.</p>
+      <p><strong>Egresos:</strong> lo liquidado a los colaboradores, ${T.cargas.map(c => `${esc(c.nombre.toLowerCase())} (${pctTxt(c.pct)} sobre lo liquidado)`).join(' y ') || 'las cargas'}, los impuestos sobre ventas (${T.impuestos.map(c => `${esc(c.nombre)} ${pctTxt(c.pct)}`).join(', ')}, sobre los ingresos)${T.fijos ? `, los costos fijos del Arena (${money(E.fijosMes)} por mes)` : ''} y el Impuesto a las Ganancias estimado (${pctTxt(T.iigg.pct)}), que se liquida una vez por año sobre el resultado de toda la empresa.</p>
       <p>Los datos arrancan con el show del ${fecha(d.desde)}, primer show con facturación registrada.</p>
-    </section>
+    </section></details>
     <footer class="pie"><img src="${LOGO}" alt=""><span>Show Business Solutions. Documento confidencial para uso de los socios. Generado el ${new Date(d.generado).toLocaleDateString('es-AR')}.</span></footer>
     <div id="modal"></div>`;
 
@@ -472,9 +503,12 @@ function teclas(e) {
   if (S.abierto == null && $('vov')?.style.display === 'flex') {
     if (e.key === 'f' || e.key === 'F') { e.preventDefault(); vPantallaCompleta(); return; }
     if (e.key === 'Escape') { if (vEnPantalla()) { vSalirPantalla(); return; } cerrarVideo(); }
-    if (e.key === ' ' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') { e.preventDefault(); vToggle(); }
-    if (e.key === 'ArrowRight') { e.preventDefault(); vIrCap(vCapActual() + 1); }
-    if (e.key === 'ArrowLeft') { e.preventDefault(); const k = vCapActual(), ini = vInicios(); vIrCap(V.t - ini[k] > 1.5 ? k : k - 1); }
+    if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); e.target?.blur?.(); vToggle(); }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+      e.preventDefault(); const k = vCapActual(), ini = vInicios();
+      const dest = e.key === 'ArrowRight' ? k + 1 : (V.t - ini[k] > 1.5 ? k : k - 1);
+      vIrCap(dest); if (vEnPantalla()) vAviso(V_CAP[V.escenas[vCapActual()].draw.name] || '', 1400);
+    }
     return;
   }
   if (S.abierto == null) return;
@@ -603,8 +637,8 @@ const ETIQUETAS = {
 
 const CHARTS = [];
 function reajustarGraficos() { CHARTS.forEach(c => { try { c.resize(); } catch {} }); }
-window.addEventListener('beforeprint', reajustarGraficos);
-window.addEventListener('afterprint', reajustarGraficos);
+window.addEventListener('beforeprint', () => { S.imprimiendo = { t: S.tablaAbierta, n: S.notasAbiertas }; document.querySelectorAll('details.plegable').forEach(d => { d.dataset.prev = d.open ? '1' : ''; d.open = true; }); reajustarGraficos(); });
+window.addEventListener('afterprint', () => { document.querySelectorAll('details.plegable').forEach(d => { d.open = d.dataset.prev === '1'; }); if (S.imprimiendo) { S.tablaAbierta = S.imprimiendo.t; S.notasAbiertas = S.imprimiendo.n; S.imprimiendo = null; } reajustarGraficos(); });
 if (window.matchMedia) window.matchMedia('print').addEventListener?.('change', reajustarGraficos);
 
 function graficos(T, shows, egresos) {
@@ -1031,17 +1065,35 @@ function vTip(e, h) {
 }
 function vConectarEventos() {
   const cv = V.cv;
+  const fs = () => vEnPantalla();
   cv.addEventListener('pointermove', e => {
     if (V.grabando || e.pointerType === 'touch') return;
-    const h = vHit(...Object.values(vPos(e))); cv.style.cursor = h?.accion ? 'pointer' : 'default'; vTip(e, h);
+    const h = vHit(...Object.values(vPos(e)));
+    if (fs()) {                                   // en pantalla completa: sin valores al pasar; se cierran al salir del elemento
+      cv.style.cursor = h ? 'context-menu' : 'default';
+      if (V.tipFijo && V.tipFijo !== h) { $('vtip').style.display = 'none'; V.tipFijo = null; }
+      return;
+    }
+    cv.style.cursor = h?.accion ? 'pointer' : 'default'; vTip(e, h);
   });
-  cv.addEventListener('pointerleave', () => { $('vtip').style.display = 'none'; });
+  cv.addEventListener('pointerleave', () => { $('vtip').style.display = 'none'; V.tipFijo = null; });
+  // Clic izquierdo: en pantalla completa pausa/reanuda; en ventana, interactúa como antes
   cv.addEventListener('click', e => {
     if (V.grabando) return;
+    if (fs()) { $('vtip').style.display = 'none'; V.tipFijo = null; vToggle(); return; }
     const h = vHit(...Object.values(vPos(e)));
     if (h?.accion) { $('vtip').style.display = 'none'; h.accion(); return; }
-    if (h) { vTip(e, h); return; }          // en el celular, tocar muestra el valor
-    vToggle();                              // tocar una zona vacía pausa / reanuda
+    if (h) { vTip(e, h); return; }
+    vToggle();
+  });
+  // Clic derecho: interactuar (abrir detalle, filtrar mes o ver el valor exacto), en ventana y en pantalla completa
+  cv.addEventListener('contextmenu', e => {
+    e.preventDefault();
+    if (V.grabando) return;
+    const h = vHit(...Object.values(vPos(e)));
+    if (!h) return;
+    if (h.accion) { $('vtip').style.display = 'none'; V.tipFijo = null; h.accion(); return; }
+    vTip(e, h); V.tipFijo = h;
   });
 }
 
@@ -1102,12 +1154,12 @@ function vBucle(ts) {
   if (!V.play) return;
   if (V.last == null) V.last = ts;
   V.t += Math.min(0.1, (ts - V.last) / 1000); V.last = ts;
-  if (V.t >= V.dur) { V.t = V.dur; V.play = false; vDibujar(); V.alTerminar?.(); return; }
+  if (V.t >= V.dur) { V.t = V.dur; V.play = false; vDibujar(); vEstadoPausa(); if (vEnPantalla() && !V.grabando) vAviso('Fin del informe  ·  espacio para verlo de nuevo  ·  Esc para salir', 4000); V.alTerminar?.(); return; }
   vDibujar();
   V.raf = requestAnimationFrame(vBucle);
 }
-function vReproducir() { if (V.t >= V.dur) V.t = 0; V.play = true; V.last = null; cancelAnimationFrame(V.raf); V.raf = requestAnimationFrame(vBucle); vDibujar(); vMostrarControles(); }
-function vPausar() { V.play = false; cancelAnimationFrame(V.raf); vDibujar(); vMostrarControles(); }
+function vReproducir() { if (V.t >= V.dur) V.t = 0; V.play = true; V.last = null; cancelAnimationFrame(V.raf); V.raf = requestAnimationFrame(vBucle); vDibujar(); vMostrarControles(); vEstadoPausa(); }
+function vPausar() { V.play = false; cancelAnimationFrame(V.raf); vDibujar(); vMostrarControles(); vEstadoPausa(); }
 window.vToggle = function() { if (V.grabando) return; V.play ? vPausar() : vReproducir(); };
 window.vReiniciar = function() { if (V.grabando) return; V.t = 0; vReproducir(); };
 window.vSeek = function(v) { if (V.grabando) return; V.t = v / 1000 * V.dur; vDibujar(); };
@@ -1129,11 +1181,22 @@ async function vSalirPantalla() {
   } catch {}
   $('vov')?.classList.remove('vfull'); vFsUI();
 }
+
+function vAviso(txt, ms = 1600) {
+  const el = $('vaviso'); if (!el) return;
+  el.textContent = txt; el.classList.add('on');
+  clearTimeout(V.tAviso); V.tAviso = setTimeout(() => el.classList.remove('on'), ms);
+}
+function vEstadoPausa() { const p = $('vpausa'); if (p) p.classList.toggle('on', vEnPantalla() && !V.play && !V.grabando && V.t < V.dur); }
 function vFsUI() {
-  const en = vEnPantalla(), b = $('vfs');
+  const en = vEnPantalla(), b = $('vfs'), box = document.querySelector('#vov .vbox');
   if (b) b.textContent = en ? '✕ Salir de pantalla completa' : '⛶ Pantalla completa';
-  document.querySelector('#vov .vbox')?.classList.toggle('esfull', en);
-  vMostrarControles();
+  const antes = box?.classList.contains('esfull');
+  box?.classList.toggle('esfull', en);
+  // El aviso de controles espera a que desaparezca el cartel de Chrome ("pulsá Esc para salir"), que aparece arriba al centro
+  if (en && !antes) { document.activeElement?.blur?.(); clearTimeout(V.tAvisoIni); V.tAvisoIni = setTimeout(() => { if (vEnPantalla()) vAviso('Espacio: pausa  ·  ← →: capítulos  ·  Clic derecho: ver valores y detalles  ·  Esc: salir', 4500); }, 3000); }
+  if (!en) { $('vtip').style.display = 'none'; V.tipFijo = null; }
+  vMostrarControles(); vEstadoPausa();
 }
 // En pantalla completa, los controles se esconden solos mientras se reproduce
 function vMostrarControles() {
@@ -1141,6 +1204,7 @@ function vMostrarControles() {
   box.classList.remove('quieto'); clearTimeout(V.tQuieto);
   if (vEnPantalla() && V.play && !V.grabando) V.tQuieto = setTimeout(() => box.classList.add('quieto'), 2600);
 }
+document.addEventListener('keyup', e => { if ((e.key === ' ' || e.code === 'Space') && $('vov')?.style.display === 'flex' && S.abierto == null) e.preventDefault(); }, true);
 document.addEventListener('fullscreenchange', vFsUI);
 document.addEventListener('webkitfullscreenchange', vFsUI);
 
@@ -1151,7 +1215,7 @@ window.abrirVideo = async function() {
     ov.id = 'vov'; ov.className = 'vov';
     ov.innerHTML = `<div class="vbox" role="dialog" aria-modal="true" aria-label="Versión en video del informe">
       <div class="vtop"><div><b>Versión en video</b><span id="vper"></span></div><button class="x" onclick="cerrarVideo()" aria-label="Cerrar">×</button></div>
-      <div class="vstage" id="vstage"><canvas id="vcv" width="${V.W}" height="${V.H}" aria-label="Presentación animada del informe"></canvas><div class="vtip" id="vtip" role="status"></div></div>
+      <div class="vstage" id="vstage"><canvas id="vcv" width="${V.W}" height="${V.H}" aria-label="Presentación animada del informe"></canvas><div class="vtip" id="vtip" role="status"></div><div class="vaviso" id="vaviso" aria-live="polite"></div><div class="vpausa" id="vpausa">❚❚ En pausa · espacio para seguir</div></div>
       <div class="vpanel" id="vpanel">
       <div class="vcaps" id="vcaps" aria-label="Capítulos"></div>
       <div class="vctl">
@@ -1164,7 +1228,7 @@ window.abrirVideo = async function() {
         <button class="btn btn-dl" id="vdl" onclick="descargarVideo()">Descargar video</button>
       </div>
       <div class="vmeses" id="vmeses" aria-label="Período del video"></div>
-      <div class="vayuda">Pasá el mouse por los gráficos para ver los valores. Tocá un show para ver su detalle${S.d.tipo === 'anio' ? ' o un mes para ver el video de ese mes' : ''}. Atajos: espacio pausa, ← → cambian de capítulo, F pantalla completa, Esc cierra.</div>
+      <div class="vayuda">Pasá el mouse por los gráficos para ver los valores. Clic (o clic derecho) sobre un show para ver su detalle${S.d.tipo === 'anio' ? ', o sobre un mes para ver el video de ese mes' : ''}. Atajos: espacio pausa, ← → cambian de capítulo, F pantalla completa, Esc cierra.</div>
       <div id="vrec" class="vrec"></div>
       </div>
     </div>`;
