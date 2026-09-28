@@ -4014,18 +4014,27 @@ const SERV_MENSUALES = [{ key: 'MESA DE ENTRADA', nombre: 'Mesa de entrada' }];
 // Presentismo de cargas cargado para un mes: { dias: { 'AAAA-MM-DD': cantidad } }
 function cargasPresentismo(periodo) {
   const d = (APP.servArena || []).find(x => x.id === 'cargas-' + periodo)?.data;
-  if (d?.pres && Object.keys(d.pres).length) { const dias = {}; Object.values(d.pres).forEach(fs => fs.forEach(f => { dias[f] = (dias[f] || 0) + 1; })); return { dias }; }
+  if (d?.pres && Object.keys(d.pres).length) { const dias = {}; Object.values(d.pres).forEach(fs => fs.forEach(f => { if (f >= SERV_DESDE) dias[f] = (dias[f] || 0) + 1; })); return { dias }; }
   return (APP.tarArena || []).find(x => x.periodo === 'cargas-' + periodo)?.filas || null;
 }
 // Servicios mensuales activos de un mes, con sus montos (del tarifario, o ajustados para ese mes)
-function serviciosMes(periodo) {
+function serviciosMes(periodo, { proyeccion = false } = {}) {
   const tm = getTarifaMes(periodo), aj = (APP.tarArena || []).find(x => x.periodo === 'serv-' + periodo)?.filas || {};
   return SERV_MENSUALES.map(sv => {
     const t = tm?.filas?.[sv.key] || {}, o = aj[sv.key] || {};
     if (o.activo === false) return null;
-    const venta = o.venta ?? t.venta, sueldo = o.sueldo ?? t.sueldo;
+    // Resultados reales: solo con lo cargado (personas del mes en la plataforma) y desde el período analizado
+    let personas = 1;
+    if (!proyeccion) {
+      if (periodo < SERV_DESDE.slice(0, 7)) return null;
+      const d = (APP.servArena || []).find(x => x.id === 'mesa-' + periodo)?.data;
+      personas = d?.personas?.length || 0;
+      if (!personas) return null;
+    }
+    const venta = (o.venta ?? t.venta) || 0, sueldo = (o.sueldo ?? t.sueldo) || 0;
     if (!venta && !sueldo) return null;
-    return { key: sv.key, nombre: sv.nombre, periodo, venta: venta || 0, sueldo: sueldo || 0, origen: o.venta != null || o.sueldo != null ? 'ajustado' : (tm?.origen || 'cargado') };
+    return { key: sv.key, nombre: sv.nombre, periodo, venta: venta * personas, sueldo: sueldo * personas, personas,
+             origen: o.venta != null || o.sueldo != null ? 'ajustado' : (tm?.origen || 'cargado') };
   }).filter(Boolean);
 }
 function tarConfig() { const c = (APP.tarArena || []).find(x => x.periodo === 'config'); return { aumento: 2, ...(c?.filas || {}) }; }
@@ -4330,7 +4339,7 @@ function proyMes(periodo, esc) {
     return proyectarShow(ev, refs, tar, E, fijosShow, esc);
   });
   // Servicios mensuales (mesa de entrada): se conocen de antemano por el tarifario
-  serviciosMes(periodo).forEach(sv => {
+  serviciosMes(periodo, { proyeccion: true }).forEach(sv => {
     const pl = calcPL(sv.venta, sv.sueldo, 0, E), iigg = Math.round(Math.max(0, pl.ebit) * (+E.iigg || 0) / 100);
     filas.push({ ev: { id: 'serv-' + sv.key, nombre: sv.nombre }, fISO: periodo + '-01', servicio: true, origen: sv.origen, ingresos: sv.venta, sueldo: sv.sueldo, neto: pl.ebit - iigg, egresos: sv.venta - (pl.ebit - iigg) });
   });
@@ -4339,16 +4348,27 @@ function proyMes(periodo, esc) {
   return { periodo, tar, filas, T, reales: ok.filter(f => f.real).length, proyectados: ok.filter(f => f.proyectado).length, errores: filas.filter(f => f.error).length };
 }
 
+const mesActual = () => { const h = new Date(); return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}`; };
+// Proyecciones: solo meses futuros. El mes en curso aparece solo si tiene una proyección guardada (para comparar con lo real).
 function mesesProyectables() {
-  const hoy = new Date(), act = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
-  const set = new Set([act]);
-  (APP.eventos || []).filter(e => e.area === 'Movistar Arena').forEach(e => { const m = showFechaISO(e).slice(0, 7); if (m && m >= act) set.add(m); });
-  for (let i = 1; i <= 2; i++) { const d = new Date(hoy.getFullYear(), hoy.getMonth() + i, 1); set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
+  const hoy = new Date(), act = mesActual(), set = new Set();
+  (APP.eventos || []).filter(e => e.area === 'Movistar Arena').forEach(e => { const m = showFechaISO(e).slice(0, 7); if (m && m > act) set.add(m); });
+  for (let i = 1; i <= 3; i++) { const d = new Date(hoy.getFullYear(), hoy.getMonth() + i, 1); set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
+  if ((APP.proyGuardadas || []).includes(act)) set.add(act);
+  return [...set].sort();
+}
+// Tarifario: también meses pasados y el actual (se usan para el costo de cargas y mesa de entrada ya trabajados)
+function mesesTarifario() {
+  const hoy = new Date(), set = new Set();
+  for (let i = -3; i <= 3; i++) { const d = new Date(hoy.getFullYear(), hoy.getMonth() + i, 1); set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
+  (APP.tarArena || []).filter(x => /^\d{4}-\d{2}$/.test(x.periodo)).forEach(x => set.add(x.periodo));
   return [...set].sort();
 }
 
 async function pgProyecciones(el, ac) {
   ac.innerHTML = '';
+  const { data: gs } = await sb.from('informes').select('periodo').eq('tipo', 'proy');
+  APP.proyGuardadas = (gs || []).map(x => x.periodo);
   const meses = mesesProyectables();
   if (!S_PROY.mes || !meses.includes(S_PROY.mes)) S_PROY.mes = meses.find(m => (APP.eventos || []).some(e => e.area === 'Movistar Arena' && showFechaISO(e).slice(0, 7) === m && !(APP.facturaciones || []).some(f => f.evento_id === e.id))) || meses[0];
   const tabs = `<div style="display:flex;gap:6px;margin-bottom:14px">
@@ -4364,8 +4384,8 @@ async function pgProyecciones(el, ac) {
 }
 
 async function htmlProyeccion(meses) {
-  const P = proyMes(S_PROY.mes, S_PROY.esc);
-  const escs = Object.fromEntries(Object.keys(ESCENARIOS).map(k => [k, k === S_PROY.esc ? P : proyMes(S_PROY.mes, k)]));
+  const P = proyMes(S_PROY.mes, 'base');
+  const enCurso = S_PROY.mes === mesActual();
   const { data: guard } = await sb.from('informes').select('data,updated_at').eq('tipo', 'proy').eq('periodo', S_PROY.mes).maybeSingle();
   S_PROY.guardada = guard?.data || null;
   const guardPorId = {}; (S_PROY.guardada?.shows || []).forEach(x => { guardPorId[x.evId] = x; });
@@ -4404,9 +4424,7 @@ async function htmlProyeccion(meses) {
   const T = P.T;
   return `
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-      <select onchange="S_PROY.mes=this.value;render()" style="font-size:13px;padding:6px 9px;width:auto">${meses.map(m => `<option value="${m}" ${m === S_PROY.mes ? 'selected' : ''}>${mesLabel(m)}</option>`).join('')}</select>
-      <div style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
-        ${Object.entries(ESCENARIOS).map(([k, v]) => `<button class="btn ${S_PROY.esc === k ? 'btn-primary' : ''}" style="border:0;border-radius:0" onclick="S_PROY.esc='${k}';render()">${v.lbl}</button>`).join('')}</div>
+      <select onchange="S_PROY.mes=this.value;render()" style="font-size:13px;padding:6px 9px;width:auto">${meses.map(m => `<option value="${m}" ${m === S_PROY.mes ? 'selected' : ''}>${mesLabel(m)}${m === mesActual() ? ' (en curso)' : ''}</option>`).join('')}</select>
       <div style="flex:1"></div>
       <button class="btn btn-success" onclick="guardarProyeccion()"><i class="ti ti-device-floppy"></i> ${S_PROY.guardada ? 'Actualizar proyección guardada' : 'Guardar proyección'}</button>
     </div>
@@ -4414,16 +4432,9 @@ async function htmlProyeccion(meses) {
     ${S_PROY.guardada ? `<div class="nota-proy"><i class="ti ti-history"></i> Proyección guardada el ${new Date(guard.updated_at).toLocaleDateString('es-AR')}: a medida que los shows se facturan, se compara lo real contra lo proyectado.</div>` : ''}
     <div class="grid4" style="margin:12px 0">
       ${kpi('Shows del mes', P.filas.filter(f => !f.servicio).length, `${P.reales} real${P.reales !== 1 ? 'es' : ''} · ${P.proyectados} proyectado${P.proyectados !== 1 ? 's' : ''}${P.filas.some(f => f.servicio) ? ' · + mesa de entrada' : ''}`)}
-      ${kpi('Ingresos (sin IVA)', fmt(T.ingresos), `escenario ${ESCENARIOS[S_PROY.esc].lbl.toLowerCase()}`)}
+      ${kpi('Ingresos (sin IVA)', fmt(T.ingresos), enCurso ? 'real + proyectado' : 'proyectado')}
       ${kpi('Egresos', fmt(T.egresos), `${String(mg(T.egresos, T.ingresos)).replace('.', ',')}% de los ingresos`)}
       ${kpi('Resultado neto', fmt(T.neto), `margen ${String(mg(T.neto, T.ingresos)).replace('.', ',')}%`, col(T.neto))}
-    </div>
-    <div class="card" style="margin-bottom:12px;padding:10px 14px">
-      <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;font-size:12.5px">
-        <strong>Escenarios del mes:</strong>
-        ${Object.entries(escs).map(([k, x]) => `<span style="${k === S_PROY.esc ? 'font-weight:700' : ''}">${ESCENARIOS[k].lbl}: <span style="color:${col(x.T.neto)}">${fmt(x.T.neto)}</span> <span style="color:var(--text2)">(${String(mg(x.T.neto, x.T.ingresos)).replace('.', ',')}%)</span></span>`).join('')}
-      </div>
-      <div style="font-size:11.5px;color:var(--text2);margin-top:4px">Pesimista: 10% menos de puestos pedidos y 50% más de back-ups. Optimista: 10% más de puestos y la mitad de back-ups. Los shows ya facturados entran con sus números reales en los tres.</div>
     </div>
     <div class="card" style="padding:0;overflow:auto">
       <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th>Estado</th><th>Basado en</th><th style="text-align:center" title="Puestos que se le facturan al Arena (incluye cargas). Vacío = el de la referencia">Puestos</th><th style="text-align:center" title="Presentes por encima de lo pedido, no facturables">Back-ups</th>
@@ -4436,11 +4447,11 @@ async function htmlProyeccion(meses) {
 }
 
 window.verProyShow = function(evId) {
-  const P = proyMes(S_PROY.mes, S_PROY.esc), f = P.filas.find(x => x.ev.id === evId); if (!f || !f.proyectado) return;
+  const P = proyMes(S_PROY.mes, 'base'), f = P.filas.find(x => x.ev.id === evId); if (!f || !f.proyectado) return;
   const E = getEstructura();
   showModal(`<div class="modal" style="max-width:780px">
     <div class="modal-t"><i class="ti ti-crystal-ball"></i> ${f.ev.nombre} · ${fd(f.fISO)}</div>
-    <div class="modal-s">Proyección ${ESCENARIOS[S_PROY.esc].lbl.toLowerCase()} · basada en ${f.base.charAt(0).toLowerCase() + f.base.slice(1)}. Tarifario ${P.tar.origen === 'cargado' ? 'cargado' : 'estimado'} de ${mesLabel(S_PROY.mes).toLowerCase()}.</div>
+    <div class="modal-s">Proyección basada en ${f.base.charAt(0).toLowerCase() + f.base.slice(1)}. Tarifario ${P.tar.origen === 'cargado' ? 'cargado' : 'estimado'} de ${mesLabel(S_PROY.mes).toLowerCase()}.</div>
     <table class="tbl" style="margin:10px 0"><thead><tr><th>Renglón</th><th style="text-align:center">Puestos</th><th style="text-align:right">Venta x día</th><th style="text-align:right">Ingreso</th><th style="text-align:right">Sueldo neto</th><th style="text-align:right">Costo</th></tr></thead><tbody>
       ${f.lineas.map(l => `<tr><td>${TAR_LBL(l.cat)}</td><td style="text-align:center">${l.cant}</td><td style="text-align:right">${fmt(l.venta)}</td><td style="text-align:right">${fmt(l.cant * l.venta)}</td><td style="text-align:right">${fmt(l.sueldo)}</td><td style="text-align:right">${fmt(l.cant * l.sueldo)}</td></tr>`).join('')}
       <tr><td>Back-ups (orientadores, no facturables)</td><td style="text-align:center">${f.backups}</td><td></td><td></td><td></td><td style="text-align:right">${fmt(f.costoBackups)}</td></tr>
@@ -4461,9 +4472,8 @@ window.verProyShow = function(evId) {
 window.guardarProyeccion = async function() {
   const P = proyMes(S_PROY.mes, 'base');
   if (!P.filas.filter(f => !f.servicio).length) { toast('No hay shows para proyectar en este mes', 'err'); return; }
-  const esc = Object.fromEntries(Object.keys(ESCENARIOS).map(k => { const x = k === 'base' ? P : proyMes(S_PROY.mes, k); return [k, x.T]; }));
   const data = { v: 1, tipo: 'proy', periodo: S_PROY.mes, periodoLabel: mesLabel(S_PROY.mes), generado: new Date().toISOString(),
-    tarifario: P.tar ? { origen: P.tar.origen, desde: P.tar.desde, aumento: P.tar.aumento ?? null } : null, estructura: getEstructura(), escenarios: esc,
+    tarifario: P.tar ? { origen: P.tar.origen, desde: P.tar.desde, aumento: P.tar.aumento ?? null } : null, estructura: getEstructura(), totales: P.T,
     servicios: P.filas.filter(f => f.servicio).map(f => ({ nombre: f.ev.nombre, ingresos: f.ingresos, egresos: f.egresos, neto: f.neto, sueldo: f.sueldo })),
     shows: P.filas.filter(f => !f.error && !f.servicio).map(f => ({ evId: f.ev.id, nombre: f.ev.nombre, fecha: f.fISO, real: !!f.real, base: f.base || '', pedido: f.pedido, backups: f.backups,
       ingresos: f.ingresos, egresos: f.egresos, neto: f.neto, lineas: f.lineas || null, costoBackups: f.costoBackups ?? null, costoCoord: f.costoCoord ?? null })) };
@@ -4482,7 +4492,7 @@ window.guardarProyeccion = async function() {
 // ── Tarifario mensual ──
 function htmlTarifario() {
   const cargados = (APP.tarArena || []).filter(x => /^\d{4}-\d{2}$/.test(x.periodo)).map(x => x.periodo).sort();
-  const opciones = [...new Set([...cargados, ...mesesProyectables()])].sort();
+  const opciones = [...new Set([...cargados, ...mesesTarifario()])].sort();
   if (!S_PROY.tarMes || !opciones.includes(S_PROY.tarMes)) S_PROY.tarMes = opciones.find(m => !cargados.includes(m) && m >= (cargados[cargados.length - 1] || '')) || opciones[0];
   const est = getTarifaMes(S_PROY.tarMes);
   if (!S_PROY.tarDraft || S_PROY.tarDraft.periodo !== S_PROY.tarMes) S_PROY.tarDraft = { periodo: S_PROY.tarMes, filas: JSON.parse(JSON.stringify(est?.filas || {})), cambiado: false };
@@ -4608,6 +4618,10 @@ window.completarTarActual = function() {
 // CARGAS Y MESA DE ENTRADA — presentismo, liquidación y facturación dentro de la plataforma
 // Cargas: se liquida por semana (lunes a domingo, cortada al mes). Mesa de entrada: mensual completo.
 // ══════════════════════════════════════════════
+// Corte: los servicios arrancan con el período analizado (22/09/2026). Septiembre se liquidó fuera de la
+// plataforma: sus números se importan de las planillas solo para los informes. Desde octubre, todo se liquida acá.
+const SERV_DESDE = '2026-09-22', SERV_PLATAFORMA = '2026-10';
+const esHistorico = periodo => periodo < SERV_PLATAFORMA;
 const SERV_TIPOS = {
   cargas: { nombre: 'Cargas / stagehands', posicion: 'Cargas', lugar: 'arena-cargas', tar: 'CARGAS' },
   mesa:   { nombre: 'Mesa de entrada', posicion: 'Mesa de entrada', lugar: 'arena-mesa', tar: 'MESA DE ENTRADA' },
@@ -4629,25 +4643,29 @@ const dowDe = f => new Date(f + 'T12:00:00').getDay();
 function semanasDelMes(periodo) {
   const out = []; let cur = null;
   diasDelMes(periodo).forEach(f => { if (!cur || dowDe(f) === 1) { cur = { n: out.length + 1, dias: [] }; out.push(cur); } cur.dias.push(f); });
-  return out.map(w => ({ ...w, desde: w.dias[0], hasta: w.dias[w.dias.length - 1], label: `Semana ${w.n}`, rango: `${fd(w.dias[0]).slice(0, 5)} a ${fd(w.dias[w.dias.length - 1]).slice(0, 5)}` }));
+  return out.map(w => ({ ...w, dias: w.dias.filter(f => f >= SERV_DESDE) })).filter(w => w.dias.length)
+    .map(w => ({ ...w, desde: w.dias[0], hasta: w.dias[w.dias.length - 1], label: `Semana ${w.n}`, rango: `${fd(w.dias[0]).slice(0, 5)} a ${fd(w.dias[w.dias.length - 1]).slice(0, 5)}` }));
 }
 const liqsServ = (lugar, periodo) => (APP.liquidaciones || []).filter(l => l.lugar_fijo === lugar && l.mes_id === periodo);
 const persDe = id => (APP.personal || []).find(p => p.id === id);
 const nomPers = p => p ? `${p.apellido}, ${p.nombre}` : '—';
 function showsDelDia(f) { return (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e) === f); }
 function mesesServicios() {
-  const hoy = new Date(), set = new Set();
+  const hoy = new Date(), set = new Set(), desde = SERV_DESDE.slice(0, 7);
   for (let i = -3; i <= 1; i++) { const d = new Date(hoy.getFullYear(), hoy.getMonth() + i, 1); set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
   (APP.servArena || []).forEach(x => set.add(x.periodo));
-  return [...set].sort().reverse();
+  return [...set].filter(m => m >= desde).sort().reverse();
 }
+// Días que cuentan: desde el corte (22/09/2026)
+const diasVigentes = periodo => diasDelMes(periodo).filter(f => f >= SERV_DESDE);
 
 async function pgServicios(el, ac) {
   ac.innerHTML = '';
   const meses = mesesServicios();
   if (!S_SERV.mes || !meses.includes(S_SERV.mes)) { const h = new Date(); S_SERV.mes = `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}`; }
   const cab = `<div style="margin-bottom:12px"><h2 style="margin:0">Cargas y Mesa de entrada · Movistar Arena</h2>
-    <div style="color:var(--text2);font-size:13px">Presentismo, liquidación y facturación, igual que en las planillas: cargas por semana, mesa de entrada por mes.</div></div>`;
+    <div style="color:var(--text2);font-size:13px">Presentismo, liquidación y facturación, igual que en las planillas: cargas por semana, mesa de entrada por mes.</div></div>
+    ${esHistorico(S_SERV.mes) ? `<div class="nota-proy"><i class="ti ti-history"></i> ${mesLabel(S_SERV.mes)} se liquidó y facturó con las planillas, fuera de la plataforma. Importá la hoja PRESENTISMO para que sus números entren en los informes${S_SERV.tab === 'cargas' ? ` (cargas: solo desde el ${fd(SERV_DESDE)})` : ''}. Desde ${mesLabel(SERV_PLATAFORMA).toLowerCase()}, todo se liquida acá.</div>` : ''}`;
   if (APP.servArenaError) { el.innerHTML = cab + `<div class="alert alert-warn"><i class="ti ti-database-off"></i> Falta crear la tabla <strong>servicios_arena</strong> en Supabase.</div>`; return; }
   const tabs = `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
       <button class="btn ${S_SERV.tab === 'cargas' ? 'btn-primary' : ''}" onclick="S_SERV.tab='cargas';render()"><i class="ti ti-truck"></i> Cargas / stagehands</button>
@@ -4662,7 +4680,7 @@ async function pgServicios(el, ac) {
 
 // Grilla de presentismo (la misma para cargas y mesa de entrada)
 function htmlGrilla(tipo, periodo, bloqueado) {
-  const d = servData(tipo, periodo), dias = diasDelMes(periodo), cfg = SERV_TIPOS[tipo];
+  const d = servData(tipo, periodo), dias = tipo === 'cargas' ? diasVigentes(periodo) : diasDelMes(periodo), cfg = SERV_TIPOS[tipo];
   const facs = APP.facturaciones || [];
   const pedDia = f => showsDelDia(f).reduce((a, e) => a + (pedidoPorCat(facs.filter(x => x.evento_id === e.id)).CARGAS || 0), 0);
   if (!d.personas.length) return `<div class="empty-state" style="padding:26px"><i class="ti ti-users"></i><p>Todavía no hay personas en ${cfg.nombre.toLowerCase()} para ${mesLabel(periodo).toLowerCase()}. Usá <strong>Importar desde la planilla</strong> o <strong>Agregar persona</strong>.</p></div>`;
@@ -4693,17 +4711,18 @@ function htmlCargas() {
     const jorn = d.personas.reduce((a, pid) => a + (d.pres[pid] || []).filter(f => w.dias.includes(f)).length, 0);
     const L = semLiq(w.n), pag = L.length && L.every(l => l.estado === 'pagado');
     const total = L.length ? L.reduce((a, l) => a + (l.total || 0), 0) : jorn * sueldo;
-    const estado = !L.length ? (jorn ? '<span class="badge bw">Sin liquidar</span>' : '<span style="color:var(--text2)">—</span>') : pag ? '<span class="badge bs">Pagada</span>' : '<span class="badge bi">Liquidada</span>';
+    const estado = esHistorico(periodo) ? (jorn ? '<span class="badge bs" title="Liquidada con la planilla, fuera de la plataforma">Fuera de la plataforma</span>' : '<span style="color:var(--text2)">—</span>')
+      : !L.length ? (jorn ? '<span class="badge bw">Sin liquidar</span>' : '<span style="color:var(--text2)">—</span>') : pag ? '<span class="badge bs">Pagada</span>' : '<span class="badge bi">Liquidada</span>';
     return `<tr><td style="white-space:nowrap"><strong>${w.label}</strong></td><td style="white-space:nowrap">${w.rango}</td><td style="text-align:center">${jorn}</td><td style="text-align:right">${fmt(L.length ? L[0].valor_jornada : sueldo)}</td><td style="text-align:right;font-weight:600">${fmt(total)}</td><td>${estado}</td>
       <td style="text-align:right;white-space:nowrap">
-        ${!L.length && jorn ? `<button class="btn btn-sm btn-primary" onclick="liquidarSemanaCargas(${w.n})">Liquidar</button>` : ''}
-        ${L.length && !pag ? `<button class="btn btn-sm" onclick="pagarServ('arena-cargas',${w.n})">Marcar pagada</button> <button class="btn btn-sm" onclick="deshacerServ('arena-cargas',${w.n})">Deshacer</button>` : ''}
+        ${!esHistorico(periodo) && !L.length && jorn ? `<button class="btn btn-sm btn-primary" onclick="liquidarSemanaCargas(${w.n})">Liquidar</button>` : ''}
+        ${!esHistorico(periodo) && L.length && !pag ? `<button class="btn btn-sm" onclick="pagarServ('arena-cargas',${w.n})">Marcar pagada</button> <button class="btn btn-sm" onclick="deshacerServ('arena-cargas',${w.n})">Deshacer</button>` : ''}
         ${jorn ? `<button class="btn btn-sm" title="Excel de la semana" onclick="excelCargas(${w.n})"><i class="ti ti-file-spreadsheet"></i></button>` : ''}</td></tr>`;
   }).join('');
   const totMes = sem.reduce((a, w) => { const L = semLiq(w.n); return a + (L.length ? L.reduce((b, l) => b + (l.total || 0), 0) : d.personas.reduce((b, pid) => b + (d.pres[pid] || []).filter(f => w.dias.includes(f)).length, 0) * sueldo); }, 0);
   // Facturación vs liquidación, show por show
   const facs = APP.facturaciones || [];
-  const shows = (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e).slice(0, 7) === periodo).sort((a, b) => showFechaISO(a).localeCompare(showFechaISO(b)));
+  const shows = (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e).slice(0, 7) === periodo && showFechaISO(e) >= SERV_DESDE).sort((a, b) => showFechaISO(a).localeCompare(showFechaISO(b)));
   const presDia = f => d.personas.filter(pid => (d.pres[pid] || []).includes(f)).length;
   const col = n => n >= 0 ? '#1a7a3e' : '#b45309';
   let tF = 0, tL = 0;
@@ -4717,7 +4736,7 @@ function htmlCargas() {
       <td style="text-align:center;${fs.length && pr !== ped ? 'color:#b45309;font-weight:600' : ''}">${pr}</td><td style="text-align:right">${fs.length ? fmt(fact) : '—'}</td><td style="text-align:right">${fmt(liq)}</td>
       <td style="text-align:right">${fmt(costo)}</td><td style="text-align:right;font-weight:600;color:${col(dif)}">${fs.length ? fmt(dif) : '—'}</td></tr>`;
   }).join('');
-  const sinShow = diasDelMes(periodo).filter(f => presDia(f) && !showsDelDia(f).length);
+  const sinShow = diasVigentes(periodo).filter(f => presDia(f) && !showsDelDia(f).length);
   const jSin = sinShow.reduce((a, f) => a + presDia(f), 0);
   return `
     ${!sueldo ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Falta el sueldo neto de CARGAS en el tarifario de ${mesLabel(periodo).toLowerCase()} (Proyecciones → Tarifario mensual).</div>` : ''}
@@ -4761,8 +4780,9 @@ function htmlMesa() {
           <tr style="font-weight:700"><td>Facturado − costo</td><td style="text-align:right;color:${col(dif)}">${fmt(dif)}</td></tr>
         </tbody></table>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
-          ${!liq ? `<button class="btn btn-primary" onclick="liquidarMesa()" ${d.personas.length ? '' : 'disabled'}>Liquidar el mes</button>` : ''}
-          ${liq && !pag ? `<button class="btn" onclick="pagarServ('arena-mesa',0)">Marcar pagada</button><button class="btn" onclick="deshacerServ('arena-mesa',0)">Deshacer</button>` : ''}
+          ${esHistorico(periodo) ? `<span class="badge bs" style="align-self:center" title="Liquidada y facturada con la planilla">Fuera de la plataforma</span>` : ''}
+          ${!esHistorico(periodo) && !liq ? `<button class="btn btn-primary" onclick="liquidarMesa()" ${d.personas.length ? '' : 'disabled'}>Liquidar el mes</button>` : ''}
+          ${!esHistorico(periodo) && liq && !pag ? `<button class="btn" onclick="pagarServ('arena-mesa',0)">Marcar pagada</button><button class="btn" onclick="deshacerServ('arena-mesa',0)">Deshacer</button>` : ''}
           ${liq ? `<span class="badge ${pag ? 'bs' : 'bi'}" style="align-self:center">${pag ? 'Pagada' : 'Liquidada'}</span>` : ''}
           <button class="btn" onclick="excelMesa('liq')" ${d.personas.length ? '' : 'disabled'}><i class="ti ti-file-spreadsheet"></i> Excel liquidación</button>
           <button class="btn" onclick="excelMesa('fact')" ${d.personas.length ? '' : 'disabled'}><i class="ti ti-file-spreadsheet"></i> Excel facturación</button>
@@ -4836,6 +4856,15 @@ function parsearPlanillaServ(texto, anio) {
   }
   return { periodo: [...new Set(Object.values(cols).map(f => f.slice(0, 7)))][0], personas };
 }
+// Aplica el corte a lo importado: cargas solo desde el 22/09/2026; nada de meses anteriores al período analizado
+function recortarImport(tipo, r) {
+  if (!r) return r;
+  if (!r.periodo || r.periodo < SERV_DESDE.slice(0, 7)) return { ...r, personas: [], motivo: `Ese mes es anterior al ${fd(SERV_DESDE)}: no se importa.` };
+  if (tipo !== 'cargas') return r;
+  let recorte = 0;
+  const personas = r.personas.map(p => { const dias = p.dias.filter(f => f >= SERV_DESDE); recorte += p.dias.length - dias.length; return { ...p, dias }; }).filter(p => p.dias.length);
+  return { ...r, personas, recorte, motivo: personas.length ? '' : `No hay presentes desde el ${fd(SERV_DESDE)} en esa planilla.` };
+}
 // "Albornoz Villa Diego Andres" -> apellido "Albornoz Villa", nombre "Diego Andres"; "Quijano Ignacio" -> "Quijano", "Ignacio"
 function partirNombre(t) { const w = String(t).trim().split(/\s+/); if (w.length <= 1) return { apellido: w[0] || '', nombre: '' }; const k = w.length >= 4 ? 2 : 1; return { apellido: w.slice(0, k).join(' '), nombre: w.slice(k).join(' ') }; }
 window.importarServ = function(tipo) {
@@ -4850,15 +4879,15 @@ window.importarServ = function(tipo) {
   setTimeout(() => document.getElementById('im-txt')?.focus(), 50);
 };
 window.previewImportServ = function(tipo) {
-  const r = parsearPlanillaServ(document.getElementById('im-txt').value, document.getElementById('im-anio').value), el = document.getElementById('im-prev');
-  if (!r || !r.personas.length) { el.textContent = 'Todavía no se reconocen las fechas y las personas.'; return; }
-  el.innerHTML = `<b>${mesLabel(r.periodo)}</b>: <table class="tbl" style="margin-top:6px"><thead><tr><th>Persona</th><th>CUIL</th><th>CBU</th><th style="text-align:center">Días</th><th>Padrón</th></tr></thead><tbody>${r.personas.map(p => {
+  const r = recortarImport(tipo, parsearPlanillaServ(document.getElementById('im-txt').value, document.getElementById('im-anio').value)), el = document.getElementById('im-prev');
+  if (!r || !r.personas.length) { el.textContent = r?.motivo || 'Todavía no se reconocen las fechas y las personas.'; return; }
+  el.innerHTML = `<b>${mesLabel(r.periodo)}</b>${r.recorte ? ` <span style="color:var(--text2)">(solo desde el ${fd(SERV_DESDE)}; ${r.recorte} jornada${r.recorte > 1 ? 's' : ''} anterior${r.recorte > 1 ? 'es' : ''} no se importa${r.recorte > 1 ? 'n' : ''})</span>` : ''}${esHistorico(r.periodo) ? ' · <span style="color:var(--text2)">se importa como liquidado fuera de la plataforma</span>' : ''}: <table class="tbl" style="margin-top:6px"><thead><tr><th>Persona</th><th>CUIL</th><th>CBU</th><th style="text-align:center">Días</th><th>Padrón</th></tr></thead><tbody>${r.personas.map(p => {
       const ya = p.cuil ? (APP.personal || []).find(x => normCuil(x.cuil) === p.cuil) : null, pn = partirNombre(p.nombre);
       return `<tr><td>${esc2(ya ? nomPers(ya) : `${pn.apellido}, ${pn.nombre}`)}</td><td>${p.cuil || '—'}</td><td>${p.cbu ? '…' + p.cbu.slice(-4) : '<span style="color:#b45309">no figura</span>'}</td><td style="text-align:center">${p.dias.length}</td><td>${ya ? 'ya está' : '<span class="badge bi" style="font-size:10px">nuevo</span>'}</td></tr>`; }).join('')}</tbody></table>`;
 };
 window.confirmarImportServ = async function(tipo) {
-  const cfg = SERV_TIPOS[tipo], r = parsearPlanillaServ(document.getElementById('im-txt').value, document.getElementById('im-anio').value);
-  if (!r || !r.personas.length) { toast('No se reconoció la planilla', 'err'); return; }
+  const cfg = SERV_TIPOS[tipo], r = recortarImport(tipo, parsearPlanillaServ(document.getElementById('im-txt').value, document.getElementById('im-anio').value));
+  if (!r || !r.personas.length) { toast(r?.motivo || 'No se reconoció la planilla', 'err'); return; }
   loading(true);
   const d = servData(tipo, r.periodo);
   for (const p of r.personas) {
