@@ -351,7 +351,33 @@ function totalesDe(shows) {
   return { ventas, personal, cargas, totCargas, utBruta, impuestos, totImp, contrMarginal, fijos, ebit, iigg, neto: ebit - iigg.monto,
            ventasIva: sum('ventasIva'), staff: sum('staff'), shows: shows.length };
 }
-function totalesVista() { return S.mes ? totalesDe(showsVisibles()) : S.d.totales; }
+function servMesVista() {
+  // Servicios mensuales (mesa de entrada) del período visible: uno por servicio, sumando sus meses
+  return (S.d.servicios || []).map(sv => {
+    const xs = (sv.detalle || []).filter(x => !S.mes || x.periodo === S.mes); if (!xs.length) return null;
+    const sum = k => xs.reduce((a, x) => a + (x[k] || 0), 0);
+    return { nombre: sv.nombre, meses: xs.length, ventas: sum('ventas'), personal: sum('personal'), cargas: sum('cargas'), impuestos: sum('impuestos'), iigg: sum('iigg'), neto: sum('neto'), estimado: xs.some(x => x.origen === 'estimado') };
+  }).filter(Boolean);
+}
+function totalesVista() {
+  if (!S.mes) return S.d.totales;
+  const T = totalesDe(showsVisibles()), sv = servMesVista();
+  if (!sv.length) return T;
+  // sumar los servicios del mes al total del área
+  const E = S.d.estructura || {}, add = k => sv.reduce((a, x) => a + (x[k] || 0), 0);
+  const ventas = T.ventas + add('ventas'), personal = T.personal + add('personal');
+  const cargas = (E.cargas || []).filter(x => (x.nombre || '').trim()).map(x => ({ nombre: x.nombre.trim(), pct: +x.pct || 0, monto: Math.round(personal * (+x.pct || 0) / 100) }));
+  const impuestos = (E.impuestos || []).filter(x => (x.nombre || '').trim()).map(x => ({ nombre: x.nombre.trim(), pct: +x.pct || 0, monto: Math.round(ventas * (+x.pct || 0) / 100) }));
+  const totCargas = cargas.reduce((a, x) => a + x.monto, 0), totImp = impuestos.reduce((a, x) => a + x.monto, 0);
+  const utBruta = ventas - personal - totCargas, contrMarginal = utBruta - totImp, ebit = contrMarginal - T.fijos;
+  const iigg = { pct: T.iigg.pct, monto: T.iigg.monto + add('iigg') };
+  return { ...T, ventas, personal, cargas, totCargas, impuestos, totImp, utBruta, contrMarginal, ebit, iigg, neto: ebit - iigg.monto };
+}
+// Totales solo de shows: para promedios por show, por puesto y comparaciones entre shows
+function totShowsVista() {
+  const sh = showsVisibles(), sum = k => sh.reduce((a, x) => a + (x[k] || 0), 0);
+  return { ventas: sum('ventas'), personal: sum('personal'), cargas: sum('cargas'), totCargas: sum('cargas'), neto: sum('neto'), staff: sum('staff'), shows: sh.length };
+}
 const nombreMes = per => MESES[+String(per).split('-')[1] - 1];
 
 // ══ Armado del informe ══
@@ -387,7 +413,7 @@ function dibujar() {
     { t: 'Impuesto a las Ganancias', v: T.iigg.monto, c: C.iigg },
   ].filter(x => x.v > 0);
 
-  const resumen = `En ${periodoTxt}, el Movistar Arena tuvo ingresos por <strong>${money(T.ventas)}</strong> (sin IVA) en ${T.shows} show${T.shows !== 1 ? 's' : ''} y egresos por <strong>${money(egresosTot)}</strong>, con un `
+  const resumen = `En ${periodoTxt}, el Movistar Arena tuvo ingresos por <strong>${money(T.ventas)}</strong> (sin IVA) en ${T.shows} show${T.shows !== 1 ? 's' : ''}${servMesVista().length ? ' más mesa de entrada' : ''} y egresos por <strong>${money(egresosTot)}</strong>, con un `
     + (T.neto >= 0 ? `<strong>resultado neto de ${money(T.neto)}</strong>, equivalente al ${p1(T.neto, T.ventas)} de los ingresos.` : `<strong>resultado neto negativo de ${money(-T.neto)}</strong>.`);
 
   const avisos = [];
@@ -429,7 +455,8 @@ function dibujar() {
   </tbody></table>`;
 
   // Ranking de shows: posición por resultado, margen frente al promedio y economía por puesto
-  const margenProm = T.ventas ? T.neto / T.ventas * 100 : 0;
+  const TS = totShowsVista(), servicios = servMesVista();
+  const margenProm = TS.ventas ? TS.neto / TS.ventas * 100 : 0;
   const porPuesto = x => x.staff ? x.neto / x.staff : 0;
   const puestoDe = {}; [...shows].sort((a, b) => b.neto - a.neto).forEach((s, i) => { puestoDe[s._i] = i + 1; });
   const cols = [
@@ -455,9 +482,11 @@ function dibujar() {
     return `<span class="vs ${d > 0 ? 'up' : 'down'}" title="${d > 0 ? 'Por encima' : 'Por debajo'} del margen promedio del período (${nf1(margenProm)}%)">${d > 0 ? '▲' : '▼'} ${nf1(Math.abs(d))}</span>`;
   };
   const staffCel = s => {
-    if (s.presentes == null || s.presentes === s.staff) return `${s.staff || '—'}`;
-    const dif = s.presentes - s.staff;
-    return `${s.staff}<small class="${dif > 0 ? 'warn' : ''}" title="${dif > 0 ? 'Hubo más presentes que los puestos facturados' : 'Quedaron puestos pedidos sin cubrir'}">${s.presentes} presentes</small>`;
+    const bk = s.backups?.cant || 0, fac = s.facturables ?? s.staff;
+    if (s.presentes == null) return `${s.staff || '—'}`;
+    if (bk) return `${s.staff}<small title="Orientadores de back-up convocados por encima de lo pedido: se pagan, no se facturan">+${bk} back-up${bk > 1 ? 's' : ''}</small>`;
+    if (s.presentes < fac) return `${s.staff}<small class="warn" title="Puestos pedidos que quedaron sin cubrir">${fac - s.presentes} sin cubrir</small>`;
+    return `${s.staff || '—'}`;
   };
   const detalle = `<table class="det rank"><thead><tr>${cols.map(th).join('')}</tr></thead>
     <tbody>${orden.map(s => `<tr class="clic" tabindex="0" title="Ver el detalle del show" onclick="abrirShow(${s._i})" onkeydown="if(event.key==='Enter'){abrirShow(${s._i})}">
@@ -465,12 +494,12 @@ function dibujar() {
       <td>${esc(s.nombre)}<small>${fecha(s.fecha)}${s.estimado ? ', costo estimado' : ''}</small></td><td>${staffCel(s)}</td>
       <td>${val(s.ventas, s.ventas)}</td><td>${val(egr(s), s.ventas)}</td><td class="res ${s.neto < 0 ? 'neg' : ''}">${val(s.neto, s.ventas)}</td>
       ${pct ? '' : `<td>${p1(s.neto, s.ventas)} ${vsProm(s)}</td>`}<td class="${porPuesto(s) < 0 ? 'neg' : ''}">${money(porPuesto(s))}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td></td><td>Total</td><td>${T.staff || '—'}</td><td>${val(T.ventas, T.ventas)}</td><td>${val(egresosTot, T.ventas)}</td><td class="res ${T.neto < 0 ? 'neg' : ''}">${val(T.neto, T.ventas)}</td>${pct ? '' : `<td>${p1(T.neto, T.ventas)}</td>`}<td>${money(T.staff ? T.neto / T.staff : 0)}</td></tr></tfoot></table>`;
+    <tfoot><tr><td></td><td>Total shows</td><td>${TS.staff || '—'}</td><td>${val(TS.ventas, TS.ventas)}</td><td>${val(TS.ventas - TS.neto, TS.ventas)}</td><td class="res ${TS.neto < 0 ? 'neg' : ''}">${val(TS.neto, TS.ventas)}</td>${pct ? '' : `<td>${p1(TS.neto, TS.ventas)}</td>`}<td>${money(TS.staff ? TS.neto / TS.staff : 0)}</td></tr></tfoot></table>`;
   const promedios = `<div class="proms">
-      <div><span>Resultado promedio por show</span><b>${money(T.shows ? T.neto / T.shows : 0)}</b></div>
+      <div><span>Resultado promedio por show</span><b>${money(TS.shows ? TS.neto / TS.shows : 0)}</b></div>
       <div><span>Margen promedio</span><b>${nf1(margenProm)}%</b></div>
-      <div><span>Ingreso por puesto</span><b>${money(T.staff ? T.ventas / T.staff : 0)}</b></div>
-      <div><span>Resultado por puesto</span><b class="${T.neto < 0 ? 'neg' : 'pos'}">${money(T.staff ? T.neto / T.staff : 0)}</b></div>
+      <div><span>Ingreso por puesto</span><b>${money(TS.staff ? TS.ventas / TS.staff : 0)}</b></div>
+      <div><span>Resultado por puesto</span><b class="${TS.neto < 0 ? 'neg' : 'pos'}">${money(TS.staff ? TS.neto / TS.staff : 0)}</b></div>
     </div>`;
 
   const altoShows = Math.max(200, shows.length * (pct ? 44 : 70) + 70);
@@ -499,7 +528,7 @@ function dibujar() {
     </div>
     ${avisos.map(a => `<div class="aviso">${a}</div>`).join('')}
     <section class="kpis">
-      ${kpi('ing', 'Ingresos (sin IVA)', money(T.ventas), `${T.shows} show${T.shows !== 1 ? 's' : ''}, ${T.staff} puestos`, delta(T.ventas, prev?.ventas))}
+      ${kpi('ing', 'Ingresos (sin IVA)', money(T.ventas), `${T.shows} show${T.shows !== 1 ? 's' : ''}, ${T.staff} puestos${servMesVista().length ? ' + mesa de entrada' : ''}`, delta(T.ventas, prev?.ventas))}
       ${kpi('egr', 'Egresos totales', money(egresosTot), `${p1(egresosTot, T.ventas)} de los ingresos`, delta(egresosTot, prev ? prev.ventas - prev.neto : null, { invertir: true }))}
       ${kpi('neto', 'Resultado neto', money(T.neto), 'ingresos menos egresos', delta(T.neto, prev?.neto))}
       ${kpi('mar', 'Margen neto', p1(T.neto, T.ventas), 'resultado sobre ingresos', prev ? delta(margen(T), margen(prev), { pp: true }) : '')}
@@ -513,6 +542,13 @@ function dibujar() {
       ${shows.length > 1 ? `<div class="sxchart"><div class="subh">Ingresos, egresos y resultado de cada show</div>
       <div class="chart" style="height:${altoShows}px"><canvas id="gShows" aria-label="Resultado por show" role="img"></canvas></div></div>` : ''}
     </section>
+    ${servicios.length ? `<section class="panel servm">
+      <h2>Servicios mensuales</h2>
+      <p class="desc">Se facturan y liquidan por mes, no por show. Están incluidos en el resultado del área.</p>
+      <div class="tw"><table><thead><tr><th>Servicio</th><th>Ingresos</th><th>Personal</th><th>Cargas e impuestos</th><th>Resultado neto</th><th>Margen</th></tr></thead><tbody>
+        ${servicios.map(x => `<tr><td>${esc(x.nombre)}<small>${x.meses > 1 ? `${x.meses} meses` : 'mensual'}${x.estimado ? ', valores estimados' : ''}</small></td><td>${money(x.ventas)}</td><td>${money(x.personal)}</td><td>${money(x.cargas + x.impuestos + x.iigg)}</td><td class="res ${x.neto < 0 ? 'neg' : ''}">${money(x.neto)}</td><td>${p1(x.neto, x.ventas)}</td></tr>`).join('')}
+      </tbody></table></div>
+    </section>` : ''}
     <div class="grid2">
       <section class="panel">
         <h2>Ingresos, egresos y resultado</h2>
@@ -587,7 +623,7 @@ window.moverShow = function(paso) {
 window.abrirShow = function(i) {
   const s = S.d.shows[i]; if (!s) return;
   S.abierto = i;
-  const E = S.d.estructura || {}, T = totalesVista(), vis = showsVisibles();
+  const E = S.d.estructura || {}, T = totShowsVista(), vis = showsVisibles();
   const cargas = (E.cargas || []).filter(x => (x.nombre || '').trim()).map(x => ({ n: x.nombre.trim(), p: +x.pct || 0, m: Math.round(s.personal * (+x.pct || 0) / 100) }));
   const imps = (E.impuestos || []).filter(x => (x.nombre || '').trim()).map(x => ({ n: x.nombre.trim(), p: +x.pct || 0, m: Math.round(s.ventas * (+x.pct || 0) / 100) }));
   const f = (lbl, v, tipo = '') => `<tr class="${tipo}"><td>${lbl}</td><td>${tipo === 'menos' && v ? '−' + money(v) : money(v)}</td><td>${p1(tipo === 'menos' ? -v : v, s.ventas)}</td></tr>`;
@@ -606,10 +642,13 @@ window.abrirShow = function(i) {
   // Staff pedido vs presentes
   let staffNota = '';
   if (s.presentes != null && st) {
-    const dif = s.presentes - st;
-    staffNota = dif === 0 ? `<div class="stf ok">Staff completo: ${st} puestos pedidos y ${s.presentes} presentes.</div>`
-      : dif > 0 ? `<div class="stf warn">Hubo <b>${dif} presente${dif > 1 ? 's' : ''} más</b> que los ${st} puestos facturados: ese costo de personal no se le facturó al Arena.</div>`
-      : `<div class="stf">${-dif} puesto${-dif > 1 ? 's' : ''} pedido${-dif > 1 ? 's' : ''} sin cubrir: ${s.presentes} presentes de ${st} facturados.</div>`;
+    const fac = s.facturables ?? st, bk = s.backups?.cant ?? Math.max(0, s.presentes - fac), cg = s.cargasAparte, co = s.coordinador;
+    const partes = [];
+    partes.push(`<b>${fac}</b> puestos de sala facturados${cg?.cant ? ` y <b>${cg.cant}</b> cargas / stagehands` : ''}`);
+    if (bk) partes.push(`<b>${bk}</b> back-up${bk > 1 ? 's' : ''} convocado${bk > 1 ? 's' : ''} por encima de lo pedido${s.backups?.monto ? ` (${money(s.backups.monto)}, no facturables)` : ' (no facturables)'}`);
+    else if (s.presentes < fac) partes.push(`<b>${fac - s.presentes}</b> puesto${fac - s.presentes > 1 ? 's' : ''} pedido${fac - s.presentes > 1 ? 's' : ''} sin cubrir`);
+    if (co?.cant) partes.push(`coordinación a cargo de SBS (${money(co.monto)})`);
+    staffNota = `<div class="stf">${partes.join(' · ')}.</div>`;
   }
   // Dónde se facturó (zonas) y costo por posición
   const zonas = s.zonas || [], posis = s.posiciones || [];
@@ -619,7 +658,7 @@ window.abrirShow = function(i) {
       <div class="fb-bar"><div style="width:${z.monto / zMax * 100}%;background:${C.ing}"></div></div>
       <div class="fb-s">${p1(z.monto, s.ventas)} de los ingresos del show</div></div>`).join('')}</div>` : '';
   const bloquePos = posis.length ? `<div class="blq"><h4>Costo de personal por posición</h4>${posis.map(p => `<div class="fila-b">
-      <div class="fb-t"><span>${esc(p.posicion)} <small>${p.cant} jornada${p.cant !== 1 ? 's' : ''}</small></span><b>${money(p.monto)}</b></div>
+      <div class="fb-t"><span>${esc(p.posicion)} <small>${p.cant} ${p.aparte ? 'puesto' + (p.cant !== 1 ? 's' : '') : 'jornada' + (p.cant !== 1 ? 's' : '')}${p.sbs ? ' · a cargo de SBS' : ''}${p.aparte ? ` · liquidados aparte, ${esc(s.cargasAparte?.origen || 'estimado')}` : ''}</small></span><b>${money(p.monto)}</b></div>
       <div class="fb-bar"><div style="width:${p.monto / pMax * 100}%;background:${C.personal}"></div></div>
       <div class="fb-s">${p1(p.monto, s.personal)} de lo liquidado${p.cant ? ` · ${money(p.monto / p.cant)} por jornada` : ''}</div></div>`).join('')}
       <div class="fb-nota">Sin cargas sociales (${money(s.cargas)} aparte).</div></div>` : '';
@@ -673,10 +712,11 @@ window.abrirShow = function(i) {
 window.descargarPlanilla = function() {
   const shows = showsVisibles(), T = totalesVista();
   const n = v => String(Math.round((v || 0) * 100) / 100).replace('.', ',');
-  const head = ['Show', 'Fecha', 'Staff facturado', 'Presentes', 'Ingresos (sin IVA)', 'Liquidaciones al personal', 'Cargas sociales', 'Impuestos sobre ventas', 'Costos fijos', 'Impuesto a las Ganancias', 'Total egresos', 'Resultado neto', 'Margen neto %', 'Ingreso por puesto', 'Resultado por puesto'];
+  const head = ['Show', 'Fecha', 'Staff facturado', 'Presentes', 'Back-ups', 'Ingresos (sin IVA)', 'Liquidaciones al personal', 'Cargas sociales', 'Impuestos sobre ventas', 'Costos fijos', 'Impuesto a las Ganancias', 'Total egresos', 'Resultado neto', 'Margen neto %', 'Ingreso por puesto', 'Resultado por puesto'];
   const filas = (S.ordenVisible || shows.map(s => s._i)).map(i => S.d.shows[i]).map(s =>
-    [s.nombre, fecha(s.fecha), s.staff || 0, s.presentes ?? '', n(s.ventas), n(s.personal), n(s.cargas), n(s.impuestos), n(s.fijos), n(s.iigg), n(egr(s)), n(s.neto), n(s.ventas ? s.neto / s.ventas * 100 : 0), n(s.staff ? s.ventas / s.staff : 0), n(s.staff ? s.neto / s.staff : 0)]);
-  filas.push(['Total', '', T.staff || 0, shows.reduce((a, x) => a + (x.presentes || 0), 0) || '', n(T.ventas), n(T.personal), n(T.totCargas), n(T.totImp), n(T.fijos), n(T.iigg.monto), n(T.ventas - T.neto), n(T.neto), n(T.ventas ? T.neto / T.ventas * 100 : 0), n(T.staff ? T.ventas / T.staff : 0), n(T.staff ? T.neto / T.staff : 0)]);
+    [s.nombre, fecha(s.fecha), s.staff || 0, s.presentes ?? '', s.backups?.cant ?? '', n(s.ventas), n(s.personal), n(s.cargas), n(s.impuestos), n(s.fijos), n(s.iigg), n(egr(s)), n(s.neto), n(s.ventas ? s.neto / s.ventas * 100 : 0), n(s.staff ? s.ventas / s.staff : 0), n(s.staff ? s.neto / s.staff : 0)]);
+  servMesVista().forEach(x => filas.push([`${x.nombre} (servicio mensual)`, '', '', '', '', n(x.ventas), n(x.personal), n(x.cargas), n(x.impuestos), '', n(x.iigg), n(x.ventas - x.neto), n(x.neto), n(x.ventas ? x.neto / x.ventas * 100 : 0), '', '']));
+  filas.push(['Total', '', T.staff || 0, shows.reduce((a, x) => a + (x.presentes || 0), 0) || '', shows.reduce((a, x) => a + (x.backups?.cant || 0), 0) || '', n(T.ventas), n(T.personal), n(T.totCargas), n(T.totImp), n(T.fijos), n(T.iigg.monto), n(T.ventas - T.neto), n(T.neto), n(T.ventas ? T.neto / T.ventas * 100 : 0), n(T.staff ? T.ventas / T.staff : 0), n(T.staff ? T.neto / T.staff : 0)]);
   const q = x => { const t = String(x); return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
   const csv = '\ufeff' + [head, ...filas].map(r => r.map(q).join(';')).join('\r\n');
   const a = document.createElement('a');
@@ -862,9 +902,13 @@ function vTitulo(ctx, t, titulo, sub) {
 function vTexto(ctx, t, ini, txt) {
   const a = vEase(vIn(t, ini, 0.6)); if (!a) return;
   ctx.save(); ctx.globalAlpha *= a;
-  ctx.fillStyle = C.neto; ctx.fillRect(120, 884, 7, 74);
-  ctx.fillStyle = '#1f2421'; ctx.font = vF(500, 34); ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-  vWrap(ctx, txt, 152, 884, 1640, 44);
+  // Si el texto no entra en dos renglones, se achica la letra para no pisar el pie de la diapositiva
+  const lineas = (px) => { ctx.font = vF(500, px); const pal = String(txt).split(' '); let l = '', n = 0; for (const p of pal) { const t2 = l ? l + ' ' + p : p; if (ctx.measureText(t2).width > 1640 && l) { n++; l = p; } else l = t2; } return n + (l ? 1 : 0); };
+  let px = 34; while (px > 24 && lineas(px) > 2) px -= 2;
+  const lh = Math.round(px * 1.3), alto = Math.min(2, lineas(px)) * lh - (lh - px);
+  ctx.fillStyle = C.neto; ctx.fillRect(120, 884, 7, Math.max(alto + 6, 40));
+  ctx.fillStyle = '#1f2421'; ctx.font = vF(500, px); ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  vWrap(ctx, txt, 152, 884, 1640, lh);
   ctx.restore();
 }
 const vLeyenda = (ctx, items, xDer, y) => {
@@ -1022,7 +1066,7 @@ function escShows(ctx, t) {
 
 // ── Escenas show por show (video) ──
 function escRanking(ctx, t) {
-  const { shows, T } = V.data;
+  const { shows, TS: T } = V.data;
   const lista = [...shows].sort((a, b) => b.neto - a.neto).slice(0, 8), n = lista.length;
   const mProm = T.ventas ? T.neto / T.ventas * 100 : 0;
   vTitulo(ctx, t, 'Ranking de shows', `Ordenados por resultado neto · margen promedio del período: ${nf1(mProm)}%`);
@@ -1071,16 +1115,17 @@ function escRanking(ctx, t) {
 }
 
 function vSpot(ctx, t, s, tipo) {
-  const { T, shows } = V.data;
+  const { TS: T, shows } = V.data;
   const mProm = T.ventas ? T.neto / T.ventas * 100 : 0, mg = s.ventas ? s.neto / s.ventas * 100 : 0;
   const rpP = T.staff ? T.neto / T.staff : 0, rp = s.staff ? s.neto / s.staff : 0;
   const cpP = T.staff ? (T.personal + T.totCargas) / T.staff : 0, cp = s.staff ? (s.personal + s.cargas) / s.staff : 0;
   const puesto = [...shows].sort((a, b) => b.neto - a.neto).findIndex(x => x === s) + 1;
+  const bkc = s.backups?.cant ?? (s.presentes != null && (s.facturables ?? s.staff) ? Math.max(0, s.presentes - (s.facturables ?? s.staff)) : 0);
   vTitulo(ctx, t, tipo === 'top' ? 'Show destacado' : 'El show con menor margen', tipo === 'top' ? `El de mayor resultado del período · puesto 1 de ${shows.length}` : `Puesto ${puesto} de ${shows.length} por resultado`);
   const a = vEase(vIn(t, 0.4, 0.7));
   ctx.save(); ctx.globalAlpha *= a; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 84); ctx.fillText(s.nombre, 120, 340 + (1 - a) * 20);
-  ctx.fillStyle = C.muted; ctx.font = vF(400, 30); ctx.fillText(`${fecha(s.fecha)}${s.staff ? ` · ${s.staff} puestos facturados` : ''}${s.presentes != null && s.presentes !== s.staff ? ` · ${s.presentes} presentes` : ''}`, 120, 392);
+  ctx.fillStyle = C.muted; ctx.font = vF(400, 30); ctx.fillText(`${fecha(s.fecha)}${s.staff ? ` · ${s.staff} puestos facturados` : ''}${bkc ? ` · ${bkc} back-up${bkc > 1 ? 's' : ''}` : ''}`, 120, 392);
   ctx.restore();
   const cajas = [
     ['Resultado neto', money(s.neto), `${money(s.ventas)} de ingresos`, s.neto >= 0 ? C.neto : C.loss],
@@ -1131,7 +1176,8 @@ function vSpot(ctx, t, s, tipo) {
     ctx.restore();
   }
   // por qué: la explicación más relevante según los datos
-  const dif = s.presentes != null && s.staff ? s.presentes - s.staff : 0;
+  const fac = s.facturables ?? s.staff;
+  const dif = bkc || (s.presentes != null && fac ? s.presentes - fac : 0);
   const zTop = (s.zonas || [])[0];
   let txt;
   if (tipo === 'top') {
@@ -1140,7 +1186,7 @@ function vSpot(ctx, t, s, tipo) {
     if (dif < 0) txt += ` Trabajó con ${-dif} puesto${-dif > 1 ? 's' : ''} menos que los facturados.`;
   } else {
     txt = `Su margen quedó ${nf1(Math.abs(mg - mProm))} puntos por debajo del promedio.`;
-    if (dif > 0) txt += ` Hubo ${dif} presente${dif > 1 ? 's' : ''} más que los ${s.staff} puestos facturados, y el costo de personal por puesto fue ${nf1((cp - cpP) / Math.abs(cpP) * 100)}% más alto que el promedio.`;
+    if (dif > 0) txt += ` Se convocaron ${dif} back-up${dif > 1 ? 's' : ''} (no facturables) sobre ${fac} puestos pedidos, y el costo de personal por puesto fue ${nf1((cp - cpP) / Math.abs(cpP) * 100)}% más alto que el promedio.`;
     else if (cp > cpP * 1.03) txt += ` El costo de personal por puesto fue ${nf1((cp - cpP) / Math.abs(cpP) * 100)}% más alto que el promedio.`;
     else if (s.staff && s.ventas / s.staff < T.ventas / T.staff * 0.97) txt += ` Facturó menos por puesto que el promedio (${money(s.ventas / s.staff)} contra ${money(T.ventas / T.staff)}).`;
   }
@@ -1318,7 +1364,7 @@ function vConectarEventos() {
 function vSoltarTip() { const t = $('vtip'); if (t) t.style.display = 'none'; V.tipFijo = false; }
 
 function vPreparar() {
-  const T = totalesVista(), shows = showsVisibles(), d = S.d, eg = T.ventas - T.neto;
+  const T = totalesVista(), TS = totShowsVista(), shows = showsVisibles(), d = S.d, eg = T.ventas - T.neto;
   const per = S.mes ? d.meses.find(x => x.periodo === S.mes).label : d.periodoLabel;
   const egresos = [
     { t: 'Liquidaciones al personal', v: T.personal, c: C.personal },
@@ -1331,7 +1377,7 @@ function vPreparar() {
   let lista = [...shows], recorte = false;
   if (lista.length > MAX) { lista = lista.sort((a, b) => b.ventas - a.ventas).slice(0, MAX); recorte = true; }
   lista.sort((a, b) => a.fecha.localeCompare(b.fecha));
-  V.data = { T, shows, eg, per, egresos, lista, recorte };
+  V.data = { T, TS, shows, eg, per, egresos, lista, recorte };
   V.escenas = [
     { dur: 5, draw: escPortada, marco: false },
     { dur: 8, draw: escResumen },
@@ -1339,7 +1385,7 @@ function vPreparar() {
     { dur: 9.5, draw: escTorta },
     { dur: 6.5 + lista.length * 0.45, draw: escShows },
     ...(shows.length >= 2 ? [{ dur: 6.5 + Math.min(8, shows.length) * 0.5, draw: escRanking }, { dur: 8, draw: escDestacado }] : []),
-    ...(shows.length >= 3 && (() => { const pm = T.ventas ? T.neto / T.ventas : 0; const w = [...shows].sort((a, b) => a.neto / a.ventas - b.neto / b.ventas)[0]; return w.neto / w.ventas < pm - 0.005; })() ? [{ dur: 8, draw: escAlerta }] : []),
+    ...(shows.length >= 3 && (() => { const pm = TS.ventas ? TS.neto / TS.ventas : 0; const w = [...shows].sort((a, b) => a.neto / a.ventas - b.neto / b.ventas)[0]; return w.neto / w.ventas < pm - 0.005; })() ? [{ dur: 8, draw: escAlerta }] : []),
     ...(d.tipo === 'anio' && !S.mes && d.meses?.length > 1 ? [{ dur: 7 + d.meses.length * 0.4, draw: escMeses }] : []),
     { dur: 8.5, draw: escEERR },
     { dur: 5.5, draw: escCierre, marco: false },

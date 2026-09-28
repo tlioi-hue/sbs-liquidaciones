@@ -197,6 +197,26 @@ input:disabled, select:disabled { opacity: .6; cursor: not-allowed; background: 
 /* ── Loading overlay ── */
 .loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,.7); display: flex; align-items: center; justify-content: center; z-index: 300; }
 .loading-box { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px 32px; text-align: center; box-shadow: var(--shadow); }
+.nota-proy { font-size: 12.5px; color: var(--text2); background: var(--card2); border-radius: 8px; padding: 8px 11px; margin-bottom: 8px; }
+.nota-proy.ok { color: #1a7a3e; background: #eaf5ee; }
+tr.clic { cursor: pointer; } tr.clic:hover td { background: var(--card2); }
+.grilla { border-collapse: collapse; font-size: 12px; min-width: 100%; }
+.grilla th, .grilla td { border-bottom: 1px solid var(--border); padding: 0; text-align: center; }
+.grilla th.gd { font-weight: 500; color: var(--text2); font-size: 10.5px; padding: 4px 0; width: 26px; min-width: 26px; position: relative; line-height: 1.2; }
+.grilla th.gd.fs { background: var(--card2); }
+.grilla th.gd.sh i { display: block; width: 5px; height: 5px; border-radius: 50%; background: #2d6a2d; margin: 2px auto 0; }
+.grilla .gn { text-align: left; padding: 6px 28px 6px 10px; min-width: 190px; position: sticky; left: 0; background: var(--card); z-index: 1; font-size: 12px; }
+.grilla .gn div { font-size: 11px; color: var(--text2); }
+.grilla .gx { position: absolute; right: 6px; top: 8px; border: 0; background: none; color: var(--text2); cursor: pointer; font-size: 15px; }
+.grilla td.gn { position: sticky; }
+.grilla .gc { width: 26px; height: 30px; cursor: pointer; font-weight: 600; color: #2d6a2d; }
+.grilla .gc:hover { background: var(--card2); }
+.grilla .gc.p { background: #e6f2e8; }
+.grilla .gc.lk { cursor: not-allowed; opacity: .75; }
+.grilla .gc.tot { cursor: default; color: var(--text); font-weight: 600; background: none; }
+.grilla .gc.tot.mal { color: #b45309; background: #fff4e6; }
+.grilla .gt { font-weight: 700; padding: 0 10px; }
+.grilla tfoot td { background: var(--card2); }
 </style>
 </head>
 <body>
@@ -248,12 +268,14 @@ input:disabled, select:disabled { opacity: .6; cursor: not-allowed; background: 
         <div class="sb-sec">Liquidaciones</div>
         <div class="sb-item" onclick="go('externos')"  id="n-externos"><i class="ti ti-world"></i> Externos</div>
         <div class="sb-item" onclick="go('arena')"     id="n-arena"><i class="ti ti-building"></i> Movistar Arena</div>
+        <div class="sb-item" onclick="go('servicios')" id="n-servicios"><i class="ti ti-users-group"></i> Cargas y Mesa de entrada</div>
         <div class="sb-item" onclick="go('fijos')"     id="n-fijos"><i class="ti ti-calendar-repeat"></i> Servicios Fijos</div>
         <div class="sb-sec">Facturación</div>
         <div class="sb-item" onclick="go('facturacion')" id="n-facturacion"><i class="ti ti-file-invoice"></i> Facturación Movistar Arena</div>
         <div class="sb-sec">Análisis</div>
         <div class="sb-item" onclick="go('rentabilidad')" id="n-rentabilidad"><i class="ti ti-chart-bar"></i> Facturación vs Liquidación</div>
         <div class="sb-item" onclick="go('informes')" id="n-informes"><i class="ti ti-presentation-analytics"></i> Informes a socios</div>
+        <div class="sb-item" onclick="go('proyecciones')" id="n-proyecciones"><i class="ti ti-crystal-ball"></i> Proyecciones</div>
       </div>
       <div class="sb-bottom">
         <div class="sb-user">
@@ -410,7 +432,7 @@ function loading(show) {
   } else { if (ov) ov.style.display = 'none'; }
 }
 
-const TITLES = { db:'Dashboard', personal:'Personal', tarifario:'Tarifario', importar:'Importar planilla', cbu:'Importar CBU', externos:'Externos', arena:'Movistar Arena', fijos:'Servicios Fijos', facturacion:'Facturación Movistar Arena', rentabilidad:'Facturación vs Liquidación', informes:'Informes a socios' };
+const TITLES = { db:'Dashboard', personal:'Personal', tarifario:'Tarifario', importar:'Importar planilla', cbu:'Importar CBU', externos:'Externos', arena:'Movistar Arena', fijos:'Servicios Fijos', facturacion:'Facturación Movistar Arena', rentabilidad:'Facturación vs Liquidación', informes:'Informes a socios', proyecciones:'Proyecciones', servicios:'Cargas y Mesa de entrada · Movistar Arena' };
 
 async function go(page) {
   APP.page = page;
@@ -427,7 +449,7 @@ async function render() {
   const ac = document.getElementById('topbar-ac');
   loading(true);
   try {
-    await ({ db:pgDB, personal:pgPersonal, tarifario:pgTarifario, importar:pgImportar, cbu:pgCBU, externos:pgExternos, arena:pgArena, fijos:pgFijos, facturacion:pgFacturacion, rentabilidad:pgRentabilidad, informes:pgInformes })[APP.page]?.(el, ac);
+    await ({ db:pgDB, personal:pgPersonal, tarifario:pgTarifario, importar:pgImportar, cbu:pgCBU, externos:pgExternos, arena:pgArena, fijos:pgFijos, facturacion:pgFacturacion, rentabilidad:pgRentabilidad, informes:pgInformes, proyecciones:pgProyecciones, servicios:pgServicios })[APP.page]?.(el, ac);
   } catch (e) {
     el.innerHTML = `<div class="alert alert-warn"><i class="ti ti-alert-circle"></i> Error cargando: ${e.message}</div>`;
     console.error(e);
@@ -445,7 +467,7 @@ async function fetchAll() {
     try { await _syncMesesPending; } catch (e) { /* ya se loguea en syncMesesFijos */ }
     _syncMesesPending = null;
   }
-  const [p, t, ev, q, liq, mf, me, fa] = await Promise.all([
+  const [p, t, ev, q, liq, mf, me, fa, ta, sa] = await Promise.all([
     sb.from('personal').select('*').order('apellido'),
     sb.from('tarifario').select('*').order('posicion'),
     sb.from('eventos').select('*, fechas(*, presentismo(*))').order('created_at'),
@@ -454,6 +476,8 @@ async function fetchAll() {
     sb.from('meses_fijos').select('*').order('updated_at', { ascending: false }),
     sb.from('mapeos_externos').select('seccion_norm, posicion'),
     sb.from('facturaciones').select('*').order('fecha', { ascending: false }),
+    sb.from('tarifario_arena').select('*'),
+    sb.from('servicios_arena').select('*'),
   ]);
   APP.personal      = p.data  || [];
   APP.tarifario     = t.data  || [];
@@ -461,6 +485,10 @@ async function fetchAll() {
   APP.quincenas     = q.data  || [];
   APP.liquidaciones = liq.data || [];
   APP.facturaciones = (!fa.error && fa.data) ? fa.data : [];
+  APP.tarArena = (!ta.error && ta.data) ? ta.data : [];
+  APP.tarArenaError = !!ta.error;
+  APP.servArena = (!sa.error && sa.data) ? sa.data : [];
+  APP.servArenaError = !!sa.error;
 
   // Meses de Servicios Fijos: Supabase es la fuente de verdad; localStorage queda como caché local
   const localesGuardados = JSON.parse(localStorage.getItem('sbs_meses_fijos') || '[]');
@@ -3959,6 +3987,69 @@ function mesLabel(k) {
   return `${M[(+m) - 1] || m} ${y}`;
 }
 
+
+// ══════════════════════════════════════════════
+// TARIFARIO ARENA MENSUAL (sueldo neto a pagar / venta por día al Arena), según paritarias
+// ══════════════════════════════════════════════
+const TAR_CATS = ['ORIENTADOR', 'CORTATICKET', 'VIP', 'RECEPCIONES PREMIUM', 'AUX ADMINISTRATIVO', 'SUPERVISOR', 'SUPERVISOR VIP', 'SUPERVISOR DE CORTATICKET', 'COORDINADOR ON SITE', 'CARGAS'];
+const TAR_LBL = c => c.charAt(0) + c.slice(1).toLowerCase().replace('vip', 'VIP');
+const normTxt = x => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+// A qué renglón del tarifario corresponde cada puesto del pedido del Arena
+function catDeRecurso(recurso) {
+  const r = normTxt(recurso);
+  if (/stagehand|carga|previa/.test(r)) return 'CARGAS';
+  if (/mol.*super|super.*cortatick/.test(r)) return 'SUPERVISOR DE CORTATICKET';
+  if (/super.*vip|vip.*super/.test(r)) return 'SUPERVISOR VIP';
+  if (/super/.test(r)) return 'SUPERVISOR';
+  if (/cortatick/.test(r)) return 'CORTATICKET';
+  if (/recepci/.test(r)) return 'RECEPCIONES PREMIUM';
+  if (/coordin/.test(r)) return 'COORDINADOR ON SITE';
+  if (/aux|firma|administr/.test(r)) return 'AUX ADMINISTRATIVO';
+  if (/^vip\b|\bvip\b/.test(r)) return 'VIP';
+  return 'ORIENTADOR';
+}
+const esCoordinador = pos => /coordin/i.test(normTxt(pos));
+// Servicios mensualizados del Arena (se facturan y liquidan por mes, no por show)
+const SERV_MENSUALES = [{ key: 'MESA DE ENTRADA', nombre: 'Mesa de entrada' }];
+// Presentismo de cargas cargado para un mes: { dias: { 'AAAA-MM-DD': cantidad } }
+function cargasPresentismo(periodo) {
+  const d = (APP.servArena || []).find(x => x.id === 'cargas-' + periodo)?.data;
+  if (d?.pres && Object.keys(d.pres).length) { const dias = {}; Object.values(d.pres).forEach(fs => fs.forEach(f => { dias[f] = (dias[f] || 0) + 1; })); return { dias }; }
+  return (APP.tarArena || []).find(x => x.periodo === 'cargas-' + periodo)?.filas || null;
+}
+// Servicios mensuales activos de un mes, con sus montos (del tarifario, o ajustados para ese mes)
+function serviciosMes(periodo) {
+  const tm = getTarifaMes(periodo), aj = (APP.tarArena || []).find(x => x.periodo === 'serv-' + periodo)?.filas || {};
+  return SERV_MENSUALES.map(sv => {
+    const t = tm?.filas?.[sv.key] || {}, o = aj[sv.key] || {};
+    if (o.activo === false) return null;
+    const venta = o.venta ?? t.venta, sueldo = o.sueldo ?? t.sueldo;
+    if (!venta && !sueldo) return null;
+    return { key: sv.key, nombre: sv.nombre, periodo, venta: venta || 0, sueldo: sueldo || 0, origen: o.venta != null || o.sueldo != null ? 'ajustado' : (tm?.origen || 'cargado') };
+  }).filter(Boolean);
+}
+function tarConfig() { const c = (APP.tarArena || []).find(x => x.periodo === 'config'); return { aumento: 2, ...(c?.filas || {}) }; }
+const mesesEntre = (a, b) => { const [y1, m1] = a.split('-').map(Number), [y2, m2] = b.split('-').map(Number); return (y2 - y1) * 12 + (m2 - m1); };
+// Tarifa de un mes: la cargada, o la última anterior con el aumento mensual aplicado por cada mes de diferencia
+function getTarifaMes(periodo) {
+  const cargados = (APP.tarArena || []).filter(x => /^\d{4}-\d{2}$/.test(x.periodo)).sort((a, b) => a.periodo.localeCompare(b.periodo));
+  const exacto = cargados.find(x => x.periodo === periodo);
+  if (exacto) return { filas: exacto.filas || {}, origen: 'cargado', desde: periodo };
+  const previo = cargados.filter(x => x.periodo < periodo).pop();
+  if (!previo) return null;
+  const n = mesesEntre(previo.periodo, periodo), f = Math.pow(1 + (tarConfig().aumento || 0) / 100, n), filas = {};
+  Object.entries(previo.filas || {}).forEach(([c, v]) => { filas[c] = { ...v, sueldo: Math.round((v.sueldo || 0) * f), venta: Math.round((v.venta || 0) * f) }; });
+  return { filas, origen: 'estimado', desde: previo.periodo, meses: n, aumento: tarConfig().aumento };
+}
+// Pedido de un show agrupado por renglón del tarifario: { CAT: cantidad }
+function pedidoPorCat(facsShow) {
+  const out = {};
+  facsShow.forEach(f => (f.detalle?.secciones || []).forEach(sec => (sec.items || []).forEach(it => {
+    const c = catDeRecurso(it.recurso); out[c] = (out[c] || 0) + (it.cant || 0);
+  })));
+  return out;
+}
+
 // El análisis de rentabilidad arranca en este show: antes no hay números de facturación.
 const RENT_DESDE = '2026-09-22';
 
@@ -3983,7 +4074,9 @@ function rentPorShow() {
       const fechasShow = new Set((ev.fechas || []).map(x => x.fecha).concat(ev.fecha ? [ev.fecha] : []));
       let costo = 0, estimado = false;
       const posiciones = {};   // costo de personal por posición: { posición: { cant, monto } }
-      const sumPos = (pos, monto) => { const k = pos || 'Sin posición'; (posiciones[k] = posiciones[k] || { cant: 0, monto: 0 }); posiciones[k].cant++; posiciones[k].monto += monto || 0; };
+      const coord = { cant: 0, monto: 0 };   // coordinador: a cargo de SBS, no se factura
+      const sumPos = (pos, monto) => { const k = pos || 'Sin posición'; (posiciones[k] = posiciones[k] || { cant: 0, monto: 0 }); posiciones[k].cant++; posiciones[k].monto += monto || 0;
+        if (esCoordinador(k)) { coord.cant++; coord.monto += monto || 0; } };
       if (q?.cerrada) {
         APP.liquidaciones.filter(l => l.quincena_id === q.id).forEach(l => {
           let det = l.detalle;
@@ -3998,8 +4091,30 @@ function rentPorShow() {
           const m = getTarifa(p.posicion, 'Movistar Arena')?.monto || 0; costo += m; sumPos(p.posicion, m);
         }));
       }
-      const presentes = (ev.fechas || []).reduce((a, fe) => a + (fe.presentismo || []).length, 0);
-      return { ev, fISO, facturado, facturadoIva, costo, estimado, ganancia: facturado - costo, nFac: f.length, posiciones, presentes };
+      // Presentes de la planilla, sin el coordinador (que no se factura)
+      const presentes = (ev.fechas || []).reduce((a, fe) => a + (fe.presentismo || []).filter(p => !esCoordinador(p.posicion)).length, 0);
+      // Cargas / stagehands: se facturan en el pedido pero se liquidan en otra planilla.
+      // Costo = el real cargado, o cantidad del pedido × sueldo neto del renglón CARGAS del tarifario del mes.
+      const pedido = f.reduce((a, x) => a + (x.cant_staff || 0), 0);
+      const cargasCant = pedidoPorCat(f).CARGAS || 0;
+      const reales = f.map(x => x.detalle?.cargasCostoReal).filter(v => v != null && v !== '');
+      let cargasCosto = 0, cargasOrigen = 'sin cargas';
+      if (cargasCant) {
+        const cp = cargasPresentismo(fISO.slice(0, 7)), cDia = cp?.dias?.[fISO];
+        if (reales.length) { cargasCosto = reales.reduce((a, v) => a + (+v || 0), 0); cargasOrigen = 'real'; }
+        else if (cDia != null && getTarifaMes(fISO.slice(0, 7))?.filas?.CARGAS?.sueldo) { cargasCosto = cDia * getTarifaMes(fISO.slice(0, 7)).filas.CARGAS.sueldo; cargasOrigen = `presentismo (${cDia})`; }
+        else { const tm = getTarifaMes(fISO.slice(0, 7)); const sc = tm?.filas?.CARGAS?.sueldo;
+          if (sc) { cargasCosto = cargasCant * sc; cargasOrigen = tm.origen === 'cargado' ? 'estimado' : 'estimado (tarifario proyectado)'; } else cargasOrigen = 'sin tarifario'; }
+        costo += cargasCosto;
+        posiciones['Cargas / stagehands'] = { cant: cargasCant, monto: cargasCosto, aparte: true, origen: cargasOrigen };
+      }
+      // Back-ups: presentes por encima de lo pedido (sin cargas ni coordinador). Se pagan, no se facturan.
+      const facturables = Math.max(0, pedido - cargasCant);
+      const backups = f.length && presentes > facturables ? presentes - facturables : 0;
+      const oriPos = Object.entries(posiciones).find(([k]) => /orientador/i.test(k));
+      const costoOri = oriPos && oriPos[1].cant ? oriPos[1].monto / oriPos[1].cant : (getTarifaMes(fISO.slice(0, 7))?.filas?.ORIENTADOR?.sueldo || 0);
+      return { ev, fISO, facturado, facturadoIva, costo, estimado, ganancia: facturado - costo, nFac: f.length, posiciones, presentes,
+               pedido, cargasCant, cargasCosto, cargasOrigen, coord, backups, backupsCosto: Math.round(backups * costoOri), facturables };
     })
     .sort((a, b) => b.fISO.localeCompare(a.fISO));
 }
@@ -4017,6 +4132,7 @@ async function pgRentabilidad(el, ac) {
   const pct = (g, f) => f ? Math.round(g / f * 100) : 0;
   const col = g => g >= 0 ? '#1a7a3e' : '#b45309';
   el.innerHTML = `
+    <div style="float:right"><button class="btn" onclick="go('servicios')" title="Presentismo, liquidación y facturación de cargas y mesa de entrada"><i class="ti ti-users-group"></i> Cargas y Mesa de entrada</button></div>
     <div style="margin-bottom:14px"><h2 style="margin:0">Facturación vs Liquidación</h2>
       <div style="color:var(--text2);font-size:13px">Margen de Movistar Arena por show, desde el ${fd(RENT_DESDE)}: lo facturado al Arena (sin IVA) menos lo liquidado al personal.</div></div>
     <div class="grid3" style="margin-bottom:16px">
@@ -4027,7 +4143,7 @@ async function pgRentabilidad(el, ac) {
     <div class="card" style="padding:0;overflow:hidden">
       <table class="tbl"><thead><tr>
         <th>Show</th><th style="text-align:right">Facturado s/IVA</th><th style="text-align:right">Facturado c/IVA</th>
-        <th style="text-align:right">Liquidado</th><th style="text-align:right">Margen s/ personal</th><th style="text-align:center">Margen</th>
+        <th style="text-align:right">Liquidado</th><th style="text-align:right" title="Se facturan en el pedido pero se liquidan en otra planilla">Cargas (aparte)</th><th style="text-align:right">Margen s/ personal</th><th style="text-align:center">Margen</th>
       </tr></thead><tbody>
       ${filas.length ? filas.map(r => `<tr>
         <td><strong>${r.ev.nombre}</strong> <span style="color:var(--text2);font-size:12px">· ${fd(r.fISO)}</span>
@@ -4035,20 +4151,88 @@ async function pgRentabilidad(el, ac) {
           ${r.estimado ? ' <span class="badge bi" style="font-size:10px" title="quincena abierta: costo estimado con el tarifario actual">estimado</span>' : ''}</td>
         <td style="text-align:right">${fmt(r.facturado)}</td>
         <td style="text-align:right;color:var(--text2)">${fmt(r.facturadoIva)}</td>
-        <td style="text-align:right">${fmt(r.costo)}</td>
+        <td style="text-align:right">${fmt(r.costo - r.cargasCosto)}${r.backups ? `<div style="font-size:11px;color:var(--text2)">incl. ${r.backups} back-up${r.backups > 1 ? 's' : ''}</div>` : ''}</td>
+        <td style="text-align:right;white-space:nowrap">${r.cargasCant ? `${fmt(r.cargasCosto)} <button class="btn btn-sm" style="padding:1px 6px" title="Cargar el costo real (de la planilla de cargas)" onclick="editCargasReal('${r.ev.id}')"><i class="ti ti-pencil"></i></button>
+          <div style="font-size:11px;color:${r.cargasOrigen === 'real' ? '#1a7a3e' : r.cargasOrigen === 'sin tarifario' ? '#b45309' : 'var(--text2)'}">${r.cargasCant} · ${r.cargasOrigen}</div>` : '<span style="color:var(--text2)">—</span>'}</td>
         <td style="text-align:right;font-weight:600;color:${col(r.ganancia)}">${r.nFac ? fmt(r.ganancia) : '—'}</td>
         <td style="text-align:center">${r.nFac ? pct(r.ganancia, r.facturado) + '%' : '—'}</td>
-      </tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--text2);padding:16px">No hay shows de Arena desde el ${fd(RENT_DESDE)}.</td></tr>`}
+      </tr>`).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:16px">No hay shows de Arena desde el ${fd(RENT_DESDE)}.</td></tr>`}
       </tbody>
       <tfoot><tr style="background:var(--card2);font-weight:700">
         <td>Total</td><td style="text-align:right">${fmt(tot.fn)}</td><td style="text-align:right;color:var(--text2)">${fmt(tot.fi)}</td>
-        <td style="text-align:right">${fmt(tot.co)}</td><td style="text-align:right;color:${col(tot.ga)}">${fmt(tot.ga)}</td>
+        <td style="text-align:right">${fmt(tot.co - facturados.reduce((a, r) => a + r.cargasCosto, 0))}</td><td style="text-align:right">${fmt(facturados.reduce((a, r) => a + r.cargasCosto, 0))}</td><td style="text-align:right;color:${col(tot.ga)}">${fmt(tot.ga)}</td>
         <td style="text-align:center">${pct(tot.ga, tot.fn)}%</td>
       </tr></tfoot></table>
     </div>
     ${pendientes.length ? `<div class="alert alert-warn" style="margin-top:10px"><i class="ti ti-alert-triangle"></i> ${pendientes.length} show${pendientes.length>1?'s':''} sin facturación guardada (costo ${fmt(costoPend)}), no incluido${pendientes.length>1?'s':''} en los totales hasta que lo${pendientes.length>1?'s':''} factures.</div>` : ''}
-    <div style="color:var(--text2);font-size:11.5px;margin-top:8px">Este margen todavía no descuenta cargas sociales ni impuestos: el resultado neto completo está en Informes a socios. Los totales incluyen solo shows facturados. "Estimado": la quincena del show sigue abierta, el costo sale de presentismo × tarifario actual; al cerrarla pasa a usar lo liquidado.</div>`;
+    <div style="color:var(--text2);font-size:11.5px;margin-top:8px">Este margen todavía no descuenta cargas sociales ni impuestos: el resultado neto completo está en Informes a socios. Los totales incluyen solo shows facturados. "Cargas (aparte)": los stagehands del pedido se liquidan en otra planilla; su costo se estima con el sueldo neto del renglón CARGAS del tarifario mensual hasta que cargues el real con el lápiz. El coordinador y los back-ups (presentes por encima de lo pedido) se pagan y no se facturan: ya están dentro de "Liquidado". "Estimado" en el show: la quincena del show sigue abierta, el costo sale de presentismo × tarifario actual; al cerrarla pasa a usar lo liquidado.</div>`;
 }
+
+// Costo real de los cargas de un show (sale de la otra planilla); vacío = volver a la estimación del tarifario
+window.editCargasReal = async function(evId) {
+  const facs = (APP.facturaciones || []).filter(f => f.evento_id === evId);
+  if (!facs.length) { toast('Primero guardá la facturación del show', 'err'); return; }
+  const ev = APP.eventos.find(e => e.id === evId);
+  const actual = facs[0].detalle?.cargasCostoReal ?? '';
+  const v = prompt(`Costo real de los cargas / stagehands de ${ev?.nombre || 'este show'} (en pesos).\nDejalo vacío para volver a la estimación del tarifario.`, actual);
+  if (v === null) return;
+  const num = String(v).trim() === '' ? null : Math.round(parseFloat(String(v).replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.')));
+  if (num != null && isNaN(num)) { toast('Monto inválido', 'err'); return; }
+  loading(true);
+  const det = { ...(facs[0].detalle || {}) };
+  if (num == null) delete det.cargasCostoReal; else det.cargasCostoReal = num;
+  const { error } = await sb.from('facturaciones').update({ detalle: det }).eq('id', facs[0].id);
+  loading(false);
+  if (error) { toast('No se pudo guardar: ' + error.message, 'err'); return; }
+  await fetchAll(); toast(num == null ? 'Vuelve a la estimación del tarifario' : 'Costo real de cargas guardado', 'ok'); render();
+};
+
+// ── Presentismo de cargas (hoja PRESENTISMO de la planilla de liquidación de cargas) ──
+const MES_ABR = { ene: '01', feb: '02', mar: '03', abr: '04', may: '05', jun: '06', jul: '07', ago: '08', sep: '09', set: '09', oct: '10', nov: '11', dic: '12' };
+function parsearPresCargas(texto, anio) {
+  const filas = String(texto).split(/\r?\n/).map(l => l.split('\t'));
+  const iCab = filas.findIndex(r => r.filter(c => /^\s*\d{1,2}\s*[-/]\s*[a-z]{3}/i.test(c)).length >= 5);
+  if (iCab < 0) return null;
+  const cols = {};
+  filas[iCab].forEach((c, j) => { const m = String(c).trim().toLowerCase().match(/^(\d{1,2})\s*[-/]\s*([a-z]{3})/); if (m && MES_ABR[m[2]]) cols[j] = `${anio}-${MES_ABR[m[2]]}-${m[1].padStart(2, '0')}`; });
+  const dias = {}, personas = [];
+  for (let i = iCab + 1; i < filas.length; i++) {
+    const r = filas[i], nombre = (r[0] || '').trim();
+    if (!nombre || /nombre y apellido|personal|total/i.test(nombre)) { if (personas.length) break; else continue; }
+    let n = 0;
+    Object.entries(cols).forEach(([j, f]) => { if (/^\s*p\s*$/i.test(r[j] || '')) { dias[f] = (dias[f] || 0) + 1; n++; } });
+    personas.push({ n });
+  }
+  const meses = [...new Set(Object.values(cols).map(f => f.slice(0, 7)))];
+  return { dias, personas: personas.length, jornadas: Object.values(dias).reduce((a, b) => a + b, 0), periodo: meses[0] };
+}
+window.pegarPresCargas = function() {
+  showModal(`<div class="modal" style="max-width:640px">
+    <div class="modal-t"><i class="ti ti-clipboard"></i> Presentismo de cargas / stagehands</div>
+    <div class="modal-s">En la planilla de liquidación de cargas, abrí la hoja <strong>PRESENTISMO</strong>, seleccioná desde la fila de fechas (1-sep, 2-sep…) hasta el último nombre, copiá y pegá acá. El costo de cada show pasa a salir de los cargas presentes ese día.</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:10px"><span style="font-size:13px">Año:</span><input id="pc-anio" type="number" value="${new Date().getFullYear()}" style="width:90px"></div>
+    <textarea id="pc-txt" rows="9" style="width:100%;font-family:monospace;font-size:12px;margin-top:8px" placeholder="Pegá acá (Ctrl+V)" oninput="previewPresCargas()"></textarea>
+    <div id="pc-prev" style="font-size:12.5px;margin-top:8px;color:var(--text2)"></div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="guardarPresCargas()">Guardar</button></div></div>`);
+};
+window.previewPresCargas = function() {
+  const r = parsearPresCargas(document.getElementById('pc-txt').value, document.getElementById('pc-anio').value);
+  const el = document.getElementById('pc-prev');
+  if (!r || !r.jornadas) { el.textContent = 'Todavía no se reconocen las fechas y los presentes.'; return; }
+  const shows = (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e).slice(0, 7) === r.periodo);
+  const conShow = shows.filter(e => r.dias[showFechaISO(e)]).length, sinShow = Object.keys(r.dias).filter(f => !shows.some(e => showFechaISO(e) === f));
+  const sc = getTarifaMes(r.periodo)?.filas?.CARGAS?.sueldo;
+  el.innerHTML = `<b>${mesLabel(r.periodo)}</b>: ${r.personas} personas, ${r.jornadas} jornadas${sc ? ` (${fmt(r.jornadas * sc)} neto)` : ''}. ${conShow} de ${shows.length} shows del mes con cargas presentes.${sinShow.length ? ` ${sinShow.length} día${sinShow.length > 1 ? 's' : ''} con cargas sin show cargado en la app (${sinShow.map(f => f.slice(8)).join(', ')}).` : ''}${!sc ? ' <span style="color:#b45309">Falta el sueldo de CARGAS en el tarifario de ese mes.</span>' : ''}`;
+};
+window.guardarPresCargas = async function() {
+  const r = parsearPresCargas(document.getElementById('pc-txt').value, document.getElementById('pc-anio').value);
+  if (!r || !r.jornadas) { toast('No se reconoció el presentismo', 'err'); return; }
+  loading(true);
+  const { error } = await sb.from('tarifario_arena').upsert({ periodo: 'cargas-' + r.periodo, filas: { dias: r.dias, personas: r.personas, jornadas: r.jornadas }, updated_at: new Date().toISOString() });
+  loading(false);
+  if (error) { toast('No se pudo guardar: ' + error.message + (/tarifario_arena|schema cache/i.test(error.message) ? ' (¿creaste la tabla tarifario_arena?)' : ''), 'err'); return; }
+  closeModal(); await fetchAll(); toast(`Presentismo de cargas de ${mesLabel(r.periodo).toLowerCase()} guardado`, 'ok'); render();
+};
 window.subirFacturaArena = function(input) {
   const file = input.files?.[0]; if (!file) return;
   loading(true);
@@ -4064,6 +4248,714 @@ window.subirFacturaArena = function(input) {
     } catch (e) { loading(false); alert('Error leyendo el PDF: ' + e.message); }
   };
   r.readAsArrayBuffer(file);
+};
+
+
+// ══════════════════════════════════════════════
+// PROYECCIONES — shows confirmados del Arena proyectados con historial + tarifario del mes
+// ══════════════════════════════════════════════
+const baseNombre = n => normTxt(n).replace(/\b(show|fecha|funcion|noche)\b/g, ' ').replace(/[#nº°]*\s*\d+\s*$/, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const ESCENARIOS = { pesimista: { pedido: 0.9, backups: 1.5, lbl: 'Pesimista' }, base: { pedido: 1, backups: 1, lbl: 'Base' }, optimista: { pedido: 1.1, backups: 0.5, lbl: 'Optimista' } };
+const PROY_KEY = 'sbs_proy_ajustes';
+function proyAjustes() { try { return JSON.parse(localStorage.getItem(PROY_KEY)) || {}; } catch { return {}; } }
+function setProyAjuste(evId, campo, valor) {
+  const a = proyAjustes(); a[evId] = { ...(a[evId] || {}) };
+  if (valor === '' || valor == null) delete a[evId][campo]; else a[evId][campo] = valor;
+  try { localStorage.setItem(PROY_KEY, JSON.stringify(a)); } catch {}
+}
+const S_PROY = { tab: 'proy', mes: null, esc: 'base', tarMes: null, tarDraft: null, guardada: null };
+
+// Shows ya facturados, listos para usar como referencia
+function refsDisponibles() {
+  const facs = APP.facturaciones || [];
+  return rentPorShow().filter(r => r.nFac).map(r => {
+    const fs = facs.filter(f => f.evento_id === r.ev.id);
+    return { ev: r.ev, fISO: r.fISO, base: baseNombre(r.ev.nombre), comp: pedidoPorCat(fs), backupRatio: r.facturables ? r.backups / r.facturables : 0 };
+  });
+}
+
+function proyectarShow(ev, refs, tar, E, fijosShow, esc) {
+  const aj = proyAjustes()[ev.id] || {}, fISO = showFechaISO(ev);
+  let usados = [], base = '';
+  if (aj.ref && aj.ref !== 'auto' && aj.ref !== 'prom') {
+    usados = refs.filter(x => x.ev.id === aj.ref); if (usados.length) base = `Elegido: ${usados[0].ev.nombre}`;
+  }
+  if (!usados.length && aj.ref !== 'prom') {
+    const bn = baseNombre(ev.nombre);
+    usados = bn ? refs.filter(x => x.base === bn) : [];
+    if (usados.length) base = `${usados.length} show${usados.length > 1 ? 's' : ''} de ${ev.nombre.replace(/[#nº°]*\s*\d+\s*$/i, '').trim()}`;
+  }
+  if (!usados.length) { usados = refs; base = refs.length ? `Promedio de ${refs.length} shows` : ''; }
+  if (!usados.length) return { ev, fISO, error: 'No hay shows facturados para tomar de referencia' };
+  // Composición promedio del pedido, escalada a los puestos pedidos y redondeada sin perder el total
+  const comp = {}; TAR_CATS.forEach(c => { const v = usados.reduce((a, x) => a + (x.comp[c] || 0), 0) / usados.length; if (v) comp[c] = v; });
+  const totRef = Object.values(comp).reduce((a, b) => a + b, 0);
+  const pedidoBase = aj.pedido ? +aj.pedido : Math.round(totRef);
+  const pedido = Math.max(0, Math.round(pedidoBase * ESCENARIOS[esc].pedido));
+  const k = totRef ? pedido / totRef : 0;
+  const ent = Object.entries(comp).map(([c, v]) => [c, Math.floor(v * k), v * k - Math.floor(v * k)]);
+  let falta = pedido - ent.reduce((a, x) => a + x[1], 0);
+  [...ent].sort((a, b) => b[2] - a[2]).forEach(x => { if (falta > 0) { x[1]++; falta--; } });
+  const cant = Object.fromEntries(ent.filter(x => x[1] > 0).map(x => [x[0], x[1]]));
+  const cargas = cant.CARGAS || 0, facturables = pedido - cargas;
+  const ratio = usados.reduce((a, x) => a + x.backupRatio, 0) / usados.length;
+  const backupsBase = aj.backups != null && aj.backups !== '' ? +aj.backups : Math.round(ratio * facturables);
+  const backups = Math.max(0, Math.round(backupsBase * ESCENARIOS[esc].backups));
+  const T = c => tar.filas[c] || {};
+  const lineas = TAR_CATS.filter(c => cant[c]).map(c => ({ cat: c, cant: cant[c], venta: T(c).venta || 0, sueldo: T(c).sueldo || 0 }));
+  const faltan = lineas.filter(l => !l.venta || !l.sueldo).map(l => TAR_LBL(l.cat));
+  if (!T('ORIENTADOR').sueldo && backups) faltan.push('Orientador (back-ups)');
+  if (!T('COORDINADOR ON SITE').sueldo) faltan.push('Coordinador on site');
+  const ingresos = lineas.reduce((a, l) => a + l.cant * l.venta, 0);
+  const costoPedido = lineas.reduce((a, l) => a + l.cant * l.sueldo, 0);
+  const costoBackups = backups * (T('ORIENTADOR').sueldo || 0);
+  const costoCoord = T('COORDINADOR ON SITE').sueldo || 0;   // uno por show, a cargo de SBS
+  const personal = costoPedido + costoBackups + costoCoord;
+  const pl = calcPL(ingresos, personal, fijosShow, E);
+  const iigg = Math.round(Math.max(0, pl.ebit) * (+E.iigg || 0) / 100);
+  const neto = pl.ebit - iigg;
+  return { ev, fISO, proyectado: true, base, usados: usados.map(x => x.ev.id), pedido, pedidoBase, facturables, cargas, backups, lineas,
+           ingresos, costoPedido, costoBackups, costoCoord, personal, cargasSoc: pl.totCargas, impuestos: pl.totImp, fijos: pl.fijos, iigg, neto, egresos: ingresos - neto, faltan };
+}
+
+function proyMes(periodo, esc) {
+  const tar = getTarifaMes(periodo), E = getEstructura();
+  const evs = (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e).slice(0, 7) === periodo).sort((a, b) => showFechaISO(a).localeCompare(showFechaISO(b)));
+  const inf = buildInforme('mes', periodo), realPorId = {}; (inf.shows || []).forEach(x => { realPorId[x.evId] = x; });
+  const refs = refsDisponibles(), fijosShow = (+E.fijosMes || 0) / (evs.length || 1);
+  const filas = evs.map(ev => {
+    const r = realPorId[ev.id];
+    if (r) return { ev, fISO: r.fecha, real: true, estimado: r.estimado, pedido: r.staff, backups: r.backups?.cant || 0, ingresos: r.ventas, egresos: r.ventas - r.neto, neto: r.neto };
+    if (!tar) return { ev, fISO: showFechaISO(ev), error: 'Falta el tarifario de este mes' };
+    return proyectarShow(ev, refs, tar, E, fijosShow, esc);
+  });
+  // Servicios mensuales (mesa de entrada): se conocen de antemano por el tarifario
+  serviciosMes(periodo).forEach(sv => {
+    const pl = calcPL(sv.venta, sv.sueldo, 0, E), iigg = Math.round(Math.max(0, pl.ebit) * (+E.iigg || 0) / 100);
+    filas.push({ ev: { id: 'serv-' + sv.key, nombre: sv.nombre }, fISO: periodo + '-01', servicio: true, origen: sv.origen, ingresos: sv.venta, sueldo: sv.sueldo, neto: pl.ebit - iigg, egresos: sv.venta - (pl.ebit - iigg) });
+  });
+  const ok = filas.filter(f => !f.error);
+  const T = ok.reduce((a, f) => ({ ingresos: a.ingresos + f.ingresos, egresos: a.egresos + f.egresos, neto: a.neto + f.neto }), { ingresos: 0, egresos: 0, neto: 0 });
+  return { periodo, tar, filas, T, reales: ok.filter(f => f.real).length, proyectados: ok.filter(f => f.proyectado).length, errores: filas.filter(f => f.error).length };
+}
+
+function mesesProyectables() {
+  const hoy = new Date(), act = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+  const set = new Set([act]);
+  (APP.eventos || []).filter(e => e.area === 'Movistar Arena').forEach(e => { const m = showFechaISO(e).slice(0, 7); if (m && m >= act) set.add(m); });
+  for (let i = 1; i <= 2; i++) { const d = new Date(hoy.getFullYear(), hoy.getMonth() + i, 1); set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
+  return [...set].sort();
+}
+
+async function pgProyecciones(el, ac) {
+  ac.innerHTML = '';
+  const meses = mesesProyectables();
+  if (!S_PROY.mes || !meses.includes(S_PROY.mes)) S_PROY.mes = meses.find(m => (APP.eventos || []).some(e => e.area === 'Movistar Arena' && showFechaISO(e).slice(0, 7) === m && !(APP.facturaciones || []).some(f => f.evento_id === e.id))) || meses[0];
+  const tabs = `<div style="display:flex;gap:6px;margin-bottom:14px">
+      <button class="btn ${S_PROY.tab === 'proy' ? 'btn-primary' : ''}" onclick="S_PROY.tab='proy';render()"><i class="ti ti-crystal-ball"></i> Proyección</button>
+      <button class="btn ${S_PROY.tab === 'tar' ? 'btn-primary' : ''}" onclick="S_PROY.tab='tar';render()"><i class="ti ti-table"></i> Tarifario mensual</button></div>`;
+  const cab = `<div style="margin-bottom:12px"><h2 style="margin:0">Proyecciones · Movistar Arena</h2>
+    <div style="color:var(--text2);font-size:13px">Qué podemos esperar de los shows confirmados, con el historial de cada banda y el tarifario del mes.</div></div>`;
+  if (APP.tarArenaError) {
+    el.innerHTML = cab + `<div class="alert alert-warn"><i class="ti ti-database-off"></i> Falta crear la tabla <strong>tarifario_arena</strong> en Supabase. Sin ella no se puede cargar el tarifario mensual.</div>`;
+    return;
+  }
+  el.innerHTML = cab + tabs + (S_PROY.tab === 'tar' ? htmlTarifario() : await htmlProyeccion(meses));
+}
+
+async function htmlProyeccion(meses) {
+  const P = proyMes(S_PROY.mes, S_PROY.esc);
+  const escs = Object.fromEntries(Object.keys(ESCENARIOS).map(k => [k, k === S_PROY.esc ? P : proyMes(S_PROY.mes, k)]));
+  const { data: guard } = await sb.from('informes').select('data,updated_at').eq('tipo', 'proy').eq('periodo', S_PROY.mes).maybeSingle();
+  S_PROY.guardada = guard?.data || null;
+  const guardPorId = {}; (S_PROY.guardada?.shows || []).forEach(x => { guardPorId[x.evId] = x; });
+  const mg = (n, v) => v ? Math.round(n / v * 1000) / 10 : 0;
+  const col = n => n >= 0 ? '#1a7a3e' : '#b45309';
+  const refs = refsDisponibles();
+  const tarTxt = !P.tar ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> No hay tarifario cargado para ${mesLabel(S_PROY.mes).toLowerCase()} ni para meses anteriores. Cargalo en la pestaña <strong>Tarifario mensual</strong>.</div>`
+    : P.tar.origen === 'cargado' ? `<div class="nota-proy ok"><i class="ti ti-check"></i> Tarifario de ${mesLabel(S_PROY.mes).toLowerCase()}: cargado.</div>`
+    : `<div class="nota-proy"><i class="ti ti-info-circle"></i> Tarifario de ${mesLabel(S_PROY.mes).toLowerCase()} estimado: ${mesLabel(P.tar.desde).toLowerCase()} + ${String(P.tar.aumento).replace('.', ',')}% por mes. Cuando tengas los valores de paritarias, cargalos en <a href="#" onclick="S_PROY.tab='tar';S_PROY.tarMes='${S_PROY.mes}';render();return false">Tarifario mensual</a>.</div>`;
+  const kpi = (l, v, s, c) => `<div class="metric"><div class="metric-l">${l}</div><div class="metric-v" style="font-size:18px${c ? ';color:' + c : ''}">${v}</div><div class="metric-s">${s}</div></div>`;
+  const opcRef = (ev) => { const aj = proyAjustes()[ev.id] || {};
+    return `<select onchange="setProyAjuste('${ev.id}','ref',this.value==='auto'?'':this.value);render()" style="font-size:11.5px;max-width:170px;padding:2px 4px" onclick="event.stopPropagation()">
+      <option value="auto" ${!aj.ref ? 'selected' : ''}>Automático</option><option value="prom" ${aj.ref === 'prom' ? 'selected' : ''}>Promedio general</option>
+      ${refs.map(r => `<option value="${r.ev.id}" ${aj.ref === r.ev.id ? 'selected' : ''}>${r.ev.nombre} · ${fd(r.fISO)}</option>`).join('')}</select>`; };
+  const filas = P.filas.map(f => {
+    if (f.error) return `<tr><td>${fd(f.fISO)}</td><td><strong>${f.ev.nombre}</strong></td><td colspan="9" style="color:#b45309">${f.error}</td></tr>`;
+    if (f.servicio) return `<tr style="background:var(--card2)"><td style="white-space:nowrap;color:var(--text2)">todo el mes</td>
+      <td><strong>${f.ev.nombre}</strong><div style="font-size:11px;color:var(--text2)">servicio mensual · tarifario ${f.origen}</div></td>
+      <td><span class="badge bi" style="font-size:10px">Mensual</span></td><td colspan="3" style="font-size:12px;color:var(--text2)">sueldo neto ${fmt(f.sueldo)}</td>
+      <td style="text-align:right">${fmt(f.ingresos)}</td><td style="text-align:right">${fmt(f.egresos)}</td>
+      <td style="text-align:right;font-weight:600;color:${col(f.neto)}">${fmt(f.neto)}</td><td style="text-align:center">${String(mg(f.neto, f.ingresos)).replace('.', ',')}%</td></tr>`;
+    const aj = proyAjustes()[f.ev.id] || {}, g = guardPorId[f.ev.id];
+    const vsGuard = f.real && g ? (() => { const d = f.neto - g.neto; return `<div style="font-size:11px;color:${col(d)}" title="Proyección guardada: ${fmt(g.neto)}">${d >= 0 ? '▲' : '▼'} ${fmt(Math.abs(d))} vs proyectado</div>`; })() : '';
+    return `<tr class="${f.proyectado ? 'clic' : ''}" ${f.proyectado ? `onclick="verProyShow('${f.ev.id}')" title="Ver cómo se calculó"` : ''}>
+      <td style="white-space:nowrap">${fd(f.fISO)}</td>
+      <td><strong>${f.ev.nombre}</strong><div style="font-size:11px;color:var(--text2)">${f.real ? (f.estimado ? 'real · costo estimado' : 'real') : f.base}</div>
+        ${f.faltan?.length ? `<div style="font-size:11px;color:#b45309">Sin valor en tarifario: ${f.faltan.join(', ')}</div>` : ''}</td>
+      <td>${f.real ? '<span class="badge bs" style="font-size:10px">Real</span>' : '<span class="badge bi" style="font-size:10px">Proyectado</span>'}</td>
+      <td>${f.proyectado ? opcRef(f.ev) : '<span style="color:var(--text2);font-size:12px">—</span>'}</td>
+      <td style="text-align:center">${f.proyectado ? `<input type="number" min="0" value="${aj.pedido ?? ''}" placeholder="${f.pedidoBase}" style="width:62px;text-align:center" onclick="event.stopPropagation()" onchange="setProyAjuste('${f.ev.id}','pedido',this.value);render()">` : f.pedido}</td>
+      <td style="text-align:center">${f.proyectado ? `<input type="number" min="0" value="${aj.backups ?? ''}" placeholder="${f.backups}" style="width:54px;text-align:center" onclick="event.stopPropagation()" onchange="setProyAjuste('${f.ev.id}','backups',this.value);render()">` : f.backups}</td>
+      <td style="text-align:right">${fmt(f.ingresos)}</td><td style="text-align:right">${fmt(f.egresos)}</td>
+      <td style="text-align:right;font-weight:600;color:${col(f.neto)}">${fmt(f.neto)}${vsGuard}</td>
+      <td style="text-align:center">${String(mg(f.neto, f.ingresos)).replace('.', ',')}%</td></tr>`;
+  }).join('');
+  const T = P.T;
+  return `
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <select onchange="S_PROY.mes=this.value;render()" style="font-size:13px;padding:6px 9px;width:auto">${meses.map(m => `<option value="${m}" ${m === S_PROY.mes ? 'selected' : ''}>${mesLabel(m)}</option>`).join('')}</select>
+      <div style="display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden">
+        ${Object.entries(ESCENARIOS).map(([k, v]) => `<button class="btn ${S_PROY.esc === k ? 'btn-primary' : ''}" style="border:0;border-radius:0" onclick="S_PROY.esc='${k}';render()">${v.lbl}</button>`).join('')}</div>
+      <div style="flex:1"></div>
+      <button class="btn btn-success" onclick="guardarProyeccion()"><i class="ti ti-device-floppy"></i> ${S_PROY.guardada ? 'Actualizar proyección guardada' : 'Guardar proyección'}</button>
+    </div>
+    ${tarTxt}
+    ${S_PROY.guardada ? `<div class="nota-proy"><i class="ti ti-history"></i> Proyección guardada el ${new Date(guard.updated_at).toLocaleDateString('es-AR')}: a medida que los shows se facturan, se compara lo real contra lo proyectado.</div>` : ''}
+    <div class="grid4" style="margin:12px 0">
+      ${kpi('Shows del mes', P.filas.filter(f => !f.servicio).length, `${P.reales} real${P.reales !== 1 ? 'es' : ''} · ${P.proyectados} proyectado${P.proyectados !== 1 ? 's' : ''}${P.filas.some(f => f.servicio) ? ' · + mesa de entrada' : ''}`)}
+      ${kpi('Ingresos (sin IVA)', fmt(T.ingresos), `escenario ${ESCENARIOS[S_PROY.esc].lbl.toLowerCase()}`)}
+      ${kpi('Egresos', fmt(T.egresos), `${String(mg(T.egresos, T.ingresos)).replace('.', ',')}% de los ingresos`)}
+      ${kpi('Resultado neto', fmt(T.neto), `margen ${String(mg(T.neto, T.ingresos)).replace('.', ',')}%`, col(T.neto))}
+    </div>
+    <div class="card" style="margin-bottom:12px;padding:10px 14px">
+      <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;font-size:12.5px">
+        <strong>Escenarios del mes:</strong>
+        ${Object.entries(escs).map(([k, x]) => `<span style="${k === S_PROY.esc ? 'font-weight:700' : ''}">${ESCENARIOS[k].lbl}: <span style="color:${col(x.T.neto)}">${fmt(x.T.neto)}</span> <span style="color:var(--text2)">(${String(mg(x.T.neto, x.T.ingresos)).replace('.', ',')}%)</span></span>`).join('')}
+      </div>
+      <div style="font-size:11.5px;color:var(--text2);margin-top:4px">Pesimista: 10% menos de puestos pedidos y 50% más de back-ups. Optimista: 10% más de puestos y la mitad de back-ups. Los shows ya facturados entran con sus números reales en los tres.</div>
+    </div>
+    <div class="card" style="padding:0;overflow:auto">
+      <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th>Estado</th><th>Basado en</th><th style="text-align:center" title="Puestos que se le facturan al Arena (incluye cargas). Vacío = el de la referencia">Puestos</th><th style="text-align:center" title="Presentes por encima de lo pedido, no facturables">Back-ups</th>
+        <th style="text-align:right">Ingresos</th><th style="text-align:right">Egresos</th><th style="text-align:right">Resultado</th><th style="text-align:center">Margen</th></tr></thead>
+      <tbody>${filas || `<tr><td colspan="10" style="text-align:center;color:var(--text2);padding:16px">No hay shows del Arena cargados para ${mesLabel(S_PROY.mes).toLowerCase()}. Cargalos en Movistar Arena.</td></tr>`}</tbody>
+      ${P.filas.length ? `<tfoot><tr style="background:var(--card2);font-weight:700"><td colspan="6">Total del mes${P.filas.some(f => f.servicio) ? ' (shows + mesa de entrada)' : ''}</td><td style="text-align:right">${fmt(T.ingresos)}</td><td style="text-align:right">${fmt(T.egresos)}</td><td style="text-align:right;color:${col(T.neto)}">${fmt(T.neto)}</td><td style="text-align:center">${String(mg(T.neto, T.ingresos)).replace('.', ',')}%</td></tr></tfoot>` : ''}
+      </table>
+    </div>
+    <div style="color:var(--text2);font-size:11.5px;margin-top:8px">Cómo se proyecta cada show: toma la composición del pedido (orientadores, cortatickets, supervisores, recepciones, cargas) de los shows anteriores de la misma banda, o el promedio de todos si es la primera vez; la valoriza con el tarifario del mes (venta por día y sueldo neto); suma los back-ups según el promedio histórico y un coordinador a cargo de SBS; y aplica la estructura de costos de los informes (cargas sociales, impuestos y Ganancias). Tocá un show proyectado para ver el detalle del cálculo.</div>`;
+}
+
+window.verProyShow = function(evId) {
+  const P = proyMes(S_PROY.mes, S_PROY.esc), f = P.filas.find(x => x.ev.id === evId); if (!f || !f.proyectado) return;
+  const E = getEstructura();
+  showModal(`<div class="modal" style="max-width:780px">
+    <div class="modal-t"><i class="ti ti-crystal-ball"></i> ${f.ev.nombre} · ${fd(f.fISO)}</div>
+    <div class="modal-s">Proyección ${ESCENARIOS[S_PROY.esc].lbl.toLowerCase()} · basada en ${f.base.charAt(0).toLowerCase() + f.base.slice(1)}. Tarifario ${P.tar.origen === 'cargado' ? 'cargado' : 'estimado'} de ${mesLabel(S_PROY.mes).toLowerCase()}.</div>
+    <table class="tbl" style="margin:10px 0"><thead><tr><th>Renglón</th><th style="text-align:center">Puestos</th><th style="text-align:right">Venta x día</th><th style="text-align:right">Ingreso</th><th style="text-align:right">Sueldo neto</th><th style="text-align:right">Costo</th></tr></thead><tbody>
+      ${f.lineas.map(l => `<tr><td>${TAR_LBL(l.cat)}</td><td style="text-align:center">${l.cant}</td><td style="text-align:right">${fmt(l.venta)}</td><td style="text-align:right">${fmt(l.cant * l.venta)}</td><td style="text-align:right">${fmt(l.sueldo)}</td><td style="text-align:right">${fmt(l.cant * l.sueldo)}</td></tr>`).join('')}
+      <tr><td>Back-ups (orientadores, no facturables)</td><td style="text-align:center">${f.backups}</td><td></td><td></td><td></td><td style="text-align:right">${fmt(f.costoBackups)}</td></tr>
+      <tr><td>Coordinador on site (a cargo de SBS)</td><td style="text-align:center">1</td><td></td><td></td><td></td><td style="text-align:right">${fmt(f.costoCoord)}</td></tr>
+    </tbody><tfoot><tr style="font-weight:700"><td>Total</td><td style="text-align:center">${f.pedido + f.backups + 1}</td><td></td><td style="text-align:right">${fmt(f.ingresos)}</td><td></td><td style="text-align:right">${fmt(f.personal)}</td></tr></tfoot></table>
+    <table class="tbl"><tbody>
+      <tr><td>Ingresos (sin IVA)</td><td style="text-align:right">${fmt(f.ingresos)}</td></tr>
+      <tr><td style="padding-left:20px;color:var(--text2)">Personal (pedido + back-ups + coordinador)</td><td style="text-align:right">−${fmt(f.personal)}</td></tr>
+      <tr><td style="padding-left:20px;color:var(--text2)">Cargas sociales</td><td style="text-align:right">−${fmt(f.cargasSoc)}</td></tr>
+      <tr><td style="padding-left:20px;color:var(--text2)">Impuestos sobre ventas</td><td style="text-align:right">−${fmt(f.impuestos)}</td></tr>
+      ${f.fijos ? `<tr><td style="padding-left:20px;color:var(--text2)">Costos fijos</td><td style="text-align:right">−${fmt(f.fijos)}</td></tr>` : ''}
+      <tr><td style="padding-left:20px;color:var(--text2)">Impuesto a las Ganancias (${E.iigg}%)</td><td style="text-align:right">−${fmt(f.iigg)}</td></tr>
+      <tr style="font-weight:700"><td>Resultado neto proyectado</td><td style="text-align:right;color:${f.neto >= 0 ? '#1a7a3e' : '#b45309'}">${fmt(f.neto)}</td></tr>
+    </tbody></table>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cerrar</button></div></div>`);
+};
+
+window.guardarProyeccion = async function() {
+  const P = proyMes(S_PROY.mes, 'base');
+  if (!P.filas.filter(f => !f.servicio).length) { toast('No hay shows para proyectar en este mes', 'err'); return; }
+  const esc = Object.fromEntries(Object.keys(ESCENARIOS).map(k => { const x = k === 'base' ? P : proyMes(S_PROY.mes, k); return [k, x.T]; }));
+  const data = { v: 1, tipo: 'proy', periodo: S_PROY.mes, periodoLabel: mesLabel(S_PROY.mes), generado: new Date().toISOString(),
+    tarifario: P.tar ? { origen: P.tar.origen, desde: P.tar.desde, aumento: P.tar.aumento ?? null } : null, estructura: getEstructura(), escenarios: esc,
+    servicios: P.filas.filter(f => f.servicio).map(f => ({ nombre: f.ev.nombre, ingresos: f.ingresos, egresos: f.egresos, neto: f.neto, sueldo: f.sueldo })),
+    shows: P.filas.filter(f => !f.error && !f.servicio).map(f => ({ evId: f.ev.id, nombre: f.ev.nombre, fecha: f.fISO, real: !!f.real, base: f.base || '', pedido: f.pedido, backups: f.backups,
+      ingresos: f.ingresos, egresos: f.egresos, neto: f.neto, lineas: f.lineas || null, costoBackups: f.costoBackups ?? null, costoCoord: f.costoCoord ?? null })) };
+  loading(true);
+  try {
+    const titulo = `Proyección Movistar Arena, ${mesLabel(S_PROY.mes).toLowerCase()}`;
+    const { data: ex, error: e1 } = await sb.from('informes').select('id').eq('tipo', 'proy').eq('periodo', S_PROY.mes).maybeSingle();
+    if (e1) throw e1;
+    const r = ex ? await sb.from('informes').update({ titulo, data, updated_at: new Date().toISOString() }).eq('id', ex.id)
+                 : await sb.from('informes').insert({ tipo: 'proy', periodo: S_PROY.mes, titulo, data });
+    if (r.error) throw r.error;
+    loading(false); toast('Proyección guardada', 'ok'); render();
+  } catch (e) { loading(false); toast('No se pudo guardar: ' + e.message + (/informes|schema cache/i.test(e.message) ? ' (¿creaste la tabla informes?)' : ''), 'err'); }
+};
+
+// ── Tarifario mensual ──
+function htmlTarifario() {
+  const cargados = (APP.tarArena || []).filter(x => /^\d{4}-\d{2}$/.test(x.periodo)).map(x => x.periodo).sort();
+  const opciones = [...new Set([...cargados, ...mesesProyectables()])].sort();
+  if (!S_PROY.tarMes || !opciones.includes(S_PROY.tarMes)) S_PROY.tarMes = opciones.find(m => !cargados.includes(m) && m >= (cargados[cargados.length - 1] || '')) || opciones[0];
+  const est = getTarifaMes(S_PROY.tarMes);
+  if (!S_PROY.tarDraft || S_PROY.tarDraft.periodo !== S_PROY.tarMes) S_PROY.tarDraft = { periodo: S_PROY.tarMes, filas: JSON.parse(JSON.stringify(est?.filas || {})), cambiado: false };
+  const D = S_PROY.tarDraft, cfg = tarConfig(), E = getEstructura();
+  const cargasPct = (E.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0);
+  const estado = cargados.includes(S_PROY.tarMes) ? '<span class="badge bs">Cargado</span>'
+    : est ? `<span class="badge bi">Estimado desde ${mesLabel(est.desde).toLowerCase()} + ${String(est.aumento).replace('.', ',')}%/mes</span>` : '<span class="badge bw">Sin valores</span>';
+  const inp = (c, k) => `<input type="number" min="0" value="${D.filas[c]?.[k] ?? ''}" style="width:120px;text-align:right" onchange="editTar('${c}','${k}',this.value)">`;
+  return `
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <select onchange="S_PROY.tarMes=this.value;S_PROY.tarDraft=null;render()" style="font-size:13px;padding:6px 9px;width:auto">${opciones.map(m => `<option value="${m}" ${m === S_PROY.tarMes ? 'selected' : ''}>${mesLabel(m)}${cargados.includes(m) ? ' · cargado' : ''}</option>`).join('')}</select>
+      ${estado}
+      <div style="flex:1"></div>
+      <button class="btn" onclick="pegarTarifario()"><i class="ti ti-clipboard"></i> Pegar desde la planilla</button>
+      <button class="btn" onclick="completarTarActual()" title="Venta: del último pedido del Arena. Sueldo: del tarifario de liquidación de la app"><i class="ti ti-wand"></i> Completar con valores actuales</button>
+      <button class="btn btn-success" onclick="guardarTarifario()"><i class="ti ti-device-floppy"></i> Guardar ${mesLabel(S_PROY.tarMes).toLowerCase()}</button>
+    </div>
+    ${D.cambiado ? '<div class="nota-proy"><i class="ti ti-pencil"></i> Hay cambios sin guardar.</div>' : ''}
+    <div class="card" style="padding:0;overflow:auto">
+      <table class="tbl"><thead><tr><th>Renglón</th><th style="text-align:right">Sueldo neto a pagar</th><th style="text-align:right">Venta x día al Arena</th><th style="text-align:right" title="Venta menos sueldo con cargas sociales (${cargasPct}%)">Diferencia por puesto</th></tr></thead>
+      <tbody>${TAR_CATS.map(c => { const v = D.filas[c] || {}, dif = (v.venta || 0) - (v.sueldo || 0) * (1 + cargasPct / 100);
+        return `<tr><td><strong>${TAR_LBL(c)}</strong>${c === 'COORDINADOR ON SITE' ? '<div style="font-size:11px;color:var(--text2)">a cargo de SBS: la venta no se usa</div>' : c === 'CARGAS' ? '<div style="font-size:11px;color:var(--text2)">se usa para el costo de los stagehands</div>' : ''}</td>
+          <td style="text-align:right">${inp(c, 'sueldo')}</td><td style="text-align:right">${inp(c, 'venta')}</td>
+          <td style="text-align:right;color:${v.venta && v.sueldo ? (dif >= 0 ? '#1a7a3e' : '#b45309') : 'var(--text2)'}">${v.venta && v.sueldo ? fmt(dif) : '—'}</td></tr>`; }).join('')}</tbody></table>
+    </div>
+    <div class="card" style="padding:0;overflow:auto;margin-top:12px">
+      <table class="tbl"><thead><tr><th>Servicio mensual</th><th style="text-align:right">Sueldo mensual neto</th><th style="text-align:right">Venta mensual al Arena</th><th style="text-align:right" title="Venta menos sueldo con cargas sociales (${cargasPct}%)">Diferencia por mes</th></tr></thead>
+      <tbody>${SERV_MENSUALES.map(sv => { const v = D.filas[sv.key] || {}, dif = (v.venta || 0) - (v.sueldo || 0) * (1 + cargasPct / 100);
+        return `<tr><td><strong>${sv.nombre}</strong><div style="font-size:11px;color:var(--text2)">una persona mensualizada; se factura y liquida por mes</div></td>
+          <td style="text-align:right">${inp(sv.key, 'sueldo')}</td><td style="text-align:right">${inp(sv.key, 'venta')}</td>
+          <td style="text-align:right;color:${v.venta && v.sueldo ? (dif >= 0 ? '#1a7a3e' : '#b45309') : 'var(--text2)'}">${v.venta && v.sueldo ? fmt(dif) : '—'}</td></tr>`; }).join('')}</tbody></table>
+    </div>
+    <div class="card" style="margin-top:12px;padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <strong style="font-size:13px">Aumento mensual para los meses sin cargar:</strong>
+      <input type="number" step="0.1" min="0" value="${cfg.aumento}" style="width:70px;text-align:center" onchange="guardarAumento(this.value)"> <span style="font-size:13px">%</span>
+      <span style="font-size:12px;color:var(--text2)">Se aplica sobre el último mes cargado, mes a mes, hasta que cargues los valores reales de paritarias.</span>
+    </div>
+    <div style="color:var(--text2);font-size:11.5px;margin-top:8px">Solo renglones del Movistar Arena (sin gastronomía). "Pegar desde la planilla": copiá en Google Sheets el bloque de un mes (Sueldo neto, Carga horaria, Venta x día, Venta x hora, Carga horaria FC), con o sin la columna de nombres, y pegalo.</div>`;
+}
+window.editTar = function(c, k, v) { const D = S_PROY.tarDraft; D.filas[c] = { ...(D.filas[c] || {}), [k]: v === '' ? null : Math.round(+v) }; D.cambiado = true; render(); };
+window.guardarAumento = async function(v) {
+  const aum = parseFloat(String(v).replace(',', '.')); if (isNaN(aum)) return;
+  loading(true);
+  const { error } = await sb.from('tarifario_arena').upsert({ periodo: 'config', filas: { ...tarConfig(), aumento: aum }, updated_at: new Date().toISOString() });
+  loading(false);
+  if (error) { toast('No se pudo guardar: ' + error.message, 'err'); return; }
+  await fetchAll(); S_PROY.tarDraft = null; toast('Aumento mensual guardado', 'ok'); render();
+};
+window.guardarTarifario = async function() {
+  const D = S_PROY.tarDraft; if (!D) return;
+  loading(true);
+  const { error } = await sb.from('tarifario_arena').upsert({ periodo: D.periodo, filas: D.filas, updated_at: new Date().toISOString() });
+  loading(false);
+  if (error) { toast('No se pudo guardar: ' + error.message + (/tarifario_arena|schema cache/i.test(error.message) ? ' (¿creaste la tabla tarifario_arena?)' : ''), 'err'); return; }
+  await fetchAll(); S_PROY.tarDraft = null; toast(`Tarifario de ${mesLabel(D.periodo).toLowerCase()} guardado`, 'ok'); render();
+};
+// Números como vienen de Sheets: "$242,000", "$ 242.000", "242000,50"
+function numPlanilla(x) {
+  let t = String(x || '').replace(/[^\d.,-]/g, ''); if (!t) return null;
+  const c = t.lastIndexOf(','), p = t.lastIndexOf('.');
+  if (c >= 0 && p >= 0) { const dec = c > p ? ',' : '.'; t = t.replace(dec === ',' ? /\./g : /,/g, '').replace(dec, '.'); }
+  else if (c >= 0) t = /,\d{3}$/.test(t) || (t.match(/,/g) || []).length > 1 ? t.replace(/,/g, '') : t.replace(',', '.');
+  else if (p >= 0) t = /\.\d{3}$/.test(t) || (t.match(/\./g) || []).length > 1 ? t.replace(/\./g, '') : t;
+  const n = parseFloat(t); return isNaN(n) ? null : n;
+}
+function parsearTarifario(texto) {
+  const lineas = String(texto).split(/\r?\n/).map(l => l.split('\t')).filter(r => r.some(c => c.trim()));
+  const out = {}; let orden = 0; const avisos = [];
+  for (const cel of lineas) {
+    // La celda con texto es el nombre del renglón (aunque tenga números, como "(desde 3)") y nunca se lee como valor
+    const iEtq = cel.findIndex(c => /[a-záéíóúñ]{3,}/i.test(c));
+    const etiqueta = iEtq >= 0 ? cel[iEtq] : '';
+    const nums = cel.filter((c, i) => i !== iEtq).map(numPlanilla).filter(n => n != null);
+    let cat = null;
+    if (etiqueta) {
+      const e = normTxt(etiqueta).replace(/\s*\(.*$/, '').trim();
+      cat = TAR_CATS.find(c => normTxt(c) === e) || TAR_CATS.find(c => e.startsWith(normTxt(c))) || null;
+      if (!cat) continue;   // renglón que no es del Arena (gastronomía, títulos, etc.)
+    } else { if (orden >= TAR_CATS.length || !nums.length) continue; cat = TAR_CATS[orden]; }
+    orden = TAR_CATS.indexOf(cat) + 1;
+    if (!nums.length) continue;
+    const [sueldo, venta] = nums.length >= 5 ? [nums[0], nums[2]] : nums.length >= 3 ? [nums[0], nums[2]] : [nums[0], nums[1] ?? null];
+    out[cat] = { sueldo: sueldo != null ? Math.round(sueldo) : null, venta: venta != null ? Math.round(venta) : null };
+  }
+  return out;
+}
+window.pegarTarifario = function() {
+  showModal(`<div class="modal" style="max-width:620px">
+    <div class="modal-t"><i class="ti ti-clipboard"></i> Pegar tarifario de ${mesLabel(S_PROY.tarMes).toLowerCase()}</div>
+    <div class="modal-s">Copiá en la planilla el bloque del mes (con o sin la columna DETALLE) y pegalo acá. Se toman "Sueldo neto a pagar" y "Venta x día FC"; los renglones de gastronomía se ignoran.</div>
+    <textarea id="tar-paste" rows="10" style="width:100%;font-family:monospace;font-size:12px;margin-top:10px" placeholder="Pegá acá (Ctrl+V)" oninput="previewTar()"></textarea>
+    <div id="tar-prev" style="font-size:12.5px;margin-top:8px;color:var(--text2)"></div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="aplicarPegado()">Usar estos valores</button></div></div>`);
+  setTimeout(() => document.getElementById('tar-paste')?.focus(), 50);
+};
+window.previewTar = function() {
+  const r = parsearTarifario(document.getElementById('tar-paste').value), k = Object.keys(r);
+  document.getElementById('tar-prev').innerHTML = k.length ? `<table class="tbl"><thead><tr><th>Renglón</th><th style="text-align:right">Sueldo neto</th><th style="text-align:right">Venta x día</th></tr></thead><tbody>${k.map(c => `<tr><td>${TAR_LBL(c)}</td><td style="text-align:right">${r[c].sueldo != null ? fmt(r[c].sueldo) : '—'}</td><td style="text-align:right">${r[c].venta != null ? fmt(r[c].venta) : '—'}</td></tr>`).join('')}</tbody></table>` : 'Todavía no se reconoce ningún renglón.';
+};
+window.aplicarPegado = function() {
+  const r = parsearTarifario(document.getElementById('tar-paste').value);
+  if (!Object.keys(r).length) { toast('No se reconoció ningún renglón', 'err'); return; }
+  const D = S_PROY.tarDraft; Object.entries(r).forEach(([c, v]) => { D.filas[c] = { ...(D.filas[c] || {}), ...Object.fromEntries(Object.entries(v).filter(([, x]) => x != null)) }; });
+  D.cambiado = true; closeModal(); toast(`${Object.keys(r).length} renglones cargados. Revisá y guardá.`, 'ok'); render();
+};
+window.completarTarActual = function() {
+  const D = S_PROY.tarDraft, facs = [...(APP.facturaciones || [])].sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')));
+  let n = 0;
+  TAR_CATS.forEach(c => {
+    const it = facs.flatMap(f => (f.detalle?.secciones || []).flatMap(s => s.items || [])).find(i => catDeRecurso(i.recurso) === c && i.valor);
+    if (it && !(D.filas[c]?.venta)) { D.filas[c] = { ...(D.filas[c] || {}), venta: it.valor }; n++; }
+    const nombre = { ORIENTADOR: /^orientador/, SUPERVISOR: /^supervisor$/, 'RECEPCIONES PREMIUM': /^recepci/, 'COORDINADOR ON SITE': /^coordinador/ }[c];
+    const t = nombre && (APP.tarifario || []).find(x => x.area === 'Movistar Arena' && nombre.test(normTxt(x.posicion)));
+    if (t && !(D.filas[c]?.sueldo)) { D.filas[c] = { ...(D.filas[c] || {}), sueldo: t.monto }; n++; }
+  });
+  D.cambiado = n > 0 || D.cambiado;
+  toast(n ? `Se completaron ${n} valores. Revisá los que faltan y guardá.` : 'No había valores nuevos para completar', n ? 'ok' : '');
+  render();
+};
+
+
+// ══════════════════════════════════════════════
+// CARGAS Y MESA DE ENTRADA — presentismo, liquidación y facturación dentro de la plataforma
+// Cargas: se liquida por semana (lunes a domingo, cortada al mes). Mesa de entrada: mensual completo.
+// ══════════════════════════════════════════════
+const SERV_TIPOS = {
+  cargas: { nombre: 'Cargas / stagehands', posicion: 'Cargas', lugar: 'arena-cargas', tar: 'CARGAS' },
+  mesa:   { nombre: 'Mesa de entrada', posicion: 'Mesa de entrada', lugar: 'arena-mesa', tar: 'MESA DE ENTRADA' },
+};
+const S_SERV = { tab: 'cargas', mes: null };
+function servReg(tipo, periodo) { return (APP.servArena || []).find(x => x.id === `${tipo}-${periodo}`) || null; }
+function servData(tipo, periodo) { const r = servReg(tipo, periodo); return { personas: [], pres: {}, ...(r?.data || {}) }; }
+async function servGuardar(tipo, periodo, data) {
+  const reg = { id: `${tipo}-${periodo}`, tipo, periodo, data, updated_at: new Date().toISOString() };
+  const { error } = await sb.from('servicios_arena').upsert(reg);
+  if (error) { toast('No se pudo guardar: ' + error.message + (/servicios_arena|schema cache/i.test(error.message) ? ' (¿creaste la tabla servicios_arena?)' : ''), 'err'); return false; }
+  APP.servArena = APP.servArena || [];
+  const i = APP.servArena.findIndex(x => x.id === reg.id); if (i >= 0) APP.servArena[i] = reg; else APP.servArena.push(reg);
+  return true;
+}
+const diasDelMes = periodo => { const [y, m] = periodo.split('-').map(Number); const n = new Date(y, m, 0).getDate(); return Array.from({ length: n }, (_, i) => `${periodo}-${String(i + 1).padStart(2, '0')}`); };
+const DOW_L = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+const dowDe = f => new Date(f + 'T12:00:00').getDay();
+function semanasDelMes(periodo) {
+  const out = []; let cur = null;
+  diasDelMes(periodo).forEach(f => { if (!cur || dowDe(f) === 1) { cur = { n: out.length + 1, dias: [] }; out.push(cur); } cur.dias.push(f); });
+  return out.map(w => ({ ...w, desde: w.dias[0], hasta: w.dias[w.dias.length - 1], label: `Semana ${w.n}`, rango: `${fd(w.dias[0]).slice(0, 5)} a ${fd(w.dias[w.dias.length - 1]).slice(0, 5)}` }));
+}
+const liqsServ = (lugar, periodo) => (APP.liquidaciones || []).filter(l => l.lugar_fijo === lugar && l.mes_id === periodo);
+const persDe = id => (APP.personal || []).find(p => p.id === id);
+const nomPers = p => p ? `${p.apellido}, ${p.nombre}` : '—';
+function showsDelDia(f) { return (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e) === f); }
+function mesesServicios() {
+  const hoy = new Date(), set = new Set();
+  for (let i = -3; i <= 1; i++) { const d = new Date(hoy.getFullYear(), hoy.getMonth() + i, 1); set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
+  (APP.servArena || []).forEach(x => set.add(x.periodo));
+  return [...set].sort().reverse();
+}
+
+async function pgServicios(el, ac) {
+  ac.innerHTML = '';
+  const meses = mesesServicios();
+  if (!S_SERV.mes || !meses.includes(S_SERV.mes)) { const h = new Date(); S_SERV.mes = `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}`; }
+  const cab = `<div style="margin-bottom:12px"><h2 style="margin:0">Cargas y Mesa de entrada · Movistar Arena</h2>
+    <div style="color:var(--text2);font-size:13px">Presentismo, liquidación y facturación, igual que en las planillas: cargas por semana, mesa de entrada por mes.</div></div>`;
+  if (APP.servArenaError) { el.innerHTML = cab + `<div class="alert alert-warn"><i class="ti ti-database-off"></i> Falta crear la tabla <strong>servicios_arena</strong> en Supabase.</div>`; return; }
+  const tabs = `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <button class="btn ${S_SERV.tab === 'cargas' ? 'btn-primary' : ''}" onclick="S_SERV.tab='cargas';render()"><i class="ti ti-truck"></i> Cargas / stagehands</button>
+      <button class="btn ${S_SERV.tab === 'mesa' ? 'btn-primary' : ''}" onclick="S_SERV.tab='mesa';render()"><i class="ti ti-id-badge"></i> Mesa de entrada</button>
+      <select onchange="S_SERV.mes=this.value;render()" style="font-size:13px;padding:6px 9px;width:auto;margin-left:6px">${meses.map(m => `<option value="${m}" ${m === S_SERV.mes ? 'selected' : ''}>${mesLabel(m)}</option>`).join('')}</select>
+      <div style="flex:1"></div>
+      <button class="btn" onclick="agregarPersServ('${S_SERV.tab}')"><i class="ti ti-user-plus"></i> Agregar persona</button>
+      <button class="btn" onclick="importarServ('${S_SERV.tab}')" title="Pegá la hoja PRESENTISMO de la planilla actual: da de alta a las personas y carga sus presentes"><i class="ti ti-clipboard"></i> Importar desde la planilla</button>
+    </div>`;
+  el.innerHTML = cab + tabs + (S_SERV.tab === 'cargas' ? htmlCargas() : htmlMesa());
+}
+
+// Grilla de presentismo (la misma para cargas y mesa de entrada)
+function htmlGrilla(tipo, periodo, bloqueado) {
+  const d = servData(tipo, periodo), dias = diasDelMes(periodo), cfg = SERV_TIPOS[tipo];
+  const facs = APP.facturaciones || [];
+  const pedDia = f => showsDelDia(f).reduce((a, e) => a + (pedidoPorCat(facs.filter(x => x.evento_id === e.id)).CARGAS || 0), 0);
+  if (!d.personas.length) return `<div class="empty-state" style="padding:26px"><i class="ti ti-users"></i><p>Todavía no hay personas en ${cfg.nombre.toLowerCase()} para ${mesLabel(periodo).toLowerCase()}. Usá <strong>Importar desde la planilla</strong> o <strong>Agregar persona</strong>.</p></div>`;
+  const cab = dias.map(f => { const sh = showsDelDia(f), dw = dowDe(f);
+    return `<th class="gd ${dw === 0 || dw === 6 ? 'fs' : ''} ${sh.length ? 'sh' : ''}" title="${sh.map(e => e.nombre).join(', ')}">${DOW_L[dw]}<br>${+f.slice(8)}${sh.length ? '<i></i>' : ''}</th>`; }).join('');
+  const filas = d.personas.map(pid => { const p = persDe(pid), fs = new Set(d.pres[pid] || []);
+    return `<tr><td class="gn"><strong>${p ? esc2(nomPers(p)) : 'Persona no encontrada'}</strong><div>${p?.cuil || ''}${p && !p.cbu ? ' · <span style="color:#b45309">sin CBU</span>' : ''}</div>
+        ${bloqueado === true ? '' : `<button class="gx" title="Quitar del mes" onclick="quitarPersServ('${tipo}','${pid}')">×</button>`}</td>
+      ${dias.map(f => { const lock = typeof bloqueado === 'function' ? bloqueado(f) : bloqueado;
+        return `<td class="gc ${fs.has(f) ? 'p' : ''} ${lock ? 'lk' : ''}" ${lock ? `title="Período liquidado: deshacé la liquidación para editar"` : `onclick="togglePres('${tipo}','${pid}','${f}')"`}>${fs.has(f) ? 'P' : ''}</td>`; }).join('')}
+      <td class="gt">${fs.size}</td></tr>`; }).join('');
+  const tot = dias.map(f => { const n = d.personas.filter(pid => (d.pres[pid] || []).includes(f)).length, ped = tipo === 'cargas' ? pedDia(f) : 0;
+    const mal = tipo === 'cargas' && ped && n !== ped;
+    return `<td class="gc tot ${mal ? 'mal' : ''}" title="${tipo === 'cargas' && ped ? `pedido del Arena: ${ped}` : ''}">${n || ''}</td>`; }).join('');
+  return `<div class="card" style="padding:0;overflow:auto"><table class="grilla"><thead><tr><th class="gn">Persona</th>${cab}<th class="gt">Días</th></tr></thead>
+    <tbody>${filas}</tbody><tfoot><tr><td class="gn">Presentes${tipo === 'cargas' ? ' <span style="font-weight:400;color:var(--text2)">(en rojo si no coincide con el pedido)</span>' : ''}</td>${tot}<td class="gt">${Object.values(d.pres).reduce((a, x) => a + x.length, 0)}</td></tr></tfoot></table></div>
+    <div style="font-size:11.5px;color:var(--text2);margin:6px 0 16px">Tocá un casillero para marcar o quitar la P. Los días con punto tienen show en el Arena.</div>`;
+}
+const esc2 = t => String(t || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function htmlCargas() {
+  const periodo = S_SERV.mes, d = servData('cargas', periodo), sem = semanasDelMes(periodo), liqs = liqsServ('arena-cargas', periodo);
+  const sueldo = getTarifaMes(periodo)?.filas?.CARGAS?.sueldo || 0, E = getEstructura();
+  const cargasPct = (E.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0);
+  const semLiq = n => liqs.filter(l => l.detalle?.semana === n);
+  const bloqueado = f => { const w = sem.find(x => x.dias.includes(f)); return w && semLiq(w.n).length > 0; };
+  const semanas = sem.map(w => {
+    const jorn = d.personas.reduce((a, pid) => a + (d.pres[pid] || []).filter(f => w.dias.includes(f)).length, 0);
+    const L = semLiq(w.n), pag = L.length && L.every(l => l.estado === 'pagado');
+    const total = L.length ? L.reduce((a, l) => a + (l.total || 0), 0) : jorn * sueldo;
+    const estado = !L.length ? (jorn ? '<span class="badge bw">Sin liquidar</span>' : '<span style="color:var(--text2)">—</span>') : pag ? '<span class="badge bs">Pagada</span>' : '<span class="badge bi">Liquidada</span>';
+    return `<tr><td style="white-space:nowrap"><strong>${w.label}</strong></td><td style="white-space:nowrap">${w.rango}</td><td style="text-align:center">${jorn}</td><td style="text-align:right">${fmt(L.length ? L[0].valor_jornada : sueldo)}</td><td style="text-align:right;font-weight:600">${fmt(total)}</td><td>${estado}</td>
+      <td style="text-align:right;white-space:nowrap">
+        ${!L.length && jorn ? `<button class="btn btn-sm btn-primary" onclick="liquidarSemanaCargas(${w.n})">Liquidar</button>` : ''}
+        ${L.length && !pag ? `<button class="btn btn-sm" onclick="pagarServ('arena-cargas',${w.n})">Marcar pagada</button> <button class="btn btn-sm" onclick="deshacerServ('arena-cargas',${w.n})">Deshacer</button>` : ''}
+        ${jorn ? `<button class="btn btn-sm" title="Excel de la semana" onclick="excelCargas(${w.n})"><i class="ti ti-file-spreadsheet"></i></button>` : ''}</td></tr>`;
+  }).join('');
+  const totMes = sem.reduce((a, w) => { const L = semLiq(w.n); return a + (L.length ? L.reduce((b, l) => b + (l.total || 0), 0) : d.personas.reduce((b, pid) => b + (d.pres[pid] || []).filter(f => w.dias.includes(f)).length, 0) * sueldo); }, 0);
+  // Facturación vs liquidación, show por show
+  const facs = APP.facturaciones || [];
+  const shows = (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e).slice(0, 7) === periodo).sort((a, b) => showFechaISO(a).localeCompare(showFechaISO(b)));
+  const presDia = f => d.personas.filter(pid => (d.pres[pid] || []).includes(f)).length;
+  const col = n => n >= 0 ? '#1a7a3e' : '#b45309';
+  let tF = 0, tL = 0;
+  const porShow = shows.map(e => {
+    const f = showFechaISO(e), fs = facs.filter(x => x.evento_id === e.id);
+    const its = fs.flatMap(x => (x.detalle?.secciones || []).flatMap(s => s.items || [])).filter(i => catDeRecurso(i.recurso) === 'CARGAS');
+    const ped = its.reduce((a, i) => a + (i.cant || 0), 0), fact = its.reduce((a, i) => a + (i.cant || 0) * (i.valor || 0), 0);
+    const pr = presDia(f), liq = pr * sueldo, costo = Math.round(liq * (1 + cargasPct / 100)), dif = fact - costo;
+    tF += fact; tL += costo;
+    return `<tr><td>${fd(f)}</td><td><strong>${e.nombre}</strong>${!fs.length ? ' <span class="badge bw" style="font-size:10px">sin facturación</span>' : ''}</td><td style="text-align:center">${fs.length ? ped : '—'}</td>
+      <td style="text-align:center;${fs.length && pr !== ped ? 'color:#b45309;font-weight:600' : ''}">${pr}</td><td style="text-align:right">${fs.length ? fmt(fact) : '—'}</td><td style="text-align:right">${fmt(liq)}</td>
+      <td style="text-align:right">${fmt(costo)}</td><td style="text-align:right;font-weight:600;color:${col(dif)}">${fs.length ? fmt(dif) : '—'}</td></tr>`;
+  }).join('');
+  const sinShow = diasDelMes(periodo).filter(f => presDia(f) && !showsDelDia(f).length);
+  const jSin = sinShow.reduce((a, f) => a + presDia(f), 0);
+  return `
+    ${!sueldo ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Falta el sueldo neto de CARGAS en el tarifario de ${mesLabel(periodo).toLowerCase()} (Proyecciones → Tarifario mensual).</div>` : ''}
+    ${htmlGrilla('cargas', periodo, bloqueado)}
+    <div style="margin-bottom:14px">
+      <div class="card" style="padding:0;overflow:auto"><div style="padding:12px 14px 4px;font-weight:600">Liquidación por semana</div>
+        <table class="tbl"><thead><tr><th>Semana</th><th>Período</th><th style="text-align:center">Jornadas</th><th style="text-align:right">Neto x jornada</th><th style="text-align:right">Total</th><th>Estado</th><th></th></tr></thead>
+        <tbody>${semanas}</tbody><tfoot><tr style="font-weight:700;background:var(--card2)"><td colspan="4">Total del mes</td><td style="text-align:right">${fmt(totMes)}</td><td colspan="2" style="text-align:right"><button class="btn btn-sm" onclick="excelCargas(0)"><i class="ti ti-file-spreadsheet"></i> Excel del mes</button></td></tr></tfoot></table></div>
+      <div style="font-size:11.5px;color:var(--text2);margin-top:6px"><strong>Cómo se liquida:</strong> igual que la planilla, por semana de lunes a domingo (la primera y la última, cortadas al mes), días trabajados × sueldo neto por jornada del tarifario (${fmt(sueldo)} en ${mesLabel(periodo).toLowerCase()}).
+        Al liquidar, cada semana queda registrada con estado <em>Liquidada</em> y sus días se bloquean; después la marcás como pagada. El Excel sale en el formato de pago de la plataforma (CUIL · Apellido y nombre · CBU).</div>
+    </div>
+    <div class="card" style="padding:0;overflow:auto"><div style="padding:12px 14px 4px;font-weight:600">Facturación vs liquidación, show por show</div>
+      <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th style="text-align:center" title="Cargas del pedido del Arena">Pedidos</th><th style="text-align:center">Presentes</th><th style="text-align:right">Facturado</th><th style="text-align:right">Liquidado (neto)</th><th style="text-align:right" title="Neto + cargas sociales (${cargasPct}%)">Costo con cargas sociales</th><th style="text-align:right">Diferencia</th></tr></thead>
+      <tbody>${porShow || `<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:14px">No hay shows del Arena en ${mesLabel(periodo).toLowerCase()}.</td></tr>`}</tbody>
+      ${shows.length ? `<tfoot><tr style="font-weight:700;background:var(--card2)"><td colspan="4">Total shows</td><td style="text-align:right">${fmt(tF)}</td><td></td><td style="text-align:right">${fmt(tL)}</td><td style="text-align:right;color:${col(tF - tL)}">${fmt(tF - tL)}</td></tr></tfoot>` : ''}</table>
+      ${jSin ? `<div style="padding:8px 14px;font-size:12.5px;color:#b45309">${jSin} jornada${jSin > 1 ? 's' : ''} de cargas en días sin show cargado en la app (${sinShow.map(f => +f.slice(8)).join(', ')}): ${fmt(jSin * sueldo)} neto que no tiene facturación asociada.</div>` : ''}
+    </div>`;
+}
+
+function htmlMesa() {
+  const periodo = S_SERV.mes, d = servData('mesa', periodo), liqs = liqsServ('arena-mesa', periodo);
+  const t = getTarifaMes(periodo)?.filas?.['MESA DE ENTRADA'] || {}, E = getEstructura();
+  const cargasPct = (E.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0);
+  const liq = liqs.length > 0, pag = liq && liqs.every(l => l.estado === 'pagado');
+  const dias = d.personas.map(pid => (d.pres[pid] || []).length);
+  const venta = t.venta || 0, sueldo = liq ? liqs.reduce((a, l) => a + (l.total || 0), 0) / Math.max(1, liqs.length) : (t.sueldo || 0);
+  const nP = Math.max(1, d.personas.length), costo = Math.round(sueldo * nP * (1 + cargasPct / 100)), dif = venta * nP - costo;
+  const col = n => n >= 0 ? '#1a7a3e' : '#b45309';
+  return `
+    ${!t.venta || !t.sueldo ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Falta la venta mensual o el sueldo mensual de mesa de entrada en el tarifario de ${mesLabel(periodo).toLowerCase()} (Proyecciones → Tarifario mensual → Servicios mensuales).</div>` : ''}
+    ${htmlGrilla('mesa', periodo, liq)}
+    <div class="grid2" style="align-items:start">
+      <div class="card"><div style="font-weight:600;margin-bottom:8px">Liquidación y facturación del mes</div>
+        <table class="tbl"><tbody>
+          <tr><td>Días trabajados</td><td style="text-align:right">${dias.join(' / ') || '—'} <span style="color:var(--text2);font-size:11.5px">(no cambia el monto: se paga y factura el mensual completo)</span></td></tr>
+          <tr><td>Facturación mensual al Arena (sin IVA)</td><td style="text-align:right;font-weight:600">${fmt(venta * nP)}</td></tr>
+          <tr><td style="color:var(--text2)">IVA 21%</td><td style="text-align:right;color:var(--text2)">${fmt(venta * nP * 0.21)}</td></tr>
+          <tr><td style="color:var(--text2)">Total a facturar con IVA</td><td style="text-align:right;color:var(--text2)">${fmt(venta * nP * 1.21)}</td></tr>
+          <tr><td>Liquidación mensual (sueldo neto)</td><td style="text-align:right;font-weight:600">${fmt(sueldo * nP)}</td></tr>
+          <tr><td style="color:var(--text2)">Cargas sociales (${cargasPct}%)</td><td style="text-align:right;color:var(--text2)">${fmt(costo - sueldo * nP)}</td></tr>
+          <tr style="font-weight:700"><td>Facturado − costo</td><td style="text-align:right;color:${col(dif)}">${fmt(dif)}</td></tr>
+        </tbody></table>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+          ${!liq ? `<button class="btn btn-primary" onclick="liquidarMesa()" ${d.personas.length ? '' : 'disabled'}>Liquidar el mes</button>` : ''}
+          ${liq && !pag ? `<button class="btn" onclick="pagarServ('arena-mesa',0)">Marcar pagada</button><button class="btn" onclick="deshacerServ('arena-mesa',0)">Deshacer</button>` : ''}
+          ${liq ? `<span class="badge ${pag ? 'bs' : 'bi'}" style="align-self:center">${pag ? 'Pagada' : 'Liquidada'}</span>` : ''}
+          <button class="btn" onclick="excelMesa('liq')" ${d.personas.length ? '' : 'disabled'}><i class="ti ti-file-spreadsheet"></i> Excel liquidación</button>
+          <button class="btn" onclick="excelMesa('fact')" ${d.personas.length ? '' : 'disabled'}><i class="ti ti-file-spreadsheet"></i> Excel facturación</button>
+        </div></div>
+      <div class="card"><div style="font-weight:600;margin-bottom:6px">Cómo se calcula</div>
+        <div style="font-size:12.5px;color:var(--text2)">Mesa de entrada es mensualizada: se factura la venta mensual y se liquida el sueldo mensual neto del tarifario, completos, aunque en el mes haya trabajado menos días. El presentismo queda registrado como respaldo. En el informe a socios aparece como servicio mensual, dentro del resultado del Arena.</div></div>
+    </div>`;
+}
+
+// ── Acciones ──
+window.togglePres = async function(tipo, pid, f) {
+  const periodo = f.slice(0, 7), d = servData(tipo, periodo), fs = new Set(d.pres[pid] || []);
+  fs.has(f) ? fs.delete(f) : fs.add(f); d.pres[pid] = [...fs].sort();
+  if (await servGuardar(tipo, periodo, d)) render();
+};
+window.quitarPersServ = async function(tipo, pid) {
+  const periodo = S_SERV.mes, d = servData(tipo, periodo);
+  if ((d.pres[pid] || []).length && !confirm('Esta persona tiene presentes cargados este mes. ¿Quitarla igual?')) return;
+  d.personas = d.personas.filter(x => x !== pid); delete d.pres[pid];
+  if (await servGuardar(tipo, periodo, d)) render();
+};
+window.agregarPersServ = function(tipo) {
+  const cfg = SERV_TIPOS[tipo], d = servData(tipo, S_SERV.mes);
+  const cand = (APP.personal || []).filter(p => !d.personas.includes(p.id) && (p.area === 'Movistar Arena' || normTxt(p.posicion).includes(normTxt(cfg.posicion))))
+    .sort((a, b) => (normTxt(b.posicion).includes(normTxt(cfg.posicion)) - normTxt(a.posicion).includes(normTxt(cfg.posicion))) || a.apellido.localeCompare(b.apellido));
+  showModal(`<div class="modal" style="max-width:520px">
+    <div class="modal-t"><i class="ti ti-user-plus"></i> Agregar a ${cfg.nombre.toLowerCase()} · ${mesLabel(S_SERV.mes).toLowerCase()}</div>
+    <div class="modal-s">Elegí a alguien del padrón o cargalo nuevo (queda en Personal, área Movistar Arena).</div>
+    <select id="as-sel" style="width:100%;margin:10px 0"><option value="">— Elegir del padrón —</option>${cand.map(p => `<option value="${p.id}">${esc2(nomPers(p))}${p.cuil ? ' · ' + p.cuil : ''}${p.posicion ? ' · ' + esc2(p.posicion) : ''}</option>`).join('')}</select>
+    <div style="font-size:12px;color:var(--text2);margin:4px 0">O cargalo nuevo:</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px"><input id="as-ape" placeholder="Apellido"><input id="as-nom" placeholder="Nombre"><input id="as-cuil" placeholder="CUIL"><input id="as-cbu" placeholder="CBU"></div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="confirmarPersServ('${tipo}')">Agregar</button></div></div>`);
+};
+window.confirmarPersServ = async function(tipo) {
+  const cfg = SERV_TIPOS[tipo], sel = document.getElementById('as-sel').value;
+  let pid = sel;
+  if (!pid) {
+    const ape = document.getElementById('as-ape').value.trim(), nom = document.getElementById('as-nom').value.trim();
+    const cuil = normCuil(document.getElementById('as-cuil').value), cbu = document.getElementById('as-cbu').value.replace(/\D/g, '');
+    if (!ape) { toast('Poné al menos el apellido', 'err'); return; }
+    const ya = cuil.length >= 8 ? (APP.personal || []).find(p => normCuil(p.cuil) === cuil) : null;
+    if (ya) pid = ya.id;
+    else {
+      loading(true);
+      const { data, error } = await sb.from('personal').insert({ apellido: ape, nombre: nom, cuil, cbu, area: 'Movistar Arena', posicion: cfg.posicion, activo: true }).select().single();
+      loading(false);
+      if (error || !data) { toast('No se pudo crear: ' + (error?.message || ''), 'err'); return; }
+      APP.personal.push(data); pid = data.id;
+    }
+  }
+  const d = servData(tipo, S_SERV.mes); if (!d.personas.includes(pid)) d.personas.push(pid);
+  if (await servGuardar(tipo, S_SERV.mes, d)) { closeModal(); toast('Persona agregada', 'ok'); render(); }
+};
+
+// Importar desde la planilla actual: hoja PRESENTISMO (nombre, CUIL, P por día; el CBU se toma de la misma hoja si figura)
+function parsearPlanillaServ(texto, anio) {
+  const filas = String(texto).split(/\r?\n/).map(l => l.split('\t'));
+  const iCab = filas.findIndex(r => r.filter(c => /^\s*\d{1,2}\s*[-/]\s*[a-z]{3}/i.test(c)).length >= 5);
+  if (iCab < 0) return null;
+  const cols = {};
+  filas[iCab].forEach((c, j) => { const m = String(c).trim().toLowerCase().match(/^(\d{1,2})\s*[-/]\s*([a-z]{3})/); if (m && MES_ABR[m[2]]) cols[j] = `${anio}-${MES_ABR[m[2]]}-${m[1].padStart(2, '0')}`; });
+  const cbuPor = {};
+  filas.forEach(r => { const dig = r.map(x => String(x).replace(/\D/g, '')); const c = dig.find(x => x.length === 11), b = dig.find(x => x.length === 22); if (c && b) cbuPor[c] = b; });
+  const personas = [];
+  for (let i = iCab + 1; i < filas.length; i++) {
+    const r = filas[i], nombre = (r[0] || '').trim();
+    if (!nombre || /nombre y apellido|personal|total|d[ií]as trabajados/i.test(nombre)) { if (personas.length) break; else continue; }
+    const cuil = normCuil(r.find(x => normCuil(x).length === 11) || '');
+    const dias = Object.entries(cols).filter(([j]) => /^\s*p\s*$/i.test(r[j] || '')).map(([, f]) => f);
+    personas.push({ nombre, cuil, cbu: cbuPor[cuil] || '', dias });
+  }
+  return { periodo: [...new Set(Object.values(cols).map(f => f.slice(0, 7)))][0], personas };
+}
+// "Albornoz Villa Diego Andres" -> apellido "Albornoz Villa", nombre "Diego Andres"; "Quijano Ignacio" -> "Quijano", "Ignacio"
+function partirNombre(t) { const w = String(t).trim().split(/\s+/); if (w.length <= 1) return { apellido: w[0] || '', nombre: '' }; const k = w.length >= 4 ? 2 : 1; return { apellido: w.slice(0, k).join(' '), nombre: w.slice(k).join(' ') }; }
+window.importarServ = function(tipo) {
+  const cfg = SERV_TIPOS[tipo];
+  showModal(`<div class="modal" style="max-width:660px">
+    <div class="modal-t"><i class="ti ti-clipboard"></i> Importar ${cfg.nombre.toLowerCase()} desde la planilla</div>
+    <div class="modal-s">En la planilla del mes abrí la hoja <strong>PRESENTISMO</strong>, seleccioná todo (Ctrl+A), copiá y pegá acá. Las personas que no estén en el padrón se dan de alta con su CUIL y CBU.</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:10px"><span style="font-size:13px">Año:</span><input id="im-anio" type="number" value="${S_SERV.mes.slice(0, 4)}" style="width:90px"></div>
+    <textarea id="im-txt" rows="8" style="width:100%;font-family:monospace;font-size:12px;margin-top:8px" placeholder="Pegá acá (Ctrl+V)" oninput="previewImportServ('${tipo}')"></textarea>
+    <div id="im-prev" style="font-size:12.5px;margin-top:8px;color:var(--text2)"></div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="confirmarImportServ('${tipo}')">Importar</button></div></div>`);
+  setTimeout(() => document.getElementById('im-txt')?.focus(), 50);
+};
+window.previewImportServ = function(tipo) {
+  const r = parsearPlanillaServ(document.getElementById('im-txt').value, document.getElementById('im-anio').value), el = document.getElementById('im-prev');
+  if (!r || !r.personas.length) { el.textContent = 'Todavía no se reconocen las fechas y las personas.'; return; }
+  el.innerHTML = `<b>${mesLabel(r.periodo)}</b>: <table class="tbl" style="margin-top:6px"><thead><tr><th>Persona</th><th>CUIL</th><th>CBU</th><th style="text-align:center">Días</th><th>Padrón</th></tr></thead><tbody>${r.personas.map(p => {
+      const ya = p.cuil ? (APP.personal || []).find(x => normCuil(x.cuil) === p.cuil) : null, pn = partirNombre(p.nombre);
+      return `<tr><td>${esc2(ya ? nomPers(ya) : `${pn.apellido}, ${pn.nombre}`)}</td><td>${p.cuil || '—'}</td><td>${p.cbu ? '…' + p.cbu.slice(-4) : '<span style="color:#b45309">no figura</span>'}</td><td style="text-align:center">${p.dias.length}</td><td>${ya ? 'ya está' : '<span class="badge bi" style="font-size:10px">nuevo</span>'}</td></tr>`; }).join('')}</tbody></table>`;
+};
+window.confirmarImportServ = async function(tipo) {
+  const cfg = SERV_TIPOS[tipo], r = parsearPlanillaServ(document.getElementById('im-txt').value, document.getElementById('im-anio').value);
+  if (!r || !r.personas.length) { toast('No se reconoció la planilla', 'err'); return; }
+  loading(true);
+  const d = servData(tipo, r.periodo);
+  for (const p of r.personas) {
+    let per = p.cuil ? (APP.personal || []).find(x => normCuil(x.cuil) === p.cuil) : null;
+    if (!per) {
+      const pn = partirNombre(p.nombre);
+      const { data, error } = await sb.from('personal').insert({ apellido: pn.apellido, nombre: pn.nombre, cuil: p.cuil, cbu: p.cbu, area: 'Movistar Arena', posicion: cfg.posicion, activo: true }).select().single();
+      if (error || !data) { loading(false); toast('No se pudo dar de alta a ' + p.nombre + ': ' + (error?.message || ''), 'err'); return; }
+      APP.personal.push(data); per = data;
+    } else if (!per.cbu && p.cbu) { await sb.from('personal').update({ cbu: p.cbu }).eq('id', per.id); per.cbu = p.cbu; }
+    if (!d.personas.includes(per.id)) d.personas.push(per.id);
+    d.pres[per.id] = [...new Set([...(d.pres[per.id] || []), ...p.dias])].sort();
+  }
+  const ok = await servGuardar(tipo, r.periodo, d);
+  loading(false);
+  if (ok) { closeModal(); S_SERV.mes = r.periodo; toast(`${r.personas.length} persona${r.personas.length > 1 ? 's' : ''} importada${r.personas.length > 1 ? 's' : ''} en ${mesLabel(r.periodo).toLowerCase()}`, 'ok'); render(); }
+};
+
+window.liquidarSemanaCargas = async function(n) {
+  const periodo = S_SERV.mes, w = semanasDelMes(periodo).find(x => x.n === n), d = servData('cargas', periodo);
+  const sueldo = getTarifaMes(periodo)?.filas?.CARGAS?.sueldo;
+  if (!sueldo) { toast('Falta el sueldo de CARGAS en el tarifario del mes', 'err'); return; }
+  if (liqsServ('arena-cargas', periodo).some(l => l.detalle?.semana === n)) { toast('Esa semana ya está liquidada', 'err'); return; }
+  const rows = d.personas.map(pid => { const p = persDe(pid), dias = (d.pres[pid] || []).filter(f => w.dias.includes(f)).length;
+    return dias ? { persona_id: pid, persona_nombre: nomPers(p), area: 'Movistar Arena', lugar_fijo: 'arena-cargas', lugar_nombre: 'Cargas / stagehands', mes_id: periodo,
+      periodo: `Cargas · ${w.label} · ${w.rango}`, posicion: 'Cargas', jornadas: dias, valor_jornada: sueldo, total: dias * sueldo, estado: 'aprobado', detalle: { semana: n, desde: w.desde, hasta: w.hasta } } : null; }).filter(Boolean);
+  if (!rows.length) { toast('No hay jornadas en esa semana', 'err'); return; }
+  const sinCbu = rows.filter(r => !persDe(r.persona_id)?.cbu).length;
+  if (!confirm(`Liquidar ${w.label} (${w.rango}): ${rows.length} persona${rows.length > 1 ? 's' : ''}, ${fmt(rows.reduce((a, r) => a + r.total, 0))}.${sinCbu ? `\n\nAtención: ${sinCbu} sin CBU en el padrón.` : ''}`)) return;
+  loading(true);
+  const { error } = await sb.from('liquidaciones').insert(rows);
+  loading(false);
+  if (error) { toast('No se pudo liquidar: ' + error.message, 'err'); return; }
+  await fetchAll(); toast(`${w.label} liquidada`, 'ok'); render();
+};
+window.liquidarMesa = async function() {
+  const periodo = S_SERV.mes, d = servData('mesa', periodo), t = getTarifaMes(periodo)?.filas?.['MESA DE ENTRADA'] || {};
+  if (!t.sueldo) { toast('Falta el sueldo mensual de mesa de entrada en el tarifario', 'err'); return; }
+  if (liqsServ('arena-mesa', periodo).length) { toast('El mes ya está liquidado', 'err'); return; }
+  const rows = d.personas.map(pid => ({ persona_id: pid, persona_nombre: nomPers(persDe(pid)), area: 'Movistar Arena', lugar_fijo: 'arena-mesa', lugar_nombre: 'Mesa de entrada', mes_id: periodo,
+    periodo: `Mesa de entrada · ${mesLabel(periodo)}`, posicion: 'Mesa de entrada', jornadas: (d.pres[pid] || []).length, valor_jornada: t.sueldo, total: t.sueldo, estado: 'aprobado', detalle: { mensual: true, venta: t.venta } }));
+  if (!confirm(`Liquidar mesa de entrada de ${mesLabel(periodo).toLowerCase()}: ${fmt(t.sueldo * rows.length)} (mensual completo).`)) return;
+  loading(true);
+  const { error } = await sb.from('liquidaciones').insert(rows);
+  loading(false);
+  if (error) { toast('No se pudo liquidar: ' + error.message, 'err'); return; }
+  await fetchAll(); toast('Mesa de entrada liquidada', 'ok'); render();
+};
+window.pagarServ = async function(lugar, n) {
+  const ids = liqsServ(lugar, S_SERV.mes).filter(l => lugar === 'arena-mesa' || l.detalle?.semana === n).map(l => l.id);
+  if (!ids.length || !confirm('¿Marcar como pagada?')) return;
+  loading(true);
+  for (const id of ids) await sb.from('liquidaciones').update({ estado: 'pagado' }).eq('id', id);
+  loading(false); await fetchAll(); toast('Marcada como pagada', 'ok'); render();
+};
+window.deshacerServ = async function(lugar, n) {
+  const L = liqsServ(lugar, S_SERV.mes).filter(l => lugar === 'arena-mesa' || l.detalle?.semana === n);
+  if (L.some(l => l.estado === 'pagado')) { toast('Ya está pagada: no se puede deshacer', 'err'); return; }
+  if (!L.length || !confirm('¿Deshacer la liquidación? Los días vuelven a quedar editables.')) return;
+  loading(true);
+  for (const l of L) await sb.from('liquidaciones').delete().eq('id', l.id);
+  loading(false); await fetchAll(); toast('Liquidación deshecha', 'ok'); render();
+};
+
+// ── Exportables ──
+function xlsxDescargar(hojas, archivo) {
+  const wb = XLSX.utils.book_new();
+  hojas.forEach(([nombre, aoa]) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), nombre.slice(0, 31)));
+  XLSX.writeFile(wb, archivo);
+}
+window.excelCargas = function(n) {
+  const periodo = S_SERV.mes, d = servData('cargas', periodo), sueldo = getTarifaMes(periodo)?.filas?.CARGAS?.sueldo || 0;
+  const hojaSemana = w => {
+    const L = liqsServ('arena-cargas', periodo).filter(l => l.detalle?.semana === w.n);
+    const filas = d.personas.map(pid => { const p = persDe(pid), l = L.find(x => x.persona_id === pid);
+      const dias = l ? l.jornadas : (d.pres[pid] || []).filter(f => w.dias.includes(f)).length, vj = l ? l.valor_jornada : sueldo;
+      return dias ? [p?.cuil || '', nombreExport(p?.apellido || '', p?.nombre || ''), p?.cbu || '', vj, dias, dias * vj] : null; }).filter(Boolean);
+    return [`${w.label} ${w.rango.replace(/\//g, '-')}`, [['CUIL', 'Apellido y nombre', 'CBU', 'Sueldo neto por jornada', 'Dias trabajados', 'Total'], ...filas, ['', '', '', '', 'TOTAL', filas.reduce((a, r) => a + r[5], 0)]]];
+  };
+  const sem = semanasDelMes(periodo);
+  const hojas = (n ? sem.filter(w => w.n === n) : sem).map(hojaSemana).filter(h => h[1].length > 2);
+  if (!n) { const dias = diasDelMes(periodo);
+    hojas.push(['PRESENTISMO', [['CUIL', 'Apellido y nombre', ...dias.map(f => `${+f.slice(8)}/${+f.slice(5, 7)}`), 'Dias'],
+      ...d.personas.map(pid => { const p = persDe(pid), fs = new Set(d.pres[pid] || []); return [p?.cuil || '', nombreExport(p?.apellido || '', p?.nombre || ''), ...dias.map(f => fs.has(f) ? 'P' : ''), fs.size]; })]]); }
+  if (!hojas.length) { toast('No hay jornadas para exportar', 'err'); return; }
+  xlsxDescargar(hojas, `Liquidacion cargas ${n ? `semana ${n} ` : ''}${normExport(mesLabel(periodo))}.xlsx`);
+};
+window.excelMesa = function(tipo) {
+  const periodo = S_SERV.mes, d = servData('mesa', periodo), t = getTarifaMes(periodo)?.filas?.['MESA DE ENTRADA'] || {}, mes = normExport(mesLabel(periodo).split(' ')[0]).toUpperCase();
+  const pers = d.personas.map(persDe);
+  if (tipo === 'liq') xlsxDescargar([['LIQUIDACION', [['CUIL', 'Apellido y nombre', 'CBU', 'Dias trabajados', 'Total'],
+      ...pers.map((p, i) => [p?.cuil || '', nombreExport(p?.apellido || '', p?.nombre || ''), p?.cbu || '', (d.pres[d.personas[i]] || []).length, t.sueldo || 0])]]],
+    `Liquidacion mesa de entrada ${normExport(mesLabel(periodo))}.xlsx`);
+  else xlsxDescargar([['FACTURACION', [[`VALOR VENTA MENSUAL TARIFARIO ${mes}`], [t.venta || 0], [], ['RR. HH', 'Dias trabajados', 'Total a facturar', 'Total con IVA'],
+      ...pers.map((p, i) => [nombreExport(p?.apellido || '', p?.nombre || ''), (d.pres[d.personas[i]] || []).length, t.venta || 0, Math.round((t.venta || 0) * 121) / 100]),
+      ['TOTAL', '', (t.venta || 0) * pers.length, Math.round((t.venta || 0) * pers.length * 121) / 100]]]],
+    `Facturacion mesa de entrada ${normExport(mesLabel(periodo))}.xlsx`);
 };
 
 // ══════════════════════════════════════════════
@@ -4122,33 +5014,55 @@ function buildInforme(tipo, periodo) {
       (sec.items || []).forEach(it => { zmap[z].cant += it.cant || 0; zmap[z].monto += (it.cant || 0) * (it.valor || 0); });
     }));
     const zonas = Object.values(zmap).filter(z => z.monto > 0).sort((a, b) => b.monto - a.monto);
-    const posiciones = Object.entries(r.posiciones || {}).map(([posicion, v]) => ({ posicion, cant: v.cant, monto: Math.round(v.monto) })).sort((a, b) => b.monto - a.monto);
-    return { nombre: r.ev.nombre, fecha: r.fISO, staff, estimado: r.estimado, ventasIva: r.facturadoIva,
+    const posiciones = Object.entries(r.posiciones || {}).map(([posicion, v]) => ({ posicion, cant: v.cant, monto: Math.round(v.monto), aparte: !!v.aparte, sbs: esCoordinador(posicion) })).sort((a, b) => b.monto - a.monto);
+    return { evId: r.ev.id, nombre: r.ev.nombre, fecha: r.fISO, staff, estimado: r.estimado, ventasIva: r.facturadoIva,
              ventas: pl.ventas, personal: pl.personal, cargas: pl.totCargas, utBruta: pl.utBruta,
              impuestos: pl.totImp, contrMarginal: pl.contrMarginal, fijos: pl.fijos, ebit: pl.ebit,
-             presentes: r.presentes, zonas, posiciones };
+             presentes: r.presentes, zonas, posiciones,
+             facturables: r.facturables, coordinador: r.coord, backups: { cant: r.backups, monto: r.backupsCosto },
+             cargasAparte: { cant: r.cargasCant, monto: Math.round(r.cargasCosto), origen: r.cargasOrigen } };
   });
-  const T = calcPL(ventasTot, base.reduce((s, r) => s + r.costo, 0), fijosTot, E);
-  // Ganancias: sobre el EBIT total del período; se reparte entre los shows con EBIT positivo
+  // Servicios mensuales del Arena (mesa de entrada): uno por mes del período, hasta el mes actual
+  const hoyM = (() => { const h = new Date(); return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}`; })();
+  const sigMes = m => { const [y, mm] = m.split('-').map(Number); return mm === 12 ? `${y + 1}-01` : `${y}-${String(mm + 1).padStart(2, '0')}`; };
+  const mesesPer = [];
+  if (tipo === 'mes') mesesPer.push(periodo);
+  else { let m = RENT_DESDE.slice(0, 7) > `${periodo}-01` ? RENT_DESDE.slice(0, 7) : `${periodo}-01`; while (m <= `${periodo}-12` && m <= hoyM) { mesesPer.push(m); m = sigMes(m); } }
+  let servMes = mesesPer.flatMap(m => serviciosMes(m)).map(sv => { const pl = calcPL(sv.venta, sv.sueldo, 0, E); return { ...sv, ventas: sv.venta, personal: sv.sueldo, cargas: pl.totCargas, impuestos: pl.totImp, ebit: pl.ebit }; });
+  const costoShows = base.reduce((s, r) => s + r.costo, 0);
+  const servVentas = servMes.reduce((a, x) => a + x.ventas, 0), servPers = servMes.reduce((a, x) => a + x.personal, 0);
+  // Totales del área = shows + servicios mensuales
+  const T = calcPL(ventasTot + servVentas, costoShows + servPers, fijosTot, E);
+  // Ganancias: sobre el EBIT total del período; se reparte entre shows y servicios con EBIT positivo
   T.iigg = { pct: +E.iigg || 0, monto: Math.round(Math.max(0, T.ebit) * (+E.iigg || 0) / 100) };
   T.neto = T.ebit - T.iigg.monto;
-  const ebitPos = shows.reduce((s, x) => s + Math.max(0, x.ebit), 0);
-  shows = shows.map(x => {
-    const iigg = ebitPos ? Math.round(T.iigg.monto * Math.max(0, x.ebit) / ebitPos) : 0;
-    return { ...x, iigg, neto: x.ebit - iigg };
-  }).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const ebitPos = shows.reduce((s, x) => s + Math.max(0, x.ebit), 0) + servMes.reduce((s, x) => s + Math.max(0, x.ebit), 0);
+  const repIigg = x => ebitPos ? Math.round(T.iigg.monto * Math.max(0, x.ebit) / ebitPos) : 0;
+  shows = shows.map(x => { const iigg = repIigg(x); return { ...x, iigg, neto: x.ebit - iigg }; }).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  servMes = servMes.map(x => { const iigg = repIigg(x); return { ...x, iigg, neto: x.ebit - iigg }; });
+  // Servicios agrupados para mostrar (uno por servicio, sumando los meses)
+  const servicios = SERV_MENSUALES.map(sv => {
+    const xs = servMes.filter(x => x.key === sv.key); if (!xs.length) return null;
+    const sum = k => xs.reduce((a, x) => a + (x[k] || 0), 0);
+    return { key: sv.key, nombre: sv.nombre, meses: xs.length, ventas: sum('ventas'), personal: sum('personal'), cargas: sum('cargas'), impuestos: sum('impuestos'), iigg: sum('iigg'), neto: sum('neto'),
+             estimado: xs.some(x => x.origen === 'estimado'), detalle: xs.map(x => ({ periodo: x.periodo, ventas: x.ventas, personal: x.personal, cargas: x.cargas, impuestos: x.impuestos, iigg: x.iigg, neto: x.neto, origen: x.origen })) };
+  }).filter(Boolean);
   T.ventasIva = shows.reduce((s, x) => s + (x.ventasIva || 0), 0);
   T.staff = shows.reduce((s, x) => s + (x.staff || 0), 0);
   T.shows = shows.length;
+  // Totales solo de shows (para promedios por show y por puesto)
+  const sumS = k => shows.reduce((a, x) => a + (x[k] || 0), 0);
+  const totShows = { ventas: sumS('ventas'), personal: sumS('personal'), cargas: sumS('cargas'), impuestos: sumS('impuestos'), fijos: sumS('fijos'), iigg: sumS('iigg'), neto: sumS('neto'), staff: T.staff, shows: T.shows };
   let meses = null;
   if (tipo === 'anio') {
     const g = {};
-    shows.forEach(s => {
-      const k = s.fecha.slice(0, 7);
+    const add = (k, x, esShow) => {
       g[k] = g[k] || { periodo: k, label: mesLabel(k), shows: 0, ventas: 0, personal: 0, cargas: 0, impuestos: 0, fijos: 0, iigg: 0, neto: 0 };
-      ['ventas', 'personal', 'cargas', 'impuestos', 'fijos', 'iigg', 'neto'].forEach(c => g[k][c] += s[c]);
-      g[k].shows++;
-    });
+      ['ventas', 'personal', 'cargas', 'impuestos', 'fijos', 'iigg', 'neto'].forEach(c => g[k][c] += x[c] || 0);
+      if (esShow) g[k].shows++;
+    };
+    shows.forEach(x => add(x.fecha.slice(0, 7), x, true));
+    servMes.forEach(x => add(x.periodo, x, false));
     meses = Object.values(g).sort((a, b) => a.periodo.localeCompare(b.periodo));
   }
   const periodoLabel = tipo === 'mes' ? mesLabel(periodo) : `Año ${periodo}`;
@@ -4156,7 +5070,7 @@ function buildInforme(tipo, periodo) {
     v: 2, tipo, periodo, periodoLabel, titulo: `Informe Movistar Arena, ${periodoLabel.toLowerCase()}`,
     desde: RENT_DESDE, generado: new Date().toISOString(), estructura: E,
     shows, pendientes: enPeriodo.filter(r => !r.nFac).map(r => ({ nombre: r.ev.nombre, fecha: r.fISO })),
-    totales: T, meses, hayEstimados: shows.some(s => s.estimado),
+    totales: T, totShows, servicios, meses, hayEstimados: shows.some(s => s.estimado),
   };
 }
 
