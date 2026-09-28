@@ -3982,21 +3982,24 @@ function rentPorShow() {
       const q = APP.quincenas.find(x => x.id === ev.quincena_id);
       const fechasShow = new Set((ev.fechas || []).map(x => x.fecha).concat(ev.fecha ? [ev.fecha] : []));
       let costo = 0, estimado = false;
+      const posiciones = {};   // costo de personal por posición: { posición: { cant, monto } }
+      const sumPos = (pos, monto) => { const k = pos || 'Sin posición'; (posiciones[k] = posiciones[k] || { cant: 0, monto: 0 }); posiciones[k].cant++; posiciones[k].monto += monto || 0; };
       if (q?.cerrada) {
         APP.liquidaciones.filter(l => l.quincena_id === q.id).forEach(l => {
           let det = l.detalle;
           if (typeof det === 'string') { try { det = JSON.parse(det); } catch { det = []; } }
           (det || []).forEach(j => {
-            if (j.ev_nombre === ev.nombre && (!j.fecha || fechasShow.has(j.fecha))) costo += j.monto || 0;
+            if (j.ev_nombre === ev.nombre && (!j.fecha || fechasShow.has(j.fecha))) { costo += j.monto || 0; sumPos(j.posicion, j.monto); }
           });
         });
       } else {
         estimado = true;
         (ev.fechas || []).forEach(fe => (fe.presentismo || []).forEach(p => {
-          costo += getTarifa(p.posicion, 'Movistar Arena')?.monto || 0;
+          const m = getTarifa(p.posicion, 'Movistar Arena')?.monto || 0; costo += m; sumPos(p.posicion, m);
         }));
       }
-      return { ev, fISO, facturado, facturadoIva, costo, estimado, ganancia: facturado - costo, nFac: f.length };
+      const presentes = (ev.fechas || []).reduce((a, fe) => a + (fe.presentismo || []).length, 0);
+      return { ev, fISO, facturado, facturadoIva, costo, estimado, ganancia: facturado - costo, nFac: f.length, posiciones, presentes };
     })
     .sort((a, b) => b.fISO.localeCompare(a.fISO));
 }
@@ -4111,9 +4114,19 @@ function buildInforme(tipo, periodo) {
   let shows = base.map(r => {
     const staff = facs.filter(f => f.evento_id === r.ev.id).reduce((s, f) => s + (f.cant_staff || 0), 0);
     const pl = calcPL(r.facturado, r.costo, ventasTot ? fijosTot * r.facturado / ventasTot : 0, E);
+    // Zonas facturadas (del pedido del Arena guardado en la facturación)
+    const zmap = {};
+    facs.filter(f => f.evento_id === r.ev.id).forEach(f => (f.detalle?.secciones || []).forEach(sec => {
+      const z = sec.zona === 'PREMIUM' ? 'Premium' : sec.zona === 'Personal' ? 'Stagehands / cargas' : (sec.zona || 'Otros');
+      zmap[z] = zmap[z] || { zona: z, cant: 0, monto: 0 };
+      (sec.items || []).forEach(it => { zmap[z].cant += it.cant || 0; zmap[z].monto += (it.cant || 0) * (it.valor || 0); });
+    }));
+    const zonas = Object.values(zmap).filter(z => z.monto > 0).sort((a, b) => b.monto - a.monto);
+    const posiciones = Object.entries(r.posiciones || {}).map(([posicion, v]) => ({ posicion, cant: v.cant, monto: Math.round(v.monto) })).sort((a, b) => b.monto - a.monto);
     return { nombre: r.ev.nombre, fecha: r.fISO, staff, estimado: r.estimado, ventasIva: r.facturadoIva,
              ventas: pl.ventas, personal: pl.personal, cargas: pl.totCargas, utBruta: pl.utBruta,
-             impuestos: pl.totImp, contrMarginal: pl.contrMarginal, fijos: pl.fijos, ebit: pl.ebit };
+             impuestos: pl.totImp, contrMarginal: pl.contrMarginal, fijos: pl.fijos, ebit: pl.ebit,
+             presentes: r.presentes, zonas, posiciones };
   });
   const T = calcPL(ventasTot, base.reduce((s, r) => s + r.costo, 0), fijosTot, E);
   // Ganancias: sobre el EBIT total del período; se reparte entre los shows con EBIT positivo
