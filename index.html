@@ -3946,7 +3946,11 @@ async function pgFacturacion(el, ac) {
         <div><h2 style="margin:0">Facturación · Movistar Arena</h2>
           <div style="color:var(--text2);font-size:13px">Procesá el pedido del Arena, guardá y seguí los números por show, mes y acumulado.</div></div>
         <input type="file" id="fact-file" accept="application/pdf" style="display:none" onchange="subirFacturaArena(this)">
-        <button class="btn btn-primary" onclick="document.getElementById('fact-file').click()"><i class="ti ti-upload"></i> Procesar nuevo pedido</button>
+        <div style="display:flex;gap:6px">
+          <input type="file" id="paq-file" accept=".json,application/json" style="display:none" onchange="leerPaquete(this)">
+          <button class="btn" onclick="document.getElementById('paq-file').click()" title="Carga de una vez facturaciones, tarifario, cargas y mesa de entrada armados desde las planillas"><i class="ti ti-package-import"></i> Importar paquete de datos</button>
+          <button class="btn btn-primary" onclick="document.getElementById('fact-file').click()"><i class="ti ti-upload"></i> Procesar nuevo pedido</button>
+        </div>
       </div>
       ${facs.length ? `
       <div class="grid3" style="margin-bottom:16px">
@@ -4054,13 +4058,14 @@ function getTarifaMes(periodo) {
 function pedidoPorCat(facsShow) {
   const out = {};
   facsShow.forEach(f => (f.detalle?.secciones || []).forEach(sec => (sec.items || []).forEach(it => {
+    if (it.extra) return;   // horas extra (p. ej. paquete VIP): suman ingreso, no son puestos
     const c = catDeRecurso(it.recurso); out[c] = (out[c] || 0) + (it.cant || 0);
   })));
   return out;
 }
 
 // El análisis de rentabilidad arranca en este show: antes no hay números de facturación.
-const RENT_DESDE = '2026-09-22';
+const RENT_DESDE = '2026-09-01';
 
 // Fecha ISO de un show de Arena (la propia del show o la primera de sus jornadas).
 function showFechaISO(ev) {
@@ -4241,6 +4246,123 @@ window.guardarPresCargas = async function() {
   loading(false);
   if (error) { toast('No se pudo guardar: ' + error.message + (/tarifario_arena|schema cache/i.test(error.message) ? ' (¿creaste la tabla tarifario_arena?)' : ''), 'err'); return; }
   closeModal(); await fetchAll(); toast(`Presentismo de cargas de ${mesLabel(r.periodo).toLowerCase()} guardado`, 'ok'); render();
+};
+
+// ══════════════════════════════════════════════
+// PAQUETE DE DATOS — facturaciones, tarifario y servicios armados desde las planillas del Drive
+// ══════════════════════════════════════════════
+function planPaquete(P) {
+  const plan = { facturas: [], servicios: [], tarifario: [], avisos: [] };
+  const facs = APP.facturaciones || [];
+  (P.facturaciones || []).forEach(f => {
+    const tot = (f.secciones || []).reduce((a, s) => a + (s.items || []).reduce((b, i) => b + (i.cant || 0) * (i.valor || 0), 0), 0);
+    let evs = (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e) === f.fecha);
+    if (evs.length > 1) { const bn = baseNombre(f.show); const m = evs.filter(e => baseNombre(e.nombre) === bn); if (m.length) evs = m; }
+    const ev = evs[0];
+    const ya = ev ? facs.find(x => x.evento_id === ev.id) : null;
+    let estado = 'nueva', nota = '';
+    if (f.fecha < SERV_DESDE) { estado = 'omitida'; nota = `anterior al ${fd(SERV_DESDE)}`; }
+    else if (!ev) {
+      estado = 'sin show'; nota = `no hay un show del Arena cargado el ${fd(f.fecha)}`;
+      // ¿Hay un show con el mismo nombre en otra fecha? Suele ser la fecha mal cargada
+      // (descarta los shows cuya fecha ya coincide con otra planilla del paquete: esos están bien)
+      const fechasPaq = new Set((P.facturaciones || []).map(x => x.fecha)), bn = baseNombre(f.show);
+      const parecido = (APP.eventos || []).find(e => e.area === 'Movistar Arena' && bn && !fechasPaq.has(showFechaISO(e)) && normTxt(e.nombre).replace(/[^a-z0-9]+/g, ' ').includes(bn));
+      if (parecido) nota = `hay un "${parecido.nombre}" cargado el ${fd(showFechaISO(parecido))}: si es el mismo show, corregí la fecha en Movistar Arena y volvé a importar`;
+    }
+    else if (evs.length > 1) { estado = 'sin show'; nota = `hay ${evs.length} shows ese día; cargala a mano`; }
+    else if (ya) {
+      const igual = Math.round(ya.total) === Math.round(tot), sinDetalle = !(ya.detalle?.secciones || []).length;
+      if (igual && sinDetalle) { estado = 'completar'; nota = 'ya estaba sin el detalle por zona: se completa'; }
+      else { estado = 'ya estaba'; nota = igual ? 'mismo total' : `ya existe con otro total (${fmt(ya.total)}); no se modifica`; }
+    }
+    if (f.total && Math.round(f.total) !== Math.round(tot)) plan.avisos.push(`${f.archivo || f.fecha}: el total del archivo (${fmt(f.total)}) no coincide con la suma de sus puestos (${fmt(tot)}).`);
+    plan.facturas.push({ f, ev, tot, estado, nota });
+  });
+  (P.servicios || []).forEach(sv => {
+    const tipo = sv.tipo, cfg = SERV_TIPOS[tipo]; if (!cfg) return;
+    const personas = (sv.personas || []).map(p => ({ ...p, cuil: normCuil(p.cuil), dias: (p.dias || []).filter(d => tipo !== 'cargas' || d >= SERV_DESDE) })).filter(p => p.dias.length);
+    const ok = sv.periodo >= SERV_DESDE.slice(0, 7);
+    plan.servicios.push({ tipo, periodo: sv.periodo, personas, estado: ok ? 'se carga' : 'omitido', nuevos: personas.filter(p => !(APP.personal || []).some(x => normCuil(x.cuil) === p.cuil)).length });
+  });
+  (P.tarifario || []).forEach(t => plan.tarifario.push({ periodo: t.periodo, renglones: Object.keys(t.filas || {}).length, existe: (APP.tarArena || []).some(x => x.periodo === t.periodo) }));
+  return plan;
+}
+window.leerPaquete = function(input) {
+  const file = input.files?.[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = () => {
+    let P; try { P = JSON.parse(r.result); } catch { toast('El archivo no es un paquete válido', 'err'); return; }
+    if (P.tipo !== 'sbs-paquete-arena') { toast('El archivo no es un paquete de datos de SBS', 'err'); return; }
+    window._paquete = P;
+    const plan = planPaquete(P), badge = e => ({ 'nueva': 'bs', 'se carga': 'bs', 'completar': 'bs', 'ya estaba': 'bi', 'omitida': 'bw', 'omitido': 'bw', 'sin show': 'bw' }[e] || 'bi');
+    showModal(`<div class="modal" style="max-width:720px">
+      <div class="modal-t"><i class="ti ti-package-import"></i> Importar paquete de datos</div>
+      <div class="modal-s">${esc2(P.fuente || '')}. Revisá lo que se va a cargar; nada se pisa: si algo ya existe, se deja como está.</div>
+      ${plan.avisos.length ? `<div class="alert alert-warn" style="margin-top:8px">${plan.avisos.map(esc2).join('<br>')}</div>` : ''}
+      <div style="font-weight:600;margin:12px 0 4px">Facturaciones</div>
+      <table class="tbl"><thead><tr><th>Archivo</th><th>Show en la app</th><th style="text-align:right">Total</th><th>Estado</th></tr></thead><tbody>
+      ${plan.facturas.map(x => `<tr><td>${esc2(x.f.archivo || x.f.show)}</td><td>${x.ev ? `${esc2(x.ev.nombre)} · ${fd(showFechaISO(x.ev))}` : '—'}</td><td style="text-align:right">${fmt(x.tot)}</td>
+        <td><span class="badge ${badge(x.estado)}" style="font-size:10px">${x.estado}</span>${x.nota ? `<div style="font-size:11px;color:var(--text2)">${esc2(x.nota)}</div>` : ''}</td></tr>`).join('')}</tbody></table>
+      <div style="font-weight:600;margin:12px 0 4px">Tarifario</div>
+      <div style="font-size:12.5px">${plan.tarifario.map(t => `${mesLabel(t.periodo)}: ${t.renglones} renglones${t.existe ? ' (reemplaza el cargado)' : ''}`).join(' · ') || '—'}${P.aumentoMensual != null ? ` · aumento mensual para meses sin cargar: ${String(P.aumentoMensual).replace('.', ',')}%` : ''}</div>
+      <div style="font-weight:600;margin:12px 0 4px">Cargas y mesa de entrada</div>
+      <div style="font-size:12.5px">${plan.servicios.map(s => `${SERV_TIPOS[s.tipo].nombre} · ${mesLabel(s.periodo)}: ${s.personas.length} persona${s.personas.length !== 1 ? 's' : ''}, ${s.personas.reduce((a, p) => a + p.dias.length, 0)} días${s.nuevos ? ` (${s.nuevos} nueva${s.nuevos > 1 ? 's' : ''} en el padrón)` : ''}${s.estado === 'omitido' ? ' — omitido, anterior al corte' : ''}${esHistorico(s.periodo) ? ' · liquidado fuera de la plataforma' : ''}`).join('<br>') || '—'}</div>
+      <div class="modal-f"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="aplicarPaquete()">Importar</button></div></div>`);
+  };
+  r.readAsText(file); input.value = '';
+};
+window.aplicarPaquete = async function() {
+  const P = window._paquete; if (!P) return;
+  const plan = planPaquete(P), res = { facturas: 0, tarifario: 0, servicios: 0, personas: 0, errores: [] };
+  loading(true);
+  try {
+    // 1) tarifario (primero: la facturación y los servicios lo usan)
+    for (const t of P.tarifario || []) {
+      const prev = (APP.tarArena || []).find(x => x.periodo === t.periodo)?.filas || {};
+      const { error } = await sb.from('tarifario_arena').upsert({ periodo: t.periodo, filas: { ...prev, ...t.filas }, updated_at: new Date().toISOString() });
+      if (error) res.errores.push('Tarifario ' + t.periodo + ': ' + error.message); else res.tarifario++;
+    }
+    if (P.aumentoMensual != null) await sb.from('tarifario_arena').upsert({ periodo: 'config', filas: { ...tarConfig(), aumento: +P.aumentoMensual }, updated_at: new Date().toISOString() });
+    // 2) facturaciones nuevas
+    for (const x of plan.facturas.filter(x => x.estado === 'nueva')) {
+      const cant = (x.f.secciones || []).reduce((a, s) => a + (s.items || []).reduce((b, i) => b + (i.extra ? 0 : (i.cant || 0)), 0), 0);
+      const fISO = showFechaISO(x.ev);
+      const rec = { show: x.ev.nombre, fecha: fd(fISO), periodo: fISO.slice(0, 7), evento_id: x.ev.id, quincena_id: x.ev.quincena_id || null, cant_staff: cant,
+        presentes: factPresentesShow(x.ev.id), total: x.tot, total_iva: Math.round(x.tot * 121) / 100,
+        detalle: { show: x.f.show, fecha: fd(x.f.fecha), secciones: x.f.secciones, verQ: x.ev.quincena_id || null, verShow: x.ev.id, origen: x.f.archivo || 'paquete' } };
+      const { error } = await sb.from('facturaciones').insert(rec);
+      if (error) res.errores.push((x.f.archivo || x.f.fecha) + ': ' + error.message); else res.facturas++;
+    }
+    // facturaciones existentes con el mismo total pero sin detalle: se completa solo el detalle
+    for (const x of plan.facturas.filter(x => x.estado === 'completar')) {
+      const ya = (APP.facturaciones || []).find(f => f.evento_id === x.ev.id);
+      const { error } = await sb.from('facturaciones').update({ detalle: { ...(ya.detalle || {}), secciones: x.f.secciones, origen: x.f.archivo || 'paquete' } }).eq('id', ya.id);
+      if (error) res.errores.push((x.f.archivo || x.f.fecha) + ': ' + error.message); else res.facturas++;
+    }
+    await fetchAll();
+    // 3) servicios: personas al padrón (por CUIL) y presentismo del mes
+    for (const sv of plan.servicios.filter(s => s.estado === 'se carga')) {
+      const cfg = SERV_TIPOS[sv.tipo], d = servData(sv.tipo, sv.periodo);
+      for (const p of sv.personas) {
+        let per = (APP.personal || []).find(x => normCuil(x.cuil) === p.cuil);
+        if (!per) {
+          const { data, error } = await sb.from('personal').insert({ apellido: p.apellido, nombre: p.nombre, cuil: p.cuil, cbu: p.cbu || '', area: 'Movistar Arena', posicion: cfg.posicion, activo: true }).select().single();
+          if (error || !data) { res.errores.push(`Alta de ${p.apellido}: ${error?.message || ''}`); continue; }
+          APP.personal.push(data); per = data; res.personas++;
+        } else if (!per.cbu && p.cbu) { await sb.from('personal').update({ cbu: p.cbu }).eq('id', per.id); per.cbu = p.cbu; }
+        if (!d.personas.includes(per.id)) d.personas.push(per.id);
+        d.pres[per.id] = [...new Set([...(d.pres[per.id] || []), ...p.dias])].sort();
+      }
+      if (await servGuardar(sv.tipo, sv.periodo, d)) res.servicios++;
+    }
+    await fetchAll();
+  } catch (e) { res.errores.push(e.message); }
+  loading(false); closeModal();
+  const txt = `${res.facturas} facturación${res.facturas !== 1 ? 'es' : ''}, ${res.tarifario} tarifario${res.tarifario !== 1 ? 's' : ''}, ${res.servicios} servicio${res.servicios !== 1 ? 's' : ''}${res.personas ? `, ${res.personas} persona${res.personas > 1 ? 's' : ''} nueva${res.personas > 1 ? 's' : ''} en el padrón` : ''}`;
+  if (res.errores.length) showModal(`<div class="modal" style="max-width:560px"><div class="modal-t">Importado con errores</div><div class="modal-s">Se cargó: ${txt}.</div><div class="alert alert-warn" style="margin-top:8px">${res.errores.map(esc2).join('<br>')}</div><div class="modal-f"><button class="btn" onclick="closeModal()">Cerrar</button></div></div>`);
+  else toast('Importado: ' + txt, 'ok');
+  render();
 };
 window.subirFacturaArena = function(input) {
   const file = input.files?.[0]; if (!file) return;
@@ -4618,9 +4740,9 @@ window.completarTarActual = function() {
 // CARGAS Y MESA DE ENTRADA — presentismo, liquidación y facturación dentro de la plataforma
 // Cargas: se liquida por semana (lunes a domingo, cortada al mes). Mesa de entrada: mensual completo.
 // ══════════════════════════════════════════════
-// Corte: los servicios arrancan con el período analizado (22/09/2026). Septiembre se liquidó fuera de la
+// Corte: los servicios arrancan con el período analizado (septiembre 2026 completo). Septiembre se liquidó fuera de la
 // plataforma: sus números se importan de las planillas solo para los informes. Desde octubre, todo se liquida acá.
-const SERV_DESDE = '2026-09-22', SERV_PLATAFORMA = '2026-10';
+const SERV_DESDE = RENT_DESDE, SERV_PLATAFORMA = '2026-10';
 const esHistorico = periodo => periodo < SERV_PLATAFORMA;
 const SERV_TIPOS = {
   cargas: { nombre: 'Cargas / stagehands', posicion: 'Cargas', lugar: 'arena-cargas', tar: 'CARGAS' },
@@ -5040,7 +5162,7 @@ function buildInforme(tipo, periodo) {
     facs.filter(f => f.evento_id === r.ev.id).forEach(f => (f.detalle?.secciones || []).forEach(sec => {
       const z = sec.zona === 'PREMIUM' ? 'Premium' : sec.zona === 'Personal' ? 'Stagehands / cargas' : (sec.zona || 'Otros');
       zmap[z] = zmap[z] || { zona: z, cant: 0, monto: 0 };
-      (sec.items || []).forEach(it => { zmap[z].cant += it.cant || 0; zmap[z].monto += (it.cant || 0) * (it.valor || 0); });
+      (sec.items || []).forEach(it => { if (!it.extra) zmap[z].cant += it.cant || 0; zmap[z].monto += (it.cant || 0) * (it.valor || 0); });
     }));
     const zonas = Object.values(zmap).filter(z => z.monto > 0).sort((a, b) => b.monto - a.monto);
     const posiciones = Object.entries(r.posiciones || {}).map(([posicion, v]) => ({ posicion, cant: v.cant, monto: Math.round(v.monto), aparte: !!v.aparte, sbs: esCoordinador(posicion) })).sort((a, b) => b.monto - a.monto);
