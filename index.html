@@ -268,7 +268,8 @@ tr.clic { cursor: pointer; } tr.clic:hover td { background: var(--card2); }
         <div class="sb-sec">Liquidaciones</div>
         <div class="sb-item" onclick="go('externos')"  id="n-externos"><i class="ti ti-world"></i> Externos</div>
         <div class="sb-item" onclick="go('arena')"     id="n-arena"><i class="ti ti-building"></i> Movistar Arena</div>
-        <div class="sb-item" onclick="go('servicios')" id="n-servicios"><i class="ti ti-users-group"></i> Cargas y Mesa de entrada</div>
+        <div class="sb-item" onclick="go('cargas')" id="n-cargas"><i class="ti ti-truck"></i> Cargas</div>
+        <div class="sb-item" onclick="go('mesa')" id="n-mesa"><i class="ti ti-id-badge"></i> Mesa de entrada</div>
         <div class="sb-item" onclick="go('fijos')"     id="n-fijos"><i class="ti ti-calendar-repeat"></i> Servicios Fijos</div>
         <div class="sb-sec">Facturación</div>
         <div class="sb-item" onclick="go('facturacion')" id="n-facturacion"><i class="ti ti-file-invoice"></i> Facturación Movistar Arena</div>
@@ -432,7 +433,7 @@ function loading(show) {
   } else { if (ov) ov.style.display = 'none'; }
 }
 
-const TITLES = { db:'Dashboard', personal:'Personal', tarifario:'Tarifario', importar:'Importar planilla', cbu:'Importar CBU', externos:'Externos', arena:'Movistar Arena', fijos:'Servicios Fijos', facturacion:'Facturación Movistar Arena', rentabilidad:'Facturación vs Liquidación', informes:'Informes a socios', proyecciones:'Proyecciones', servicios:'Cargas y Mesa de entrada · Movistar Arena' };
+const TITLES = { db:'Dashboard', personal:'Personal', tarifario:'Tarifario', importar:'Importar planilla', cbu:'Importar CBU', externos:'Externos', arena:'Movistar Arena', fijos:'Servicios Fijos', facturacion:'Facturación Movistar Arena', rentabilidad:'Facturación vs Liquidación', informes:'Informes a socios', proyecciones:'Proyecciones', servicios:'Cargas · Movistar Arena', cargas:'Cargas · Movistar Arena', mesa:'Mesa de entrada · Movistar Arena' };
 
 async function go(page) {
   APP.page = page;
@@ -449,7 +450,7 @@ async function render() {
   const ac = document.getElementById('topbar-ac');
   loading(true);
   try {
-    await ({ db:pgDB, personal:pgPersonal, tarifario:pgTarifario, importar:pgImportar, cbu:pgCBU, externos:pgExternos, arena:pgArena, fijos:pgFijos, facturacion:pgFacturacion, rentabilidad:pgRentabilidad, informes:pgInformes, proyecciones:pgProyecciones, servicios:pgServicios })[APP.page]?.(el, ac);
+    await ({ db:pgDB, personal:pgPersonal, tarifario:pgTarifario, importar:pgImportar, cbu:pgCBU, externos:pgExternos, arena:pgArena, fijos:pgFijos, facturacion:pgFacturacion, rentabilidad:pgRentabilidad, informes:pgInformes, proyecciones:pgProyecciones, servicios:pgCargas, cargas:pgCargas, mesa:pgMesa })[APP.page]?.(el, ac);
   } catch (e) {
     el.innerHTML = `<div class="alert alert-warn"><i class="ti ti-alert-circle"></i> Error cargando: ${e.message}</div>`;
     console.error(e);
@@ -4147,7 +4148,6 @@ async function pgRentabilidad(el, ac) {
   const pct = (g, f) => f ? Math.round(g / f * 100) : 0;
   const col = g => g >= 0 ? '#1a7a3e' : '#b45309';
   el.innerHTML = `
-    <div style="float:right"><button class="btn" onclick="go('servicios')" title="Presentismo, liquidación y facturación de cargas y mesa de entrada"><i class="ti ti-users-group"></i> Cargas y Mesa de entrada</button></div>
     <div style="margin-bottom:14px"><h2 style="margin:0">Facturación vs Liquidación</h2>
       <div style="color:var(--text2);font-size:13px">Margen de Movistar Arena por show, desde el ${fd(RENT_DESDE)}: lo facturado al Arena (sin IVA) menos lo liquidado al personal.</div></div>
     <div class="grid3" style="margin-bottom:16px">
@@ -4180,7 +4180,9 @@ async function pgRentabilidad(el, ac) {
       </tr></tfoot></table>
     </div>
     ${pendientes.length ? `<div class="alert alert-warn" style="margin-top:10px"><i class="ti ti-alert-triangle"></i> ${pendientes.length} show${pendientes.length>1?'s':''} sin facturación guardada (costo ${fmt(costoPend)}), no incluido${pendientes.length>1?'s':''} en los totales hasta que lo${pendientes.length>1?'s':''} factures.</div>` : ''}
-    <div style="color:var(--text2);font-size:11.5px;margin-top:8px">Este margen todavía no descuenta cargas sociales ni impuestos: el resultado neto completo está en Informes a socios. Los totales incluyen solo shows facturados. "Cargas (aparte)": los stagehands del pedido se liquidan en otra planilla; su costo se estima con el sueldo neto del renglón CARGAS del tarifario mensual hasta que cargues el real con el lápiz. El coordinador y los back-ups (presentes por encima de lo pedido) se pagan y no se facturan: ya están dentro de "Liquidado". "Estimado" en el show: la quincena del show sigue abierta, el costo sale de presentismo × tarifario actual; al cerrarla pasa a usar lo liquidado.</div>`;
+    <div style="color:var(--text2);font-size:11.5px;margin-top:8px">Este margen todavía no descuenta cargas sociales ni impuestos: el resultado neto completo está en Informes a socios. Los totales incluyen solo shows facturados. "Cargas (aparte)": los stagehands del pedido se liquidan en otra planilla; su costo se estima con el sueldo neto del renglón CARGAS del tarifario mensual hasta que cargues el real con el lápiz. El coordinador y los back-ups (presentes por encima de lo pedido) se pagan y no se facturan: ya están dentro de "Liquidado". "Estimado" en el show: la quincena del show sigue abierta, el costo sale de presentismo × tarifario actual; al cerrarla pasa a usar lo liquidado.</div>
+    ${htmlFvlCargas()}
+    ${htmlFvlMesa()}`;
 }
 
 // Costo real de los cargas de un show (sale de la otra planilla); vacío = volver a la estimación del tarifario
@@ -4379,13 +4381,23 @@ window.aplicarPaquete = async function() {
 };
 
 // ── Editar nombre y fecha de un show del Arena ──
+// Liquidaciones de la quincena del show que tienen jornadas de ese show
+function liqsConShow(ev) {
+  const fechas = new Set([ev.fecha, ...(ev.fechas || []).map(f => f.fecha)].filter(Boolean));
+  return (APP.liquidaciones || []).filter(l => l.quincena_id === ev.quincena_id).filter(l => {
+    let det = l.detalle; if (typeof det === 'string') { try { det = JSON.parse(det); } catch { return false; } }
+    return (det || []).some(j => j.ev_nombre === ev.nombre && (!j.fecha || fechas.has(j.fecha)));
+  });
+}
+
 window.editShowArena = function(evId) {
   const ev = (APP.eventos || []).find(e => e.id === evId); if (!ev) return;
   const q = (APP.quincenas || []).find(x => x.id === ev.quincena_id);
-  if (q?.cerrada) { toast('La quincena está cerrada: no se puede editar el show (sus liquidaciones ya lo usan).', 'err'); return; }
-  showModal(`<div class="modal" style="max-width:440px">
+  const nLiq = q?.cerrada ? liqsConShow(ev).length : 0;
+  showModal(`<div class="modal" style="max-width:460px">
     <div class="modal-t"><i class="ti ti-pencil"></i> Editar show</div>
     <div class="modal-s">${q ? `${q.nombre} (${fd(q.fecha_inicio)} al ${fd(q.fecha_fin)})` : ''}</div>
+    ${q?.cerrada ? `<div class="nota-proy" style="margin-top:8px"><i class="ti ti-lock"></i> La quincena está cerrada: el nombre y la fecha también se corrigen en las ${nLiq} liquidaciones que incluyen este show. Los montos no cambian.</div>` : ''}
     <label style="font-size:12.5px;display:block;margin-top:10px">Nombre del show</label>
     <input id="es-nom" value="${String(ev.nombre || '').replace(/"/g, '&quot;')}" style="width:100%">
     <label style="font-size:12.5px;display:block;margin-top:10px">Fecha</label>
@@ -4400,9 +4412,20 @@ window.guardarShowArena = async function(evId) {
   if (!fecha) { toast('Elegí una fecha', 'err'); return; }
   const q = (APP.quincenas || []).find(x => x.id === ev.quincena_id);
   if (q && (fecha < q.fecha_inicio || fecha > q.fecha_fin) && !confirm(`La fecha ${fd(fecha)} queda fuera de ${q.nombre} (${fd(q.fecha_inicio)} al ${fd(q.fecha_fin)}). ¿Guardar igual?`)) return;
-  const vieja = ev.fecha || showFechaISO(ev);
+  const vieja = ev.fecha || showFechaISO(ev), nombreViejo = ev.nombre;
+  const liqs = q?.cerrada ? liqsConShow(ev) : [];
   loading(true);
   const e1 = (await sb.from('eventos').update({ nombre, fecha }).eq('id', evId)).error;
+  // quincena cerrada: las jornadas guardadas en sus liquidaciones pasan al nombre y la fecha nuevos (los montos no se tocan)
+  let e3 = null;
+  const fechasShow = new Set([vieja, ...(ev.fechas || []).map(f => f.fecha)]);
+  for (const l of liqs) {
+    const esTexto = typeof l.detalle === 'string'; let det = l.detalle;
+    if (esTexto) { try { det = JSON.parse(det); } catch { continue; } }
+    const nuevo = (det || []).map(j => j.ev_nombre === nombreViejo && (!j.fecha || fechasShow.has(j.fecha)) ? { ...j, ev_nombre: nombre, fecha: j.fecha ? fecha : j.fecha } : j);
+    const r = await sb.from('liquidaciones').update({ detalle: esTexto ? JSON.stringify(nuevo) : nuevo }).eq('id', l.id);
+    if (r.error) e3 = r.error;
+  }
   // la jornada del show (donde cuelgan los presentes) pasa a la fecha nueva
   let e2 = null;
   const fec = ev.fechas || [];
@@ -4410,9 +4433,69 @@ window.guardarShowArena = async function(evId) {
   // si ya tiene facturación, se actualiza el nombre y la fecha que muestra
   for (const f of (APP.facturaciones || []).filter(f => f.evento_id === evId)) await sb.from('facturaciones').update({ show: nombre, fecha: fd(fecha), periodo: fecha.slice(0, 7) }).eq('id', f.id);
   loading(false);
-  if (e1 || e2) { toast('No se pudo guardar: ' + (e1 || e2).message, 'err'); return; }
-  closeModal(); await fetchAll(); toast('Show actualizado', 'ok'); render();
+  if (e1 || e2 || e3) { toast('No se pudo guardar: ' + (e1 || e2 || e3).message, 'err'); return; }
+  closeModal(); await fetchAll(); toast(liqs.length ? `Show actualizado (también en ${liqs.length} liquidaciones)` : 'Show actualizado', 'ok'); render();
 };
+
+// ══ Facturación vs liquidación de los servicios del Arena (se muestra en la página Facturación vs Liquidación) ══
+const hoyISO = () => { const h = new Date(); return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getDate()).padStart(2, '0')}`; };
+function htmlFvlCargas() {
+  const E = getEstructura(), cp = (E.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0), facs = APP.facturaciones || [];
+  const col = n => n >= 0 ? '#1a7a3e' : '#b45309';
+  const shows = (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e) >= RENT_DESDE && (showFechaISO(e) <= hoyISO() || facs.some(f => f.evento_id === e.id)))
+    .sort((a, b) => showFechaISO(a).localeCompare(showFechaISO(b)));
+  if (!shows.length) return '';
+  const meses = [...new Set(shows.map(e => showFechaISO(e).slice(0, 7)))];
+  let tF = 0, tC = 0, cuerpo = '', avisos = [];
+  meses.forEach(m => {
+    const d = servData('cargas', m), sueldo = getTarifaMes(m)?.filas?.CARGAS?.sueldo || 0, cargado = d.personas.length > 0;
+    const presDia = f => d.personas.filter(pid => (d.pres[pid] || []).includes(f)).length;
+    let mF = 0, mC = 0;
+    const filas = shows.filter(e => showFechaISO(e).slice(0, 7) === m).map(e => {
+      const f = showFechaISO(e), fs = facs.filter(x => x.evento_id === e.id);
+      const its = fs.flatMap(x => (x.detalle?.secciones || []).flatMap(sx => sx.items || [])).filter(i => !i.extra && catDeRecurso(i.recurso) === 'CARGAS');
+      const ped = its.reduce((a, i) => a + (i.cant || 0), 0), fact = its.reduce((a, i) => a + (i.cant || 0) * (i.valor || 0), 0);
+      const pr = presDia(f), liq = pr * sueldo, costo = Math.round(liq * (1 + cp / 100)), dif = fact - costo;
+      if (fs.length) { mF += fact; mC += costo; }
+      return `<tr><td>${fd(f)}</td><td><strong>${e.nombre}</strong>${!fs.length ? ' <span class="badge bw" style="font-size:10px">sin facturar</span>' : ''}</td>
+        <td style="text-align:center">${fs.length ? ped : '—'}</td><td style="text-align:center;${cargado && fs.length && pr !== ped ? 'color:#b45309;font-weight:600' : ''}">${cargado ? pr : '—'}</td>
+        <td style="text-align:right">${fs.length ? fmt(fact) : '—'}</td><td style="text-align:right">${cargado ? fmt(liq) : '—'}</td><td style="text-align:right">${cargado ? fmt(costo) : '—'}</td>
+        <td style="text-align:right;font-weight:600;color:${col(dif)}">${fs.length && cargado ? fmt(dif) : '—'}</td></tr>`;
+    }).join('');
+    tF += mF; tC += mC;
+    const sinShow = cargado ? diasDelMes(m).filter(f => f >= RENT_DESDE && presDia(f) && !showsDelDia(f).length) : [];
+    const jSin = sinShow.reduce((a, f) => a + presDia(f), 0);
+    if (!cargado) avisos.push(`${mesLabel(m)}: falta cargar el presentismo de cargas (sección Cargas).`);
+    if (jSin) avisos.push(`${mesLabel(m)}: ${jSin} jornada${jSin > 1 ? 's' : ''} de cargas en días sin show (${sinShow.map(f => +f.slice(8)).join(', ')}), ${fmt(jSin * sueldo)} neto sin facturación asociada.`);
+    cuerpo += `<tr style="background:var(--card2)"><td colspan="8" style="font-weight:600">${mesLabel(m)}</td></tr>${filas}
+      <tr style="font-weight:600"><td colspan="4" style="text-align:right;color:var(--text2)">Subtotal ${mesLabel(m).toLowerCase()}</td><td style="text-align:right">${fmt(mF)}</td><td></td><td style="text-align:right">${fmt(mC)}</td><td style="text-align:right;color:${col(mF - mC)}">${fmt(mF - mC)}</td></tr>`;
+  });
+  return `<div class="card" style="padding:0;overflow:auto;margin-top:16px"><div style="padding:12px 14px 4px;font-weight:600"><i class="ti ti-truck"></i> Cargas / stagehands · facturación vs liquidación, show por show</div>
+    <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th style="text-align:center" title="Cargas del pedido del Arena">Pedidos</th><th style="text-align:center">Presentes</th><th style="text-align:right">Facturado</th><th style="text-align:right">Liquidado (neto)</th><th style="text-align:right" title="Neto + cargas sociales (${cp}%)">Costo c/ cargas sociales</th><th style="text-align:right">Diferencia</th></tr></thead>
+    <tbody>${cuerpo}</tbody><tfoot><tr style="font-weight:700;background:var(--card2)"><td colspan="4">Total</td><td style="text-align:right">${fmt(tF)}</td><td></td><td style="text-align:right">${fmt(tC)}</td><td style="text-align:right;color:${col(tF - tC)}">${fmt(tF - tC)}</td></tr></tfoot></table>
+    ${avisos.length ? `<div style="padding:8px 14px;font-size:12.5px;color:#b45309">${avisos.join('<br>')}</div>` : ''}
+    <div style="padding:0 14px 10px;font-size:11.5px;color:var(--text2)">Facturado: las cargas del pedido de cada show. Liquidado: los cargas presentes ese día × sueldo neto de CARGAS del tarifario del mes. En naranja, los días en que los presentes no coinciden con lo pedido.</div></div>`;
+}
+function htmlFvlMesa() {
+  const E = getEstructura(), cp = (E.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0);
+  const col = n => n >= 0 ? '#1a7a3e' : '#b45309';
+  const meses = (APP.servArena || []).filter(x => x.tipo === 'mesa' && x.periodo >= RENT_DESDE.slice(0, 7) && (x.data?.personas || []).length).map(x => x.periodo).sort();
+  if (!meses.length) return `<div class="card" style="margin-top:16px;padding:12px 14px"><div style="font-weight:600"><i class="ti ti-id-badge"></i> Mesa de entrada · facturación vs liquidación</div><div style="font-size:12.5px;color:var(--text2);margin-top:4px">Todavía no hay meses cargados en la sección Mesa de entrada.</div></div>`;
+  let tF = 0, tC = 0;
+  const filas = meses.map(m => {
+    const d = servData('mesa', m), n = d.personas.length, t = getTarifaMes(m)?.filas?.['MESA DE ENTRADA'] || {};
+    const liqs = liqsServ('arena-mesa', m), liq = liqs.length > 0, pag = liq && liqs.every(l => l.estado === 'pagado');
+    const fact = (t.venta || 0) * n, neto = liq ? liqs.reduce((a, l) => a + (l.total || 0), 0) : (t.sueldo || 0) * n;
+    const costo = Math.round(neto * (1 + cp / 100)), dif = fact - costo; tF += fact; tC += costo;
+    const est = esHistorico(m) ? '<span class="badge bs" style="font-size:10px">Fuera de la plataforma</span>' : pag ? '<span class="badge bs" style="font-size:10px">Pagada</span>' : liq ? '<span class="badge bi" style="font-size:10px">Liquidada</span>' : '<span class="badge bw" style="font-size:10px">Sin liquidar</span>';
+    return `<tr><td><strong>${mesLabel(m)}</strong></td><td style="text-align:center">${d.personas.map(pid => (d.pres[pid] || []).length).join(' / ')}</td><td style="text-align:right">${fmt(fact)}</td><td style="text-align:right;color:var(--text2)">${fmt(fact * 1.21)}</td>
+      <td style="text-align:right">${fmt(neto)}</td><td style="text-align:right">${fmt(costo)}</td><td style="text-align:right;font-weight:600;color:${col(dif)}">${fmt(dif)}</td><td>${est}</td></tr>`;
+  }).join('');
+  return `<div class="card" style="padding:0;overflow:auto;margin-top:16px"><div style="padding:12px 14px 4px;font-weight:600"><i class="ti ti-id-badge"></i> Mesa de entrada · facturación vs liquidación, mes por mes</div>
+    <table class="tbl"><thead><tr><th>Mes</th><th style="text-align:center">Días trabajados</th><th style="text-align:right">Facturado (sin IVA)</th><th style="text-align:right">Con IVA</th><th style="text-align:right">Liquidado (neto)</th><th style="text-align:right" title="Neto + cargas sociales (${cp}%)">Costo c/ cargas sociales</th><th style="text-align:right">Diferencia</th><th>Estado</th></tr></thead>
+    <tbody>${filas}</tbody>${meses.length > 1 ? `<tfoot><tr style="font-weight:700;background:var(--card2)"><td colspan="2">Total</td><td style="text-align:right">${fmt(tF)}</td><td></td><td></td><td style="text-align:right">${fmt(tC)}</td><td style="text-align:right;color:${col(tF - tC)}">${fmt(tF - tC)}</td><td></td></tr></tfoot>` : ''}</table>
+    <div style="padding:6px 14px 10px;font-size:11.5px;color:var(--text2)">Mensualizada: se factura la venta mensual y se liquida el sueldo mensual neto del tarifario, completos. La diferencia es antes de impuestos sobre ventas y Ganancias (el resultado neto está en Informes a socios).</div></div>`;
+}
 window.subirFacturaArena = function(input) {
   const file = input.files?.[0]; if (!file) return;
   loading(true);
@@ -4830,23 +4913,25 @@ function mesesServicios() {
 // Días que cuentan: desde el corte (22/09/2026)
 const diasVigentes = periodo => diasDelMes(periodo).filter(f => f >= SERV_DESDE);
 
+async function pgCargas(el, ac) { S_SERV.tab = 'cargas'; return pgServicios(el, ac); }
+async function pgMesa(el, ac) { S_SERV.tab = 'mesa'; return pgServicios(el, ac); }
 async function pgServicios(el, ac) {
   ac.innerHTML = '';
+  const tipo = S_SERV.tab, cfg = SERV_TIPOS[tipo];
   const meses = mesesServicios();
   if (!S_SERV.mes || !meses.includes(S_SERV.mes)) { const h = new Date(); S_SERV.mes = `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}`; }
-  const cab = `<div style="margin-bottom:12px"><h2 style="margin:0">Cargas y Mesa de entrada · Movistar Arena</h2>
-    <div style="color:var(--text2);font-size:13px">Presentismo, liquidación y facturación, igual que en las planillas: cargas por semana, mesa de entrada por mes.</div></div>
-    ${esHistorico(S_SERV.mes) ? `<div class="nota-proy"><i class="ti ti-history"></i> ${mesLabel(S_SERV.mes)} se liquidó y facturó con las planillas, fuera de la plataforma. Importá la hoja PRESENTISMO para que sus números entren en los informes${S_SERV.tab === 'cargas' ? ` (cargas: solo desde el ${fd(SERV_DESDE)})` : ''}. Desde ${mesLabel(SERV_PLATAFORMA).toLowerCase()}, todo se liquida acá.</div>` : ''}`;
+  const cab = `<div style="margin-bottom:12px"><h2 style="margin:0">${tipo === 'cargas' ? 'Cargas / stagehands' : 'Mesa de entrada'} · Movistar Arena</h2>
+    <div style="color:var(--text2);font-size:13px">${tipo === 'cargas' ? 'Presentismo y liquidación semanal, igual que la planilla de cargas.' : 'Presentismo, facturación y liquidación mensual, igual que la planilla de mesa de entrada.'}
+      La comparación de lo facturado contra lo liquidado está en <a href="#" onclick="go('rentabilidad');return false">Facturación vs Liquidación</a>.</div></div>
+    ${esHistorico(S_SERV.mes) ? `<div class="nota-proy"><i class="ti ti-history"></i> ${mesLabel(S_SERV.mes)} se liquidó${tipo === 'mesa' ? ' y facturó' : ''} con las planillas, fuera de la plataforma: sus números entran en los informes, pero no se vuelve a liquidar. Desde ${mesLabel(SERV_PLATAFORMA).toLowerCase()}, todo se hace acá.</div>` : ''}`;
   if (APP.servArenaError) { el.innerHTML = cab + `<div class="alert alert-warn"><i class="ti ti-database-off"></i> Falta crear la tabla <strong>servicios_arena</strong> en Supabase.</div>`; return; }
-  const tabs = `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
-      <button class="btn ${S_SERV.tab === 'cargas' ? 'btn-primary' : ''}" onclick="S_SERV.tab='cargas';render()"><i class="ti ti-truck"></i> Cargas / stagehands</button>
-      <button class="btn ${S_SERV.tab === 'mesa' ? 'btn-primary' : ''}" onclick="S_SERV.tab='mesa';render()"><i class="ti ti-id-badge"></i> Mesa de entrada</button>
-      <select onchange="S_SERV.mes=this.value;render()" style="font-size:13px;padding:6px 9px;width:auto;margin-left:6px">${meses.map(m => `<option value="${m}" ${m === S_SERV.mes ? 'selected' : ''}>${mesLabel(m)}</option>`).join('')}</select>
+  const barra = `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+      <select onchange="S_SERV.mes=this.value;render()" style="font-size:13px;padding:6px 9px;width:auto">${meses.map(m => `<option value="${m}" ${m === S_SERV.mes ? 'selected' : ''}>${mesLabel(m)}</option>`).join('')}</select>
       <div style="flex:1"></div>
-      <button class="btn" onclick="agregarPersServ('${S_SERV.tab}')"><i class="ti ti-user-plus"></i> Agregar persona</button>
-      <button class="btn" onclick="importarServ('${S_SERV.tab}')" title="Pegá la hoja PRESENTISMO de la planilla actual: da de alta a las personas y carga sus presentes"><i class="ti ti-clipboard"></i> Importar desde la planilla</button>
+      <button class="btn" onclick="agregarPersServ('${tipo}')"><i class="ti ti-user-plus"></i> Agregar persona</button>
+      <button class="btn" onclick="importarServ('${tipo}')" title="Pegá la hoja PRESENTISMO de la planilla: da de alta a las personas y carga sus presentes"><i class="ti ti-clipboard"></i> Importar desde la planilla</button>
     </div>`;
-  el.innerHTML = cab + tabs + (S_SERV.tab === 'cargas' ? htmlCargas() : htmlMesa());
+  el.innerHTML = cab + barra + (tipo === 'cargas' ? htmlCargas() : htmlMesa());
 }
 
 // Grilla de presentismo (la misma para cargas y mesa de entrada)
@@ -4891,24 +4976,6 @@ function htmlCargas() {
         ${jorn ? `<button class="btn btn-sm" title="Excel de la semana" onclick="excelCargas(${w.n})"><i class="ti ti-file-spreadsheet"></i></button>` : ''}</td></tr>`;
   }).join('');
   const totMes = sem.reduce((a, w) => { const L = semLiq(w.n); return a + (L.length ? L.reduce((b, l) => b + (l.total || 0), 0) : d.personas.reduce((b, pid) => b + (d.pres[pid] || []).filter(f => w.dias.includes(f)).length, 0) * sueldo); }, 0);
-  // Facturación vs liquidación, show por show
-  const facs = APP.facturaciones || [];
-  const shows = (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e).slice(0, 7) === periodo && showFechaISO(e) >= SERV_DESDE).sort((a, b) => showFechaISO(a).localeCompare(showFechaISO(b)));
-  const presDia = f => d.personas.filter(pid => (d.pres[pid] || []).includes(f)).length;
-  const col = n => n >= 0 ? '#1a7a3e' : '#b45309';
-  let tF = 0, tL = 0;
-  const porShow = shows.map(e => {
-    const f = showFechaISO(e), fs = facs.filter(x => x.evento_id === e.id);
-    const its = fs.flatMap(x => (x.detalle?.secciones || []).flatMap(s => s.items || [])).filter(i => catDeRecurso(i.recurso) === 'CARGAS');
-    const ped = its.reduce((a, i) => a + (i.cant || 0), 0), fact = its.reduce((a, i) => a + (i.cant || 0) * (i.valor || 0), 0);
-    const pr = presDia(f), liq = pr * sueldo, costo = Math.round(liq * (1 + cargasPct / 100)), dif = fact - costo;
-    tF += fact; tL += costo;
-    return `<tr><td>${fd(f)}</td><td><strong>${e.nombre}</strong>${!fs.length ? ' <span class="badge bw" style="font-size:10px">sin facturación</span>' : ''}</td><td style="text-align:center">${fs.length ? ped : '—'}</td>
-      <td style="text-align:center;${fs.length && pr !== ped ? 'color:#b45309;font-weight:600' : ''}">${pr}</td><td style="text-align:right">${fs.length ? fmt(fact) : '—'}</td><td style="text-align:right">${fmt(liq)}</td>
-      <td style="text-align:right">${fmt(costo)}</td><td style="text-align:right;font-weight:600;color:${col(dif)}">${fs.length ? fmt(dif) : '—'}</td></tr>`;
-  }).join('');
-  const sinShow = diasVigentes(periodo).filter(f => presDia(f) && !showsDelDia(f).length);
-  const jSin = sinShow.reduce((a, f) => a + presDia(f), 0);
   return `
     ${!sueldo ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Falta el sueldo neto de CARGAS en el tarifario de ${mesLabel(periodo).toLowerCase()} (Proyecciones → Tarifario mensual).</div>` : ''}
     ${htmlGrilla('cargas', periodo, bloqueado)}
@@ -4918,12 +4985,6 @@ function htmlCargas() {
         <tbody>${semanas}</tbody><tfoot><tr style="font-weight:700;background:var(--card2)"><td colspan="4">Total del mes</td><td style="text-align:right">${fmt(totMes)}</td><td colspan="2" style="text-align:right"><button class="btn btn-sm" onclick="excelCargas(0)"><i class="ti ti-file-spreadsheet"></i> Excel del mes</button></td></tr></tfoot></table></div>
       <div style="font-size:11.5px;color:var(--text2);margin-top:6px"><strong>Cómo se liquida:</strong> igual que la planilla, por semana de lunes a domingo (la primera y la última, cortadas al mes), días trabajados × sueldo neto por jornada del tarifario (${fmt(sueldo)} en ${mesLabel(periodo).toLowerCase()}).
         Al liquidar, cada semana queda registrada con estado <em>Liquidada</em> y sus días se bloquean; después la marcás como pagada. El Excel sale en el formato de pago de la plataforma (CUIL · Apellido y nombre · CBU).</div>
-    </div>
-    <div class="card" style="padding:0;overflow:auto"><div style="padding:12px 14px 4px;font-weight:600">Facturación vs liquidación, show por show</div>
-      <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th style="text-align:center" title="Cargas del pedido del Arena">Pedidos</th><th style="text-align:center">Presentes</th><th style="text-align:right">Facturado</th><th style="text-align:right">Liquidado (neto)</th><th style="text-align:right" title="Neto + cargas sociales (${cargasPct}%)">Costo con cargas sociales</th><th style="text-align:right">Diferencia</th></tr></thead>
-      <tbody>${porShow || `<tr><td colspan="8" style="text-align:center;color:var(--text2);padding:14px">No hay shows del Arena en ${mesLabel(periodo).toLowerCase()}.</td></tr>`}</tbody>
-      ${shows.length ? `<tfoot><tr style="font-weight:700;background:var(--card2)"><td colspan="4">Total shows</td><td style="text-align:right">${fmt(tF)}</td><td></td><td style="text-align:right">${fmt(tL)}</td><td style="text-align:right;color:${col(tF - tL)}">${fmt(tF - tL)}</td></tr></tfoot>` : ''}</table>
-      ${jSin ? `<div style="padding:8px 14px;font-size:12.5px;color:#b45309">${jSin} jornada${jSin > 1 ? 's' : ''} de cargas en días sin show cargado en la app (${sinShow.map(f => +f.slice(8)).join(', ')}): ${fmt(jSin * sueldo)} neto que no tiene facturación asociada.</div>` : ''}
     </div>`;
 }
 
@@ -4947,19 +5008,16 @@ function htmlMesa() {
           <tr><td style="color:var(--text2)">IVA 21%</td><td style="text-align:right;color:var(--text2)">${fmt(venta * nP * 0.21)}</td></tr>
           <tr><td style="color:var(--text2)">Total a facturar con IVA</td><td style="text-align:right;color:var(--text2)">${fmt(venta * nP * 1.21)}</td></tr>
           <tr><td>Liquidación mensual (sueldo neto)</td><td style="text-align:right;font-weight:600">${fmt(sueldo * nP)}</td></tr>
-          <tr><td style="color:var(--text2)">Cargas sociales (${cargasPct}%)</td><td style="text-align:right;color:var(--text2)">${fmt(costo - sueldo * nP)}</td></tr>
-          <tr style="font-weight:700"><td>Facturado − costo</td><td style="text-align:right;color:${col(dif)}">${fmt(dif)}</td></tr>
         </tbody></table>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
           ${esHistorico(periodo) ? `<span class="badge bs" style="align-self:center" title="Liquidada y facturada con la planilla">Fuera de la plataforma</span>` : ''}
           ${!esHistorico(periodo) && !liq ? `<button class="btn btn-primary" onclick="liquidarMesa()" ${d.personas.length ? '' : 'disabled'}>Liquidar el mes</button>` : ''}
           ${!esHistorico(periodo) && liq && !pag ? `<button class="btn" onclick="pagarServ('arena-mesa',0)">Marcar pagada</button><button class="btn" onclick="deshacerServ('arena-mesa',0)">Deshacer</button>` : ''}
           ${liq ? `<span class="badge ${pag ? 'bs' : 'bi'}" style="align-self:center">${pag ? 'Pagada' : 'Liquidada'}</span>` : ''}
-          <button class="btn" onclick="excelMesa('liq')" ${d.personas.length ? '' : 'disabled'}><i class="ti ti-file-spreadsheet"></i> Excel liquidación</button>
-          <button class="btn" onclick="excelMesa('fact')" ${d.personas.length ? '' : 'disabled'}><i class="ti ti-file-spreadsheet"></i> Excel facturación</button>
+          <button class="btn" onclick="excelMesa()" ${d.personas.length ? '' : 'disabled'} title="Facturación, liquidación y presentismo, igual que la planilla"><i class="ti ti-file-spreadsheet"></i> Excel facturación y liquidación</button>
         </div></div>
       <div class="card"><div style="font-weight:600;margin-bottom:6px">Cómo se calcula</div>
-        <div style="font-size:12.5px;color:var(--text2)">Mesa de entrada es mensualizada: se factura la venta mensual y se liquida el sueldo mensual neto del tarifario, completos, aunque en el mes haya trabajado menos días. El presentismo queda registrado como respaldo. En el informe a socios aparece como servicio mensual, dentro del resultado del Arena.</div></div>
+        <div style="font-size:12.5px;color:var(--text2)">Mesa de entrada es mensualizada: se factura la venta mensual y se liquida el sueldo mensual neto del tarifario, completos, aunque en el mes haya trabajado menos días. El presentismo queda registrado como respaldo. Lo facturado contra lo liquidado (con cargas sociales) está en <a href="#" onclick="go('rentabilidad');return false">Facturación vs Liquidación</a>.</div></div>
     </div>`;
 }
 
@@ -5129,33 +5187,73 @@ function xlsxDescargar(hojas, archivo) {
   hojas.forEach(([nombre, aoa]) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), nombre.slice(0, 31)));
   XLSX.writeFile(wb, archivo);
 }
+const MES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const DIA_LARGO = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const nomPlanilla = p => p ? `${p.apellido || ''} ${p.nombre || ''}`.trim() : '';
+// Hoja con formato moneda en las columnas indicadas (índices desde 0) y anchos de columna
+function hojaXLSX(aoa, monedaCols = [], anchos = [], decimales = false) {
+  const ws = XLSX.utils.aoa_to_sheet(aoa), r = XLSX.utils.decode_range(ws['!ref']);
+  for (let R = r.s.r; R <= r.e.r; R++) for (const C of monedaCols) { const c = ws[XLSX.utils.encode_cell({ r: R, c: C })]; if (c && typeof c.v === 'number') c.z = decimales ? '"$"#,##0.00' : '"$"#,##0'; }
+  if (anchos.length) ws['!cols'] = anchos.map(w => ({ wch: w }));
+  return ws;
+}
+const combinar = (ws, rangos) => { ws['!merges'] = (ws['!merges'] || []).concat(rangos.map(([r1, c1, r2, c2]) => ({ s: { r: r1, c: c1 }, e: { r: r2, c: c2 } }))); return ws; };
+function libroXLSX(hojas, archivo) { const wb = XLSX.utils.book_new(); hojas.forEach(([n, ws]) => XLSX.utils.book_append_sheet(wb, ws, n.slice(0, 31))); XLSX.writeFile(wb, archivo); }
+// Cargas: igual que la planilla "LIQUIDACIÓN CARGAS <MES>" — una hoja por semana y la hoja PRESENTISMO
 window.excelCargas = function(n) {
-  const periodo = S_SERV.mes, d = servData('cargas', periodo), sueldo = getTarifaMes(periodo)?.filas?.CARGAS?.sueldo || 0;
-  const hojaSemana = w => {
+  const periodo = S_SERV.mes, d = servData('cargas', periodo), sueldoMes = getTarifaMes(periodo)?.filas?.CARGAS?.sueldo || 0;
+  const sem = semanasDelMes(periodo), mesTxt = mesLabel(periodo).toUpperCase();
+  // cada semana lista a quienes trabajaron en el mes hasta esa semana (como la planilla)
+  const bloque = w => {
     const L = liqsServ('arena-cargas', periodo).filter(l => l.detalle?.semana === w.n);
-    const filas = d.personas.map(pid => { const p = persDe(pid), l = L.find(x => x.persona_id === pid);
-      const dias = l ? l.jornadas : (d.pres[pid] || []).filter(f => w.dias.includes(f)).length, vj = l ? l.valor_jornada : sueldo;
-      return dias ? [p?.cuil || '', nombreExport(p?.apellido || '', p?.nombre || ''), p?.cbu || '', vj, dias, dias * vj] : null; }).filter(Boolean);
-    return [`${w.label} ${w.rango.replace(/\//g, '-')}`, [['CUIL', 'Apellido y nombre', 'CBU', 'Sueldo neto por jornada', 'Dias trabajados', 'Total'], ...filas, ['', '', '', '', 'TOTAL', filas.reduce((a, r) => a + r[5], 0)]]];
+    const hasta = w.hasta;
+    const pers = d.personas.filter(pid => (d.pres[pid] || []).some(f => f <= hasta));
+    const filas = pers.map(pid => { const p = persDe(pid), l = L.find(x => x.persona_id === pid);
+      const dias = l ? l.jornadas : (d.pres[pid] || []).filter(f => w.dias.includes(f)).length, vj = l ? l.valor_jornada : sueldoMes;
+      return [nomPlanilla(p), p?.cuil || '', p?.cbu || '', vj, dias, dias * vj]; });
+    const cab = ['Nombre y apellido', 'CUIL', 'CBU', 'Sueldo neto por jornada', `DÍAS TRABAJADOS SEMANA ${w.n}`, `TOTAL SEMANA ${w.n}`, w.rango];
+    return { cab, filas, total: filas.reduce((a, r) => a + r[5], 0) };
   };
-  const sem = semanasDelMes(periodo);
-  const hojas = (n ? sem.filter(w => w.n === n) : sem).map(hojaSemana).filter(h => h[1].length > 2);
-  if (!n) { const dias = diasDelMes(periodo);
-    hojas.push(['PRESENTISMO', [['CUIL', 'Apellido y nombre', ...dias.map(f => `${+f.slice(8)}/${+f.slice(5, 7)}`), 'Dias'],
-      ...d.personas.map(pid => { const p = persDe(pid), fs = new Set(d.pres[pid] || []); return [p?.cuil || '', nombreExport(p?.apellido || '', p?.nombre || ''), ...dias.map(f => fs.has(f) ? 'P' : ''), fs.size]; })]]); }
-  if (!hojas.length) { toast('No hay jornadas para exportar', 'err'); return; }
-  xlsxDescargar(hojas, `Liquidacion cargas ${n ? `semana ${n} ` : ''}${normExport(mesLabel(periodo))}.xlsx`);
+  const hojaSemana = w => { const b = bloque(w);
+    const aoa = [[], [], ['', ...b.cab], ...b.filas.map(r => ['', ...r]), [], ['', '', '', '', '', '', b.total]];
+    // (Excel no acepta corchetes en el nombre de una hoja: la planilla de Sheets dice "Liquidación [Semana N]")
+    return [`Liquidación Semana ${w.n}`, hojaXLSX(aoa, [4, 6], [3, 30, 14, 26, 22, 26, 16, 14])]; };
+  const semanas = (n ? sem.filter(w => w.n === n) : sem).filter(w => bloque(w).filas.length);
+  if (!semanas.length) { toast('No hay jornadas para exportar', 'err'); return; }
+  const hojas = semanas.map(hojaSemana);
+  if (!n) {
+    const dias = diasDelMes(periodo);
+    const aoa = [['MOVISTAR ARENA', 'MOVISTAR ARENA', ...dias.map(f => DIA_LARGO[dowDe(f)])],
+                 ['NOMBRE Y APELLIDO', 'CUIL', ...dias.map(f => `${+f.slice(8)}-${MES_CORTO[+f.slice(5, 7) - 1]}`)],
+                 ...d.personas.map(pid => { const p = persDe(pid), fs = new Set(d.pres[pid] || []); return [nomPlanilla(p), p?.cuil || '', ...dias.map(f => fs.has(f) ? 'P' : '')]; })];
+    sem.forEach(w => { const b = bloque(w); if (!b.filas.length) return; aoa.push([], b.cab, ...b.filas); });
+    hojas.push(['PRESENTISMO', combinar(hojaXLSX(aoa, [3, 5], [30, 14, ...dias.map(() => 10)]), [[0, 0, 0, 1]])]);
+  }
+  libroXLSX(hojas, `LIQUIDACIÓN CARGAS ${mesTxt}${n ? ` - SEMANA ${n}` : ''}.xlsx`);
 };
-window.excelMesa = function(tipo) {
-  const periodo = S_SERV.mes, d = servData('mesa', periodo), t = getTarifaMes(periodo)?.filas?.['MESA DE ENTRADA'] || {}, mes = normExport(mesLabel(periodo).split(' ')[0]).toUpperCase();
-  const pers = d.personas.map(persDe);
-  if (tipo === 'liq') xlsxDescargar([['LIQUIDACION', [['CUIL', 'Apellido y nombre', 'CBU', 'Dias trabajados', 'Total'],
-      ...pers.map((p, i) => [p?.cuil || '', nombreExport(p?.apellido || '', p?.nombre || ''), p?.cbu || '', (d.pres[d.personas[i]] || []).length, t.sueldo || 0])]]],
-    `Liquidacion mesa de entrada ${normExport(mesLabel(periodo))}.xlsx`);
-  else xlsxDescargar([['FACTURACION', [[`VALOR VENTA MENSUAL TARIFARIO ${mes}`], [t.venta || 0], [], ['RR. HH', 'Dias trabajados', 'Total a facturar', 'Total con IVA'],
-      ...pers.map((p, i) => [nombreExport(p?.apellido || '', p?.nombre || ''), (d.pres[d.personas[i]] || []).length, t.venta || 0, Math.round((t.venta || 0) * 121) / 100]),
-      ['TOTAL', '', (t.venta || 0) * pers.length, Math.round((t.venta || 0) * pers.length * 121) / 100]]]],
-    `Facturacion mesa de entrada ${normExport(mesLabel(periodo))}.xlsx`);
+// Mesa de entrada: igual que la planilla "FACTURACIÓN y LIQUIDACIÓN MESA DE ENTRADA ARENA <MES>"
+window.excelMesa = function() {
+  const periodo = S_SERV.mes, d = servData('mesa', periodo), t = getTarifaMes(periodo)?.filas?.['MESA DE ENTRADA'] || {};
+  const mes = mesLabel(periodo).split(' ')[0].toUpperCase(), mesTxt = mesLabel(periodo).toUpperCase();
+  const liqs = liqsServ('arena-mesa', periodo);
+  const pers = d.personas.map(pid => ({ p: persDe(pid), dias: (d.pres[pid] || []).length, sueldo: liqs.find(l => l.persona_id === pid)?.total ?? (t.sueldo || 0) }));
+  if (!pers.length) { toast('No hay personas cargadas en el mes', 'err'); return; }
+  const venta = t.venta || 0, iva = x => Math.round(x * 121) / 100;
+  const fact = [[`VALOR VENTA MENSUAL TARIFARIO ${mes}`], [venta], [], ['RR. HH', 'DÍAS TRABAJADOS', 'TOTAL A FACTURAR', ''],
+    ...pers.map(x => [nomPlanilla(x.p), x.dias, venta, iva(venta)]), ['TOTAL', '', venta * pers.length, iva(venta * pers.length)]];
+  const liq = [['', 'CUIL', 'APELLIDO y NOMBRE', 'CBU', 'TOTAL'], ['', '', '', '', ''],
+    ...pers.map(x => ['MESA DE ENTRADA', x.p?.cuil || '', nomPlanilla(x.p), x.p?.cbu || '', x.sueldo])];
+  const dias = diasDelMes(periodo);
+  const pres = [['MOVISTAR ARENA', 'MOVISTAR ARENA', ...dias.map(f => DIA_LARGO[dowDe(f)]), 'TURNO'],
+    ['NOMBRE Y APELLIDO', 'CUIL', ...dias.map(f => `${+f.slice(8)}-${MES_CORTO[+f.slice(5, 7) - 1]}`), '7HS'],
+    ...d.personas.map((pid, i) => { const fs = new Set(d.pres[pid] || []); return [nomPlanilla(pers[i].p), pers[i].p?.cuil || '', ...dias.map(f => fs.has(f) ? 'P' : ''), pers[i].dias]; }),
+    [], ['PERSONAL', 'PERSONAL', 'DÍAS TRABAJADOS', 'VALOR MENSUAL TOTAL', 'TOTAL A LIQUIDAR'],
+    ...pers.map(x => [nomPlanilla(x.p), x.p?.cuil || '', x.dias, x.sueldo, x.sueldo])];
+  const nF = fact.length - 1, nP = 2 + d.personas.length + 1;
+  libroXLSX([['FACTURACIÓN', combinar(hojaXLSX(fact, [0, 2, 3], [40, 18, 20, 18], true), [[nF, 0, nF, 1]])],
+    ['LIQUIDACIÓN', combinar(hojaXLSX(liq, [4], [18, 14, 26, 26, 16], true), [0, 1, 2, 3, 4].map(c => [0, c, 1, c]))],
+    ['PRESENTISMO', combinar(hojaXLSX(pres, [3, 4], [26, 14, ...dias.map(() => 10), 8], true), [[0, 0, 0, 1], [nP, 0, nP, 1]])]],
+    `FACTURACIÓN y LIQUIDACIÓN MESA DE ENTRADA ARENA ${mesTxt}.xlsx`);
 };
 
 // ══════════════════════════════════════════════
