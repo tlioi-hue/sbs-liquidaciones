@@ -217,6 +217,128 @@ tr.clic { cursor: pointer; } tr.clic:hover td { background: var(--card2); }
 .grilla .gc.tot.mal { color: #b45309; background: #fff4e6; }
 .grilla .gt { font-weight: 700; padding: 0 10px; }
 .grilla tfoot td { background: var(--card2); }
+
+/* Cargas y Mesa de entrada: diseño compacto */
+.grilla .gc.p { background: none; } .grilla .gc.lk { opacity: 1; } .grilla .gc.p:hover { background: var(--card2); }
+.sv-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.sv-tit { display: flex; align-items: center; gap: 6px; margin-right: 6px; }
+.sv-tit h2 { margin: 0; font-size: 20px; }
+.sv-i { color: var(--text2); cursor: help; font-size: 16px; }
+.sv-mes { font-size: 13px; padding: 6px 9px; width: auto; }
+.sv-kpis { margin-bottom: 12px; }
+.sv-kpis .metric-v { font-size: 20px; }
+.sv-kpis .metric-s { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sv-vacio { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 28px; color: var(--text2); margin-bottom: 12px; }
+.sv-vacio > i { font-size: 26px; }
+.sv-grid { padding: 0; overflow: auto; margin-bottom: 12px; }
+.grilla { border-collapse: separate; border-spacing: 0; font-size: 12px; width: 100%; }
+.grilla th, .grilla td { border-bottom: 1px solid var(--border); padding: 0; text-align: center; }
+.grilla tr.gsem th { font-size: 10.5px; font-weight: 600; color: var(--text2); padding: 6px 0 2px; border-bottom: 0; text-transform: none; letter-spacing: 0; }
+.grilla th.gd { font-weight: 600; color: var(--text); font-size: 11.5px; padding: 3px 0 6px; min-width: 24px; width: 24px; line-height: 1.25; }
+.grilla th.gd span { display: block; font-size: 9.5px; font-weight: 500; color: var(--text2); }
+.grilla th.gd.fs { color: var(--text2); }
+.grilla th.gd.sh { color: #1a7a3e; }
+.grilla th.gd.sh::after { content: ''; display: block; width: 4px; height: 4px; border-radius: 50%; background: #1a7a3e; margin: 2px auto 0; }
+.grilla .wk { border-left: 1px solid var(--border); }
+.grilla .gn { text-align: left; padding: 0 30px 0 14px; min-width: 190px; max-width: 280px; position: sticky; left: 0; background: var(--card); z-index: 2; font-size: 12.5px; height: 34px; white-space: nowrap; }
+.grilla thead .gn { font-size: 11px; font-weight: 500; color: var(--text2); }
+.grilla .gnom { font-weight: 600; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 240px; vertical-align: middle; }
+.grilla .gw { color: #b45309; font-size: 13px; margin-left: 4px; vertical-align: middle; }
+.grilla td.gn { position: sticky; }
+.grilla .gx { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 0; background: none; color: var(--text2); cursor: pointer; font-size: 13px; opacity: 0; transition: opacity .15s; }
+.grilla tr:hover .gx { opacity: 1; }
+.grilla .gc { height: 34px; cursor: pointer; }
+.grilla .gc:hover { background: var(--card2); }
+.grilla .gc b { display: inline-flex; width: 18px; height: 18px; align-items: center; justify-content: center; border-radius: 5px; background: #e3f1e7; color: #1a7a3e; font-size: 10.5px; font-weight: 700; }
+.grilla .gc.lk { cursor: not-allowed; }
+.grilla .gc.lk b { background: #eef0ee; color: var(--text2); }
+.grilla .gc.tot { cursor: default; color: var(--text2); font-weight: 600; font-size: 11.5px; height: 28px; }
+.grilla .gc.tot.mal { color: #b45309; background: #fff4e6; }
+.grilla .gt { font-weight: 700; padding: 0 12px; min-width: 44px; }
+.grilla tfoot td { background: var(--card2); border-bottom: 0; }
+.grilla tfoot .gn { background: var(--card2); font-weight: 500; color: var(--text2); }
+.sv-sem { padding: 0; overflow: auto; }
+.sv-sem td .rng { display: inline-block; margin-left: 10px; color: var(--text2); font-size: 12px; font-weight: 400; }
+.sv-sem tr.vac td { color: var(--text2); }
+.sv-sem td.acc { text-align: right; white-space: nowrap; }
+.sv-sem td.acc .btn { margin-left: 4px; }
+.sv-sem tfoot td { font-weight: 700; background: var(--card2); }
+.sv-mesa { display: flex; gap: 28px; align-items: center; flex-wrap: wrap; padding: 16px 18px; }
+.sv-mcol { min-width: 180px; }
+.sv-ml { font-size: 12px; color: var(--text2); }
+.sv-mv { font-size: 22px; font-weight: 700; margin: 2px 0; }
+.sv-ms { font-size: 12px; color: var(--text2); }
+.sv-macc { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+/* ── Cargas y Mesa de entrada: diseño compacto ── */
+.sv-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.sv-head h2 { margin: 0; }
+.sv-sub { color: var(--text2); font-size: 12.5px; margin-top: 2px; }
+.sv-acc { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.sv-acc select { width: auto; font-size: 13px; padding: 6px 9px; }
+.sv-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px; }
+.sv-kpi { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 13px; }
+.sv-kpi span { display: block; font-size: 11.5px; color: var(--text2); }
+.sv-kpi b { display: block; font-size: 18px; margin: 2px 0; }
+.sv-kpi small { display: block; font-size: 11px; color: var(--text2); }
+.sv-kpi.ok b { color: #1a7a3e; } .sv-kpi.warn b { color: #b45309; }
+.sv-card { margin-bottom: 12px; }
+.sv-sec { font-weight: 600; font-size: 13px; margin: 6px 0 8px; }
+.sv-help { font-size: 12px; color: var(--text2); margin: 12px 0 4px; }
+.sv-help summary { cursor: pointer; font-weight: 500; }
+.sv-help[open] summary { margin-bottom: 4px; }
+.grilla.g2 { table-layout: fixed; width: 100%; }
+.grilla.g2 .gn { width: 200px; min-width: 200px; position: sticky; left: 0; background: var(--card); z-index: 1; text-align: left; padding: 7px 26px 7px 12px; }
+.grilla.g2 .gh { font-size: 10.5px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .03em; }
+.grilla.g2 .gsem { font-size: 11px; font-weight: 600; color: var(--text); padding: 6px 0 3px; border-left: 2px solid var(--border); background: var(--card2); }
+.grilla.g2 .gsem span { display: block; font-size: 10px; font-weight: 400; color: var(--text2); }
+.grilla.g2 th.gd { width: auto; min-width: 22px; font-size: 9.5px; font-weight: 500; color: var(--text2); padding: 4px 0; line-height: 1.25; }
+.grilla.g2 th.gd b { display: block; font-size: 11px; color: var(--text); font-weight: 600; }
+.grilla.g2 th.gd.fs, .grilla.g2 td.gc.fs { background: #fafafa; }
+.grilla.g2 th.gd i { width: 4px; height: 4px; margin: 2px auto 0; }
+.grilla.g2 .wk { border-left: 2px solid var(--border); }
+.grilla.g2 td.gc { height: 34px; }
+.grilla.g2 td.gc.p { background: none; }
+.grilla.g2 td.gc:hover:not(.lk):not(.tot) { background: var(--card2); }
+.pchip { display: inline-flex; width: 18px; height: 18px; border-radius: 5px; background: #d9eedf; color: #1a6b36; font-size: 10.5px; font-weight: 700; align-items: center; justify-content: center; }
+.grilla.g2 td.gc.tot { font-size: 11px; color: var(--text2); font-weight: 600; height: 26px; cursor: default; }
+.grilla.g2 td.gc.tot.mal { color: #b45309; background: #fff4e6; }
+.grilla.g2 .gt { width: 52px; text-align: center; font-weight: 700; }
+.gnn { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gns { font-size: 11px; color: var(--text2); }
+.grilla.g2 .gx { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); border: 0; background: none; color: var(--text2); cursor: pointer; opacity: 0; font-size: 13px; padding: 2px 4px; }
+.cal-card .gx { border: 0; background: none; color: var(--text2); cursor: pointer; opacity: 0; font-size: 13px; padding: 2px 4px; }
+.grilla.g2 tr:hover .gx, .cal-card:hover .gx { opacity: .8; }
+.sem-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.sem-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; }
+.sc-h { display: flex; justify-content: space-between; align-items: baseline; font-size: 12.5px; } .sc-h span { color: var(--text2); font-size: 11.5px; }
+.sc-v { font-size: 19px; font-weight: 700; margin-top: 6px; } .sc-s { font-size: 11.5px; color: var(--text2); }
+.sc-f { display: flex; gap: 5px; align-items: center; margin-top: 9px; flex-wrap: wrap; } .sc-f .badge { margin-right: auto; font-size: 10.5px; }
+.cal-wrap { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 460px)); gap: 12px; }
+.cal-card { padding: 14px 16px; }
+.cal-h { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+.cal-n { font-size: 12.5px; color: var(--text2); } .cal-n b { font-size: 17px; color: var(--text); }
+table.cal { width: 100%; border-collapse: separate; border-spacing: 4px; table-layout: fixed; }
+table.cal th { font-size: 10.5px; color: var(--text2); font-weight: 600; } table.cal th.fs { color: #b0b5b2; }
+table.cal td { height: 40px; border-radius: 7px; background: var(--card2); text-align: center; cursor: pointer; position: relative; font-size: 12px; }
+table.cal td span { position: absolute; top: 4px; left: 6px; font-size: 10.5px; color: var(--text2); }
+table.cal td em { font-style: normal; font-weight: 700; font-size: 12px; color: #1a6b36; display: block; margin-top: 12px; }
+table.cal td.p { background: #d9eedf; } table.cal td.fs:not(.p) { background: #f4f5f4; }
+table.cal td.vac { background: none; cursor: default; } table.cal td.lk { cursor: not-allowed; }
+table.cal td:hover:not(.vac):not(.lk) { outline: 2px solid #a8d5b5; }
+@media (max-width: 900px) { .sv-kpis { grid-template-columns: 1fr 1fr; } }
+
+.shw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.shw { text-align: left; font: inherit; background: var(--card); border: 1px solid var(--border); border-left: 4px solid #d9dcda; border-radius: 9px; padding: 8px 10px; cursor: pointer; color: var(--text); }
+.shw:hover { border-color: var(--text2); }
+.shw b { display: block; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 1px 0; }
+.shw-f { font-size: 10.5px; color: var(--text2); text-transform: capitalize; } .shw-s { font-size: 11px; color: var(--text2); }
+.shw.pendiente { border-left-color: #e5a24a; } .shw.completo, .shw.cargado { border-left-color: #2d8a4e; } .shw.distinto { border-left-color: #b45309; }
+.shw.completo .shw-s { color: #1a7a3e; } .shw.distinto .shw-s { color: #b45309; }
+.shw-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 8px; border-bottom: 1px solid var(--border); cursor: pointer; border-radius: 6px; }
+.shw-row:hover { background: var(--card2); }
+.cal-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--text2); margin-bottom: 8px; }
+table.cal td.fer { background: #fdf3e3; } table.cal td.fer.p { background: #d9eedf; }
+table.cal td em.fe { color: #9a6a1c; font-size: 9.5px; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -4917,117 +5039,155 @@ async function pgCargas(el, ac) { S_SERV.tab = 'cargas'; return pgServicios(el, 
 async function pgMesa(el, ac) { S_SERV.tab = 'mesa'; return pgServicios(el, ac); }
 async function pgServicios(el, ac) {
   ac.innerHTML = '';
-  const tipo = S_SERV.tab, cfg = SERV_TIPOS[tipo];
+  const tipo = S_SERV.tab;
   const meses = mesesServicios();
   if (!S_SERV.mes || !meses.includes(S_SERV.mes)) { const h = new Date(); S_SERV.mes = `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}`; }
-  const cab = `<div style="margin-bottom:12px"><h2 style="margin:0">${tipo === 'cargas' ? 'Cargas / stagehands' : 'Mesa de entrada'} · Movistar Arena</h2>
-    <div style="color:var(--text2);font-size:13px">${tipo === 'cargas' ? 'Presentismo y liquidación semanal, igual que la planilla de cargas.' : 'Presentismo, facturación y liquidación mensual, igual que la planilla de mesa de entrada.'}
-      La comparación de lo facturado contra lo liquidado está en <a href="#" onclick="go('rentabilidad');return false">Facturación vs Liquidación</a>.</div></div>
-    ${esHistorico(S_SERV.mes) ? `<div class="nota-proy"><i class="ti ti-history"></i> ${mesLabel(S_SERV.mes)} se liquidó${tipo === 'mesa' ? ' y facturó' : ''} con las planillas, fuera de la plataforma: sus números entran en los informes, pero no se vuelve a liquidar. Desde ${mesLabel(SERV_PLATAFORMA).toLowerCase()}, todo se hace acá.</div>` : ''}`;
-  if (APP.servArenaError) { el.innerHTML = cab + `<div class="alert alert-warn"><i class="ti ti-database-off"></i> Falta crear la tabla <strong>servicios_arena</strong> en Supabase.</div>`; return; }
-  const barra = `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
-      <select onchange="S_SERV.mes=this.value;render()" style="font-size:13px;padding:6px 9px;width:auto">${meses.map(m => `<option value="${m}" ${m === S_SERV.mes ? 'selected' : ''}>${mesLabel(m)}</option>`).join('')}</select>
-      <div style="flex:1"></div>
-      ${!esHistorico(S_SERV.mes) && tipo === 'cargas' ? `<button class="btn btn-primary" onclick="cargarDia()"><i class="ti ti-calendar-check"></i> Cargar presentes del día</button>` : ''}
-      ${!esHistorico(S_SERV.mes) && tipo === 'mesa' ? `<button class="btn btn-primary" onclick="marcarHabiles()" title="Marca de lunes a viernes a todas las personas del mes; después destildás las ausencias"><i class="ti ti-calendar-check"></i> Marcar lunes a viernes</button>` : ''}
-      <button class="btn" onclick="agregarPersServ('${tipo}')"><i class="ti ti-user-plus"></i> Agregar persona</button>
-      ${esHistorico(S_SERV.mes) ? `<button class="btn" onclick="importarServ('${tipo}')" title="Pegá la hoja PRESENTISMO de la planilla: da de alta a las personas y carga sus presentes"><i class="ti ti-clipboard"></i> Importar desde la planilla</button>` : ''}
-    </div>`;
-  el.innerHTML = cab + barra + valoresMes(tipo, S_SERV.mes) + (tipo === 'cargas' ? htmlCargas() : htmlMesa());
+  const periodo = S_SERV.mes, hist = esHistorico(periodo), d = servData(tipo, periodo);
+  if (APP.servArenaError) { el.innerHTML = `<div class="alert alert-warn"><i class="ti ti-database-off"></i> Falta crear la tabla <strong>servicios_arena</strong> en Supabase.</div>`; return; }
+  const cab = `<div class="sv-head">
+      <div><h2>${tipo === 'cargas' ? 'Cargas / stagehands' : 'Mesa de entrada'}</h2>
+        <div class="sv-sub">${tipo === 'cargas' ? 'Presentismo y liquidación semanal' : 'Presentismo, facturación y liquidación mensual'} · <a href="#" onclick="go('rentabilidad');return false">ver facturación vs liquidación</a></div></div>
+      <div class="sv-acc">
+        <select onchange="S_SERV.mes=this.value;render()">${meses.map(m => `<option value="${m}" ${m === periodo ? 'selected' : ''}>${mesLabel(m)}</option>`).join('')}</select>
+        ${hist ? `<span class="badge bs" title="${mesLabel(periodo)} se liquidó con las planillas: sus números entran en los informes, pero no se vuelve a liquidar">Liquidado fuera de la plataforma</span>` : ''}
+        ${!hist && tipo === 'cargas' ? `<button class="btn btn-primary" onclick="elegirShowCargas()"><i class="ti ti-calendar-check"></i> Cargar presentes</button>` : ''}
+        ${!hist && tipo === 'mesa' ? `<button class="btn btn-primary" onclick="marcarHabiles()" title="Marca de lunes a viernes; después destildás las ausencias"><i class="ti ti-calendar-check"></i> Lunes a viernes</button>` : ''}
+        <button class="btn" onclick="agregarPersServ('${tipo}')" title="Agregar persona"><i class="ti ti-user-plus"></i></button>
+        ${hist ? `<button class="btn" onclick="importarServ('${tipo}')" title="Importar desde la planilla"><i class="ti ti-clipboard"></i></button>` : ''}
+        ${d.personas.length ? `<button class="btn" onclick="${tipo === 'cargas' ? 'excelCargas(0)' : 'excelMesa()'}" title="${tipo === 'cargas' ? 'Excel de liquidación del mes' : 'Excel de facturación y liquidación'}"><i class="ti ti-file-spreadsheet"></i> Excel</button>` : ''}
+      </div></div>`;
+  el.innerHTML = cab + (tipo === 'cargas' ? htmlCargas() : htmlMesa());
+}
+const svKpi = (l, v, sub, cls = '') => `<div class="sv-kpi ${cls}"><span>${l}</span><b>${v}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
+function origenTar(periodo) {
+  const tm = getTarifaMes(periodo);
+  const txt = !tm ? '<span style="color:#b45309">sin tarifario</span>' : tm.origen === 'cargado' ? 'tarifario del mes' : `estimado (${mesLabel(tm.desde).split(' ')[0].toLowerCase()} + ${String(tm.aumento).replace('.', ',')}%)`;
+  return `${txt} · <a href="#" onclick="S_PROY.tab='tar';S_PROY.tarMes='${periodo}';S_PROY.tarDraft=null;go('proyecciones');return false">actualizar</a>`;
 }
 
-// Grilla de presentismo (la misma para cargas y mesa de entrada)
+// Grilla de presentismo compacta (la misma para cargas y mesa de entrada)
 function htmlGrilla(tipo, periodo, bloqueado) {
   const d = servData(tipo, periodo), dias = tipo === 'cargas' ? diasVigentes(periodo) : diasDelMes(periodo), cfg = SERV_TIPOS[tipo];
   const facs = APP.facturaciones || [];
   const pedDia = f => showsDelDia(f).reduce((a, e) => a + (pedidoPorCat(facs.filter(x => x.evento_id === e.id)).CARGAS || 0), 0);
   if (!d.personas.length) {
     const ant = equipoAnterior(tipo, periodo);
-    return `<div class="empty-state" style="padding:26px"><i class="ti ti-users"></i><p>Todavía no hay personas en ${cfg.nombre.toLowerCase()} para ${mesLabel(periodo).toLowerCase()}.</p>
-      ${ant ? `<button class="btn btn-primary" onclick="traerEquipo('${tipo}','${periodo}')"><i class="ti ti-users-plus"></i> Usar el equipo de ${mesLabel(ant.periodo).toLowerCase()} (${ant.personas.length} persona${ant.personas.length > 1 ? 's' : ''})</button>
-        <p style="font-size:12px;color:var(--text2);margin-top:8px">O usá <strong>Agregar persona</strong>.</p>` : '<p>Usá <strong>Agregar persona</strong> o <strong>Importar desde la planilla</strong>.</p>'}</div>`;
+    return `<div class="card sv-vacio"><i class="ti ti-users"></i><div>Todavía no hay personas en ${mesLabel(periodo).toLowerCase()}.</div>
+      ${ant ? `<button class="btn btn-primary" onclick="traerEquipo('${tipo}','${periodo}')"><i class="ti ti-users-plus"></i> Usar el equipo de ${mesLabel(ant.periodo).toLowerCase()} (${ant.personas.length} persona${ant.personas.length > 1 ? 's' : ''})</button>` : ''}</div>`;
   }
+  // semanas en el encabezado (cargas): la grilla y la liquidación semanal se leen juntas
+  const sem = tipo === 'cargas' ? semanasDelMes(periodo) : [];
+  const iniSem = new Set(sem.map(w => w.dias[0]));
+  const filaSem = tipo === 'cargas' ? `<tr class="gsem"><th class="gn"></th>${sem.map(w => `<th colspan="${w.dias.length}" class="wk">${w.label}</th>`).join('')}<th class="gt"></th></tr>` : '';
   const cab = dias.map(f => { const sh = showsDelDia(f), dw = dowDe(f);
-    return `<th class="gd ${dw === 0 || dw === 6 ? 'fs' : ''} ${sh.length ? 'sh' : ''}" title="${sh.map(e => e.nombre).join(', ')}">${DOW_L[dw]}<br>${+f.slice(8)}${sh.length ? '<i></i>' : ''}</th>`; }).join('');
+    return `<th class="gd ${dw === 0 || dw === 6 ? 'fs' : ''} ${sh.length ? 'sh' : ''} ${iniSem.has(f) ? 'wk' : ''}" title="${sh.length ? esc2(sh.map(e => e.nombre).join(', ')) : ''}"><span>${DOW_L[dw]}</span>${+f.slice(8)}</th>`; }).join('');
   const filas = d.personas.map(pid => { const p = persDe(pid), fs = new Set(d.pres[pid] || []);
-    return `<tr><td class="gn"><strong>${p ? esc2(nomPers(p)) : 'Persona no encontrada'}</strong><div>${p?.cuil || ''}${p && !p.cbu ? ' · <span style="color:#b45309">sin CBU</span>' : ''}</div>
-        ${bloqueado === true ? '' : `<button class="gx" title="Quitar del mes" onclick="quitarPersServ('${tipo}','${pid}')">×</button>`}</td>
+    return `<tr><td class="gn" title="${p ? `CUIL ${p.cuil || '—'}${p.cbu ? '' : ' · sin CBU'}` : ''}"><span class="gnom">${p ? esc2(nomPers(p)) : 'Persona no encontrada'}</span>${p && !p.cbu ? '<i class="ti ti-alert-triangle gw" title="Sin CBU en el padrón"></i>' : ''}
+        ${bloqueado === true ? '' : `<button class="gx" title="Quitar del mes" onclick="quitarPersServ('${tipo}','${pid}')"><i class="ti ti-x"></i></button>`}</td>
       ${dias.map(f => { const lock = typeof bloqueado === 'function' ? bloqueado(f) : bloqueado;
-        return `<td class="gc ${fs.has(f) ? 'p' : ''} ${lock ? 'lk' : ''}" ${lock ? `title="Período liquidado: deshacé la liquidación para editar"` : `onclick="togglePres('${tipo}','${pid}','${f}')"`}>${fs.has(f) ? 'P' : ''}</td>`; }).join('')}
+        return `<td class="gc ${fs.has(f) ? 'p' : ''} ${lock ? 'lk' : ''} ${iniSem.has(f) ? 'wk' : ''}" ${lock ? 'title="Período liquidado"' : `onclick="togglePres('${tipo}','${pid}','${f}')"`}>${fs.has(f) ? '<b>P</b>' : ''}</td>`; }).join('')}
       <td class="gt">${fs.size}</td></tr>`; }).join('');
   const tot = dias.map(f => { const n = d.personas.filter(pid => (d.pres[pid] || []).includes(f)).length, ped = tipo === 'cargas' ? pedDia(f) : 0;
     const mal = tipo === 'cargas' && ped && n !== ped;
-    return `<td class="gc tot ${mal ? 'mal' : ''}" title="${tipo === 'cargas' && ped ? `pedido del Arena: ${ped}` : ''}">${n || ''}</td>`; }).join('');
-  return `<div class="card" style="padding:0;overflow:auto"><table class="grilla"><thead><tr><th class="gn">Persona</th>${cab}<th class="gt">Días</th></tr></thead>
-    <tbody>${filas}</tbody><tfoot><tr><td class="gn">Presentes${tipo === 'cargas' ? ' <span style="font-weight:400;color:var(--text2)">(en rojo si no coincide con el pedido)</span>' : ''}</td>${tot}<td class="gt">${Object.values(d.pres).reduce((a, x) => a + x.length, 0)}</td></tr></tfoot></table></div>
-    <div style="font-size:11.5px;color:var(--text2);margin:6px 0 16px">Tocá un casillero para marcar o quitar la P. Los días con punto tienen show en el Arena.</div>`;
+    return `<td class="gc tot ${mal ? 'mal' : ''} ${iniSem.has(f) ? 'wk' : ''}" title="${tipo === 'cargas' && ped ? `El Arena pidió ${ped}` : ''}">${n || ''}</td>`; }).join('');
+  return `<div class="card sv-grid"><table class="grilla"><thead>${filaSem}<tr><th class="gn">${d.personas.length} persona${d.personas.length > 1 ? 's' : ''}</th>${cab}<th class="gt">Días</th></tr></thead>
+    <tbody>${filas}</tbody><tfoot><tr><td class="gn">Presentes${tipo === 'cargas' ? ' <i class="ti ti-info-circle" title="En naranja: los presentes no coinciden con los cargas que pidió el Arena. Los días con número verde tienen show."></i>' : ''}</td>${tot}<td class="gt">${Object.values(d.pres).reduce((a, x) => a + x.length, 0)}</td></tr></tfoot></table></div>`;
 }
 const esc2 = t => String(t || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 function htmlCargas() {
-  const periodo = S_SERV.mes, d = servData('cargas', periodo), sem = semanasDelMes(periodo), liqs = liqsServ('arena-cargas', periodo);
-  const sueldo = getTarifaMes(periodo)?.filas?.CARGAS?.sueldo || 0, E = getEstructura();
-  const cargasPct = (E.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0);
+  const periodo = S_SERV.mes, d = servData('cargas', periodo), sem = semanasDelMes(periodo), liqs = liqsServ('arena-cargas', periodo), hist = esHistorico(periodo);
+  const sueldo = getTarifaMes(periodo)?.filas?.CARGAS?.sueldo || 0, facs = APP.facturaciones || [];
   const semLiq = n => liqs.filter(l => l.detalle?.semana === n);
-  const bloqueado = f => { const w = sem.find(x => x.dias.includes(f)); return w && semLiq(w.n).length > 0; };
-  const semanas = sem.map(w => {
-    const jorn = d.personas.reduce((a, pid) => a + (d.pres[pid] || []).filter(f => w.dias.includes(f)).length, 0);
+  const bloqueado = f => { const w = sem.find(x => x.dias.includes(f)); return hist ? false : !!(w && semLiq(w.n).length); };
+  const jornW = w => d.personas.reduce((a, pid) => a + (d.pres[pid] || []).filter(f => w.dias.includes(f)).length, 0);
+  const totalW = w => { const L = semLiq(w.n); return L.length ? L.reduce((a, l) => a + (l.total || 0), 0) : jornW(w) * sueldo; };
+  const jornadas = sem.reduce((a, w) => a + jornW(w), 0), total = sem.reduce((a, w) => a + totalW(w), 0);
+  const diasShow = diasVigentes(periodo).filter(f => showsDelDia(f).length).length;
+  const pedDia = f => showsDelDia(f).reduce((a, e) => a + (pedidoPorCat(facs.filter(x => x.evento_id === e.id)).CARGAS || 0), 0);
+  const presDia = f => d.personas.filter(pid => (d.pres[pid] || []).includes(f)).length;
+  const difs = diasVigentes(periodo).filter(f => { const p = pedDia(f); return p && presDia(f) !== p; }).length;
+  if (!d.personas.length) return grillaVacia('cargas', periodo);
+  const kpis = `<div class="sv-kpis">
+    ${svKpi('Jornadas del mes', jornadas, `${d.personas.length} persona${d.personas.length !== 1 ? 's' : ''} · ${diasShow} días con show`)}
+    ${svKpi('Liquidación del mes (neto)', fmt(total), hist ? 'liquidada con la planilla' : `${sem.filter(w => semLiq(w.n).length).length} de ${sem.filter(w => jornW(w)).length} semanas liquidadas`)}
+    ${svKpi('Sueldo neto por jornada', fmt(sueldo), origenTar(periodo))}
+    ${svKpi('Presentes vs pedido', difs ? `${difs} día${difs > 1 ? 's' : ''} distinto${difs > 1 ? 's' : ''}` : 'Coincide', difs ? 'marcados en naranja en la grilla' : 'en todos los días con show', difs ? 'warn' : 'ok')}
+  </div>`;
+  const dias = diasVigentes(periodo);
+  const wk = f => sem.find(w => w.dias.includes(f));
+  const primero = f => wk(f)?.dias[0] === f;
+  const cabSem = sem.map(w => `<th colspan="${w.dias.length}" class="gsem">${w.label}<span>${w.rango}</span></th>`).join('');
+  const cabDia = dias.map(f => { const sh = showsDelDia(f), dw = dowDe(f);
+    return `<th class="gd ${dw === 0 || dw === 6 ? 'fs' : ''} ${primero(f) ? 'wk' : ''}" title="${sh.map(e => e.nombre).join(', ') || 'sin show'}">${DOW_L[dw]}<b>${+f.slice(8)}</b>${sh.length ? '<i></i>' : ''}</th>`; }).join('');
+  const filas = d.personas.map(pid => { const p = persDe(pid), fs = new Set(d.pres[pid] || []);
+    return `<tr><td class="gn"><div class="gnn">${p ? esc2(nomPers(p)) : 'Persona no encontrada'}</div><div class="gns">${p?.cuil || ''}${p && !p.cbu ? ' · <span style="color:#b45309">sin CBU</span>' : ''}</div>
+        ${hist ? '' : `<button class="gx" title="Quitar del mes" onclick="quitarPersServ('cargas','${pid}')"><i class="ti ti-x"></i></button>`}</td>
+      ${dias.map(f => { const lk = hist || bloqueado(f), dw = dowDe(f);
+        return `<td class="gc ${dw === 0 || dw === 6 ? 'fs' : ''} ${primero(f) ? 'wk' : ''} ${lk ? 'lk' : ''}" ${lk ? '' : `onclick="togglePres('cargas','${pid}','${f}')"`}>${fs.has(f) ? '<span class="pchip">P</span>' : ''}</td>`; }).join('')}
+      <td class="gt">${fs.size}</td></tr>`; }).join('');
+  const pie = dias.map(f => { const n = presDia(f), ped = pedDia(f), mal = ped && n !== ped;
+    return `<td class="gc tot ${primero(f) ? 'wk' : ''} ${mal ? 'mal' : ''}" title="${ped ? `pedido del Arena: ${ped}` : ''}">${n || ''}</td>`; }).join('');
+  const grilla = `<div class="card sv-card" style="padding:0;overflow:auto"><table class="grilla g2">
+      <thead><tr><th class="gn"></th>${cabSem}<th class="gt"></th></tr><tr><th class="gn gh">Persona</th>${cabDia}<th class="gt gh">Días</th></tr></thead>
+      <tbody>${filas}</tbody><tfoot><tr><td class="gn gh">Presentes</td>${pie}<td class="gt">${jornadas}</td></tr></tfoot></table></div>`;
+  const tarjetas = sem.filter(w => jornW(w) || semLiq(w.n).length).map(w => {
     const L = semLiq(w.n), pag = L.length && L.every(l => l.estado === 'pagado');
-    const total = L.length ? L.reduce((a, l) => a + (l.total || 0), 0) : jorn * sueldo;
-    const estado = esHistorico(periodo) ? (jorn ? '<span class="badge bs" title="Liquidada con la planilla, fuera de la plataforma">Fuera de la plataforma</span>' : '<span style="color:var(--text2)">—</span>')
-      : !L.length ? (jorn ? '<span class="badge bw">Sin liquidar</span>' : '<span style="color:var(--text2)">—</span>') : pag ? '<span class="badge bs">Pagada</span>' : '<span class="badge bi">Liquidada</span>';
-    return `<tr><td style="white-space:nowrap"><strong>${w.label}</strong></td><td style="white-space:nowrap">${w.rango}</td><td style="text-align:center">${jorn}</td><td style="text-align:right">${fmt(L.length ? L[0].valor_jornada : sueldo)}</td><td style="text-align:right;font-weight:600">${fmt(total)}</td><td>${estado}</td>
-      <td style="text-align:right;white-space:nowrap">
-        ${!esHistorico(periodo) && !L.length && jorn ? `<button class="btn btn-sm btn-primary" onclick="liquidarSemanaCargas(${w.n})">Liquidar</button>` : ''}
-        ${!esHistorico(periodo) && L.length && !pag ? `<button class="btn btn-sm" onclick="pagarServ('arena-cargas',${w.n})">Marcar pagada</button> <button class="btn btn-sm" onclick="deshacerServ('arena-cargas',${w.n})">Deshacer</button>` : ''}
-        ${jorn ? `<button class="btn btn-sm" title="Excel de la semana" onclick="excelCargas(${w.n})"><i class="ti ti-file-spreadsheet"></i></button>` : ''}</td></tr>`;
-  }).join('');
-  const totMes = sem.reduce((a, w) => { const L = semLiq(w.n); return a + (L.length ? L.reduce((b, l) => b + (l.total || 0), 0) : d.personas.reduce((b, pid) => b + (d.pres[pid] || []).filter(f => w.dias.includes(f)).length, 0) * sueldo); }, 0);
-  return `
-    ${!sueldo ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Falta el sueldo neto de CARGAS en el tarifario de ${mesLabel(periodo).toLowerCase()} (Proyecciones → Tarifario mensual).</div>` : ''}
-    ${htmlGrilla('cargas', periodo, bloqueado)}
-    <div style="margin-bottom:14px">
-      <div class="card" style="padding:0;overflow:auto"><div style="padding:12px 14px 4px;font-weight:600">Liquidación por semana</div>
-        <table class="tbl"><thead><tr><th>Semana</th><th>Período</th><th style="text-align:center">Jornadas</th><th style="text-align:right">Neto x jornada</th><th style="text-align:right">Total</th><th>Estado</th><th></th></tr></thead>
-        <tbody>${semanas}</tbody><tfoot><tr style="font-weight:700;background:var(--card2)"><td colspan="4">Total del mes</td><td style="text-align:right">${fmt(totMes)}</td><td colspan="2" style="text-align:right"><button class="btn btn-sm" onclick="excelCargas(0)"><i class="ti ti-file-spreadsheet"></i> Excel del mes</button></td></tr></tfoot></table></div>
-      <div style="font-size:11.5px;color:var(--text2);margin-top:6px"><strong>Cómo se liquida:</strong> igual que la planilla, por semana de lunes a domingo (la primera y la última, cortadas al mes), días trabajados × sueldo neto por jornada del tarifario (${fmt(sueldo)} en ${mesLabel(periodo).toLowerCase()}).
-        Al liquidar, cada semana queda registrada con estado <em>Liquidada</em> y sus días se bloquean; después la marcás como pagada. El Excel sale en el formato de pago de la plataforma (CUIL · Apellido y nombre · CBU).</div>
-    </div>`;
+    const est = hist ? ['Fuera de la plataforma', 'bs'] : !L.length ? ['Sin liquidar', 'bw'] : pag ? ['Pagada', 'bs'] : ['Liquidada', 'bi'];
+    return `<div class="sem-card">
+      <div class="sc-h"><b>${w.label}</b><span>${w.rango}</span></div>
+      <div class="sc-v">${fmt(totalW(w))}</div><div class="sc-s">${jornW(w)} jornada${jornW(w) !== 1 ? 's' : ''}</div>
+      <div class="sc-f"><span class="badge ${est[1]}">${est[0]}</span>
+        ${!hist && !L.length ? `<button class="btn btn-sm btn-primary" onclick="liquidarSemanaCargas(${w.n})">Liquidar</button>` : ''}
+        ${!hist && L.length && !pag ? `<button class="btn btn-sm" onclick="pagarServ('arena-cargas',${w.n})" title="Marcar pagada"><i class="ti ti-check"></i></button><button class="btn btn-sm" onclick="deshacerServ('arena-cargas',${w.n})" title="Deshacer"><i class="ti ti-arrow-back-up"></i></button>` : ''}
+        <button class="btn btn-sm" onclick="excelCargas(${w.n})" title="Excel de la semana"><i class="ti ti-file-spreadsheet"></i></button></div></div>`; }).join('');
+  return `${!sueldo ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Falta el sueldo de CARGAS en el tarifario de ${mesLabel(periodo).toLowerCase()}.</div>` : ''}
+    ${kpis}${hist ? '' : panelShowsCargas(periodo)}${grilla}
+    <div class="sv-sec">Liquidación por semana</div><div class="sem-grid">${tarjetas}</div>
+    <details class="sv-help"><summary>¿Cómo se liquida?</summary>Igual que la planilla: por semana de lunes a domingo (la primera y la última, cortadas al mes), días trabajados × sueldo neto por jornada del tarifario.
+      Al liquidar, la semana queda registrada y sus días se bloquean; después se marca como pagada. En la grilla, los días con punto tienen show, y el número de abajo se pone naranja si los presentes no coinciden con lo que pidió el Arena.</details>`;
 }
-
 function htmlMesa() {
-  const periodo = S_SERV.mes, d = servData('mesa', periodo), liqs = liqsServ('arena-mesa', periodo);
-  const t = getTarifaMes(periodo)?.filas?.['MESA DE ENTRADA'] || {}, E = getEstructura();
-  const cargasPct = (E.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0);
-  const liq = liqs.length > 0, pag = liq && liqs.every(l => l.estado === 'pagado');
+  const periodo = S_SERV.mes, d = servData('mesa', periodo), liqs = liqsServ('arena-mesa', periodo), hist = esHistorico(periodo);
+  const t = getTarifaMes(periodo)?.filas?.['MESA DE ENTRADA'] || {};
+  const liq = liqs.length > 0, pag = liq && liqs.every(l => l.estado === 'pagado'), nP = d.personas.length || 1;
+  const venta = (t.venta || 0) * nP, sueldo = liq ? liqs.reduce((a, l) => a + (l.total || 0), 0) : (t.sueldo || 0) * nP;
   const dias = d.personas.map(pid => (d.pres[pid] || []).length);
-  const venta = t.venta || 0, sueldo = liq ? liqs.reduce((a, l) => a + (l.total || 0), 0) / Math.max(1, liqs.length) : (t.sueldo || 0);
-  const nP = Math.max(1, d.personas.length), costo = Math.round(sueldo * nP * (1 + cargasPct / 100)), dif = venta * nP - costo;
-  const col = n => n >= 0 ? '#1a7a3e' : '#b45309';
-  return `
-    ${!t.venta || !t.sueldo ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Falta la venta mensual o el sueldo mensual de mesa de entrada en el tarifario de ${mesLabel(periodo).toLowerCase()} (Proyecciones → Tarifario mensual → Servicios mensuales).</div>` : ''}
-    ${htmlGrilla('mesa', periodo, liq)}
-    <div class="grid2" style="align-items:start">
-      <div class="card"><div style="font-weight:600;margin-bottom:8px">Liquidación y facturación del mes</div>
-        <table class="tbl"><tbody>
-          <tr><td>Días trabajados</td><td style="text-align:right">${dias.join(' / ') || '—'} <span style="color:var(--text2);font-size:11.5px">(no cambia el monto: se paga y factura el mensual completo)</span></td></tr>
-          <tr><td>Facturación mensual al Arena (sin IVA)</td><td style="text-align:right;font-weight:600">${fmt(venta * nP)}</td></tr>
-          <tr><td style="color:var(--text2)">IVA 21%</td><td style="text-align:right;color:var(--text2)">${fmt(venta * nP * 0.21)}</td></tr>
-          <tr><td style="color:var(--text2)">Total a facturar con IVA</td><td style="text-align:right;color:var(--text2)">${fmt(venta * nP * 1.21)}</td></tr>
-          <tr><td>Liquidación mensual (sueldo neto)</td><td style="text-align:right;font-weight:600">${fmt(sueldo * nP)}</td></tr>
-        </tbody></table>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
-          ${esHistorico(periodo) ? `<span class="badge bs" style="align-self:center" title="Liquidada y facturada con la planilla">Fuera de la plataforma</span>` : ''}
-          ${!esHistorico(periodo) && !liq ? `<button class="btn btn-primary" onclick="liquidarMesa()" ${d.personas.length ? '' : 'disabled'}>Liquidar el mes</button>` : ''}
-          ${!esHistorico(periodo) && liq && !pag ? `<button class="btn" onclick="pagarServ('arena-mesa',0)">Marcar pagada</button><button class="btn" onclick="deshacerServ('arena-mesa',0)">Deshacer</button>` : ''}
-          ${liq ? `<span class="badge ${pag ? 'bs' : 'bi'}" style="align-self:center">${pag ? 'Pagada' : 'Liquidada'}</span>` : ''}
-          <button class="btn" onclick="excelMesa()" ${d.personas.length ? '' : 'disabled'} title="Facturación, liquidación y presentismo, igual que la planilla"><i class="ti ti-file-spreadsheet"></i> Excel facturación y liquidación</button>
-        </div></div>
-      <div class="card"><div style="font-weight:600;margin-bottom:6px">Cómo se calcula</div>
-        <div style="font-size:12.5px;color:var(--text2)">Mesa de entrada es mensualizada: se factura la venta mensual y se liquida el sueldo mensual neto del tarifario, completos, aunque en el mes haya trabajado menos días. El presentismo queda registrado como respaldo. Lo facturado contra lo liquidado (con cargas sociales) está en <a href="#" onclick="go('rentabilidad');return false">Facturación vs Liquidación</a>.</div></div>
-    </div>`;
+  if (!d.personas.length) return grillaVacia('mesa', periodo);
+  const estado = hist ? ['Fuera de la plataforma', 'ok'] : pag ? ['Pagada', 'ok'] : liq ? ['Liquidada', ''] : ['Sin liquidar', 'warn'];
+  const acciones = hist ? 'con la planilla' : !liq ? `<button class="btn btn-sm btn-primary" style="margin-top:4px" onclick="liquidarMesa()">Liquidar el mes</button>`
+    : !pag ? `<button class="btn btn-sm" style="margin-top:4px" onclick="pagarServ('arena-mesa',0)">Marcar pagada</button> <button class="btn btn-sm" style="margin-top:4px" onclick="deshacerServ('arena-mesa',0)" title="Deshacer"><i class="ti ti-arrow-back-up"></i></button>` : '';
+  const kpis = `<div class="sv-kpis">
+    ${svKpi('Días trabajados', `${dias.join(' / ') || '0'} <span style="font-size:13px;font-weight:500;color:var(--text2)">de ${habilesDe(periodo).length} hábiles</span>`, `${feriadosDe(periodo).size ? `${[...feriadosDe(periodo)].filter(f => { const w = dowDe(f); return w >= 1 && w <= 5; }).length} feriado${[...feriadosDe(periodo)].length !== 1 ? 's' : ''} en día de semana · ` : ''}se paga y factura el mensual completo`)}
+    ${svKpi('Facturación al Arena', fmt(venta), `con IVA ${fmt(Math.round(venta * 121) / 100)}`)}
+    ${svKpi('Liquidación (neto)', fmt(sueldo), origenTar(periodo))}
+    ${svKpi('Estado del mes', estado[0], acciones, estado[1])}
+  </div>`;
+  const lk = hist ? false : liq, fer = feriadosDe(periodo), modoF = !!S_SERV.modoFer && !hist;
+  const clickDia = (pid, f) => modoF ? `toggleFeriado('${f}')` : `togglePres('mesa','${pid}','${f}')`;
+  const cal = d.personas.map(pid => { const p = persDe(pid), fs = new Set(d.pres[pid] || []), ds = diasDelMes(periodo);
+    const off = (dowDe(ds[0]) + 6) % 7;
+    const celdas = [...Array(off).fill(null), ...ds];
+    const semanas = []; for (let i = 0; i < celdas.length; i += 7) semanas.push(celdas.slice(i, i + 7));
+    return `<div class="card sv-card cal-card">
+      <div class="cal-h"><div><div class="gnn">${esc2(nomPers(p))}</div><div class="gns">${p?.cuil || ''}${p && !p.cbu ? ' · <span style="color:#b45309">sin CBU</span>' : ''}</div></div>
+        <div class="cal-n"><b>${fs.size}</b> día${fs.size !== 1 ? 's' : ''}${hist || lk ? '' : ` <button class="gx" style="position:static;transform:none" title="Quitar del mes" onclick="quitarPersServ('mesa','${pid}')"><i class="ti ti-x"></i></button>`}</div></div>
+      <table class="cal"><thead><tr>${['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((x, i) => `<th class="${i > 4 ? 'fs' : ''}">${x}</th>`).join('')}</tr></thead>
+      <tbody>${semanas.map(w => `<tr>${[...w, ...Array(7 - w.length).fill(null)].map((f, i) => !f ? '<td class="vac"></td>'
+        : `<td class="${fs.has(f) ? 'p' : ''} ${i > 4 ? 'fs' : ''} ${fer.has(f) ? 'fer' : ''} ${(lk && !modoF) ? 'lk' : ''}" ${(lk && !modoF) ? '' : `onclick="${clickDia(pid, f)}"`} title="${fer.has(f) ? 'Feriado' : ''}"><span>${+f.slice(8)}</span>${fs.has(f) ? '<em>P</em>' : fer.has(f) ? '<em class="fe">Feriado</em>' : ''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`; }).join('');
+  const barraCal = hist ? '' : `<div class="cal-bar"><span>Tocá un día para marcar o quitar la P.</span>
+    <button class="btn btn-sm ${modoF ? 'btn-primary' : ''}" onclick="S_SERV.modoFer=!S_SERV.modoFer;render()" title="Marcar o quitar feriados (trasladables, puentes)"><i class="ti ti-calendar-off"></i> ${modoF ? 'Terminar feriados' : 'Feriados'}</button></div>
+    ${modoF ? '<div class="nota-proy" style="margin-bottom:8px"><i class="ti ti-calendar-off"></i> Modo feriados: tocá un día para marcarlo o quitarlo como feriado. Los fijos (1/1, 24/3, 2/4, 1/5, 25/5, 20/6, 9/7, 8/12, 25/12) ya vienen cargados; sumá los trasladables y puentes de cada año según el decreto.</div>' : ''}`;
+  return `${!t.venta || !t.sueldo ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Falta la venta o el sueldo mensual de mesa de entrada en el tarifario de ${mesLabel(periodo).toLowerCase()}.</div>` : ''}
+    ${kpis}${barraCal}<div class="cal-wrap">${cal}</div>
+    <details class="sv-help"><summary>¿Cómo se calcula?</summary>Mesa de entrada es mensualizada: se factura la venta mensual y se liquida el sueldo mensual neto del tarifario, completos, aunque en el mes haya trabajado menos días. El presentismo queda como respaldo. Tocá un día para marcar o quitar la P.</details>`;
 }
-
+function grillaVacia(tipo, periodo) {
+  const ant = equipoAnterior(tipo, periodo), cfg = SERV_TIPOS[tipo];
+  return `<div class="card sv-card empty-state" style="padding:28px"><i class="ti ti-users"></i><p>Todavía no hay personas en ${cfg.nombre.toLowerCase()} para ${mesLabel(periodo).toLowerCase()}.</p>
+    ${ant ? `<button class="btn btn-primary" onclick="traerEquipo('${tipo}','${periodo}')"><i class="ti ti-users-plus"></i> Usar el equipo de ${mesLabel(ant.periodo).toLowerCase()} (${ant.personas.length})</button>` : ''}
+    <p style="font-size:12px;color:var(--text2);margin-top:8px">O agregá a alguien con el botón <i class="ti ti-user-plus"></i>.</p></div>`;
+}
 
 // ── Día a día (desde octubre): equipo del mes anterior, presentes por día, valores del mes ──
 function equipoAnterior(tipo, periodo) {
@@ -5088,10 +5248,64 @@ window.marcarHabiles = async function() {
   const periodo = S_SERV.mes, d = servData('mesa', periodo);
   if (!d.personas.length) { toast('Primero agregá a la persona de mesa de entrada', 'err'); return; }
   if (liqsServ('arena-mesa', periodo).length) { toast('El mes ya está liquidado', 'err'); return; }
-  const habiles = diasDelMes(periodo).filter(f => { const w = dowDe(f); return w >= 1 && w <= 5; });
-  if (Object.values(d.pres).some(x => x.length) && !confirm(`Se van a marcar los ${habiles.length} días de lunes a viernes de ${mesLabel(periodo).toLowerCase()}. Los días ya marcados se mantienen. ¿Seguir?`)) return;
+  const habiles = habilesDe(periodo);   // lunes a viernes, sin feriados
+  if (Object.values(d.pres).some(x => x.length) && !confirm(`Se van a marcar los ${habiles.length} días hábiles de ${mesLabel(periodo).toLowerCase()} (lunes a viernes, sin feriados). Los días ya marcados se mantienen. ¿Seguir?`)) return;
   d.personas.forEach(pid => { d.pres[pid] = [...new Set([...(d.pres[pid] || []), ...habiles])].sort(); });
-  if (await servGuardar('mesa', periodo, d)) { toast(`${habiles.length} días marcados. Destildá las ausencias en la grilla.`, 'ok'); render(); }
+  if (await servGuardar('mesa', periodo, d)) { toast(`${habiles.length} días hábiles marcados. Destildá las ausencias en el calendario.`, 'ok'); render(); }
+};
+
+
+// ── Cargas guiado por los shows del mes (los que se crean en Movistar Arena) ──
+function showsCargasMes(periodo) {
+  const d = servData('cargas', periodo), facs = APP.facturaciones || [];
+  return (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e).slice(0, 7) === periodo)
+    .sort((a, b) => showFechaISO(a).localeCompare(showFechaISO(b)))
+    .map(e => { const f = showFechaISO(e), fs = facs.filter(x => x.evento_id === e.id);
+      const ped = fs.length ? (pedidoPorCat(fs).CARGAS || 0) : null, pres = d.personas.filter(pid => (d.pres[pid] || []).includes(f)).length;
+      const estado = !pres ? 'pendiente' : ped == null ? 'cargado' : pres === ped ? 'completo' : 'distinto';
+      return { e, f, ped, pres, estado }; });
+}
+function panelShowsCargas(periodo) {
+  const lista = showsCargasMes(periodo);
+  if (!lista.length) return `<div class="card sv-card" style="padding:12px 14px;font-size:12.5px;color:var(--text2)"><i class="ti ti-info-circle"></i> Todavía no hay shows de ${mesLabel(periodo).toLowerCase()} en Movistar Arena. Cuando los crees, aparecen acá para cargar los presentes.</div>`;
+  const pend = lista.filter(x => x.estado === 'pendiente').length;
+  return `<div class="sv-sec">Shows de ${mesLabel(periodo).toLowerCase()} <span style="font-weight:400;color:var(--text2)">· ${pend ? `${pend} pendiente${pend > 1 ? 's' : ''} de cargar` : 'todos cargados'}</span></div>
+    <div class="shw-grid">${lista.map(x => `<button class="shw ${x.estado}" onclick="cargarDia('${x.f}')" title="Cargar los presentes de este show">
+      <span class="shw-f">${DIA_LARGO[dowDe(x.f)].slice(0, 3)} ${+x.f.slice(8)}/${+x.f.slice(5, 7)}</span><b>${esc2(x.e.nombre)}</b>
+      <span class="shw-s">${x.estado === 'pendiente' ? 'Pendiente' : x.estado === 'completo' ? `<i class="ti ti-check"></i> ${x.pres} de ${x.ped}` : x.estado === 'distinto' ? `${x.pres} de ${x.ped} pedidos` : `${x.pres} presentes`}${x.ped == null && x.estado === 'pendiente' ? ' · sin pedido' : x.ped != null && x.estado === 'pendiente' ? ` · pidió ${x.ped}` : ''}</span></button>`).join('')}</div>`;
+}
+window.elegirShowCargas = function() {
+  const periodo = S_SERV.mes, lista = showsCargasMes(periodo);
+  showModal(`<div class="modal" style="max-width:520px">
+    <div class="modal-t"><i class="ti ti-calendar-check"></i> Cargar presentes · ${mesLabel(periodo).toLowerCase()}</div>
+    <div class="modal-s">Elegí el show. Aparecen los que creaste en Movistar Arena para este mes.</div>
+    <div style="margin-top:10px;max-height:52vh;overflow:auto">${lista.length ? lista.map(x => `<div class="shw-row ${x.estado}" onclick="closeModal();cargarDia('${x.f}')">
+        <div><b>${esc2(x.e.nombre)}</b><div style="font-size:11.5px;color:var(--text2)">${DIA_LARGO[dowDe(x.f)]} ${fd(x.f)}${x.ped != null ? ` · el Arena pidió ${x.ped}` : ' · sin pedido todavía'}</div></div>
+        <span class="badge ${x.estado === 'pendiente' ? 'bw' : x.estado === 'distinto' ? 'bw' : 'bs'}" style="font-size:10.5px">${x.estado === 'pendiente' ? 'Pendiente' : `${x.pres} presente${x.pres !== 1 ? 's' : ''}`}</span></div>`).join('')
+      : `<div style="font-size:12.5px;color:var(--text2);padding:10px 0">No hay shows de ${mesLabel(periodo).toLowerCase()} en Movistar Arena todavía.</div>`}</div>
+    <div class="modal-f" style="justify-content:space-between"><button class="btn" onclick="closeModal();cargarDia()" title="Por ejemplo, un día de carga o descarga sin show"><i class="ti ti-calendar"></i> Otro día (sin show)</button><button class="btn" onclick="closeModal()">Cerrar</button></div></div>`);
+};
+
+// ── Feriados (mesa de entrada): los inamovibles se cargan solos; trasladables y puentes se marcan a mano ──
+const FERIADOS_FIJOS = ['01-01', '03-24', '04-02', '05-01', '05-25', '06-20', '07-09', '12-08', '12-25'];
+function feriadosCfg() { return (APP.tarArena || []).find(x => x.periodo === 'feriados')?.filas || { agregados: [], quitados: [] }; }
+function feriadosDe(periodo) {
+  const cfg = feriadosCfg(), y = periodo.slice(0, 4);
+  const fijos = FERIADOS_FIJOS.map(md => `${y}-${md}`).filter(f => f.slice(0, 7) === periodo);
+  return new Set([...fijos, ...(cfg.agregados || []).filter(f => f.slice(0, 7) === periodo)].filter(f => !(cfg.quitados || []).includes(f)));
+}
+const habilesDe = periodo => { const fer = feriadosDe(periodo); return diasDelMes(periodo).filter(f => { const w = dowDe(f); return w >= 1 && w <= 5 && !fer.has(f); }); };
+window.toggleFeriado = async function(f) {
+  const cfg = { agregados: [], quitados: [], ...feriadosCfg() }, esFijo = FERIADOS_FIJOS.includes(f.slice(5)), es = feriadosDe(f.slice(0, 7)).has(f);
+  if (es) { if (esFijo) cfg.quitados = [...new Set([...(cfg.quitados || []), f])]; else cfg.agregados = (cfg.agregados || []).filter(x => x !== f); }
+  else { if (esFijo) cfg.quitados = (cfg.quitados || []).filter(x => x !== f); else cfg.agregados = [...new Set([...(cfg.agregados || []), f])].sort(); }
+  loading(true);
+  const { error } = await sb.from('tarifario_arena').upsert({ periodo: 'feriados', filas: cfg, updated_at: new Date().toISOString() });
+  loading(false);
+  if (error) { toast('No se pudo guardar: ' + error.message, 'err'); return; }
+  const i = (APP.tarArena || []).findIndex(x => x.periodo === 'feriados'); const reg = { periodo: 'feriados', filas: cfg };
+  if (i >= 0) APP.tarArena[i] = reg; else APP.tarArena.push(reg);
+  render();
 };
 
 // ── Acciones ──
