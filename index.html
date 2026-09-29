@@ -4908,7 +4908,7 @@ function mesesServicios() {
   const hoy = new Date(), set = new Set(), desde = SERV_DESDE.slice(0, 7);
   for (let i = -3; i <= 1; i++) { const d = new Date(hoy.getFullYear(), hoy.getMonth() + i, 1); set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
   (APP.servArena || []).forEach(x => set.add(x.periodo));
-  return [...set].filter(m => m >= desde).sort().reverse();
+  return [...set].filter(m => m >= desde).sort();   // de lo más viejo a lo más nuevo
 }
 // Días que cuentan: desde el corte (22/09/2026)
 const diasVigentes = periodo => diasDelMes(periodo).filter(f => f >= SERV_DESDE);
@@ -4928,10 +4928,12 @@ async function pgServicios(el, ac) {
   const barra = `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
       <select onchange="S_SERV.mes=this.value;render()" style="font-size:13px;padding:6px 9px;width:auto">${meses.map(m => `<option value="${m}" ${m === S_SERV.mes ? 'selected' : ''}>${mesLabel(m)}</option>`).join('')}</select>
       <div style="flex:1"></div>
+      ${!esHistorico(S_SERV.mes) && tipo === 'cargas' ? `<button class="btn btn-primary" onclick="cargarDia()"><i class="ti ti-calendar-check"></i> Cargar presentes del día</button>` : ''}
+      ${!esHistorico(S_SERV.mes) && tipo === 'mesa' ? `<button class="btn btn-primary" onclick="marcarHabiles()" title="Marca de lunes a viernes a todas las personas del mes; después destildás las ausencias"><i class="ti ti-calendar-check"></i> Marcar lunes a viernes</button>` : ''}
       <button class="btn" onclick="agregarPersServ('${tipo}')"><i class="ti ti-user-plus"></i> Agregar persona</button>
-      <button class="btn" onclick="importarServ('${tipo}')" title="Pegá la hoja PRESENTISMO de la planilla: da de alta a las personas y carga sus presentes"><i class="ti ti-clipboard"></i> Importar desde la planilla</button>
+      ${esHistorico(S_SERV.mes) ? `<button class="btn" onclick="importarServ('${tipo}')" title="Pegá la hoja PRESENTISMO de la planilla: da de alta a las personas y carga sus presentes"><i class="ti ti-clipboard"></i> Importar desde la planilla</button>` : ''}
     </div>`;
-  el.innerHTML = cab + barra + (tipo === 'cargas' ? htmlCargas() : htmlMesa());
+  el.innerHTML = cab + barra + valoresMes(tipo, S_SERV.mes) + (tipo === 'cargas' ? htmlCargas() : htmlMesa());
 }
 
 // Grilla de presentismo (la misma para cargas y mesa de entrada)
@@ -4939,7 +4941,12 @@ function htmlGrilla(tipo, periodo, bloqueado) {
   const d = servData(tipo, periodo), dias = tipo === 'cargas' ? diasVigentes(periodo) : diasDelMes(periodo), cfg = SERV_TIPOS[tipo];
   const facs = APP.facturaciones || [];
   const pedDia = f => showsDelDia(f).reduce((a, e) => a + (pedidoPorCat(facs.filter(x => x.evento_id === e.id)).CARGAS || 0), 0);
-  if (!d.personas.length) return `<div class="empty-state" style="padding:26px"><i class="ti ti-users"></i><p>Todavía no hay personas en ${cfg.nombre.toLowerCase()} para ${mesLabel(periodo).toLowerCase()}. Usá <strong>Importar desde la planilla</strong> o <strong>Agregar persona</strong>.</p></div>`;
+  if (!d.personas.length) {
+    const ant = equipoAnterior(tipo, periodo);
+    return `<div class="empty-state" style="padding:26px"><i class="ti ti-users"></i><p>Todavía no hay personas en ${cfg.nombre.toLowerCase()} para ${mesLabel(periodo).toLowerCase()}.</p>
+      ${ant ? `<button class="btn btn-primary" onclick="traerEquipo('${tipo}','${periodo}')"><i class="ti ti-users-plus"></i> Usar el equipo de ${mesLabel(ant.periodo).toLowerCase()} (${ant.personas.length} persona${ant.personas.length > 1 ? 's' : ''})</button>
+        <p style="font-size:12px;color:var(--text2);margin-top:8px">O usá <strong>Agregar persona</strong>.</p>` : '<p>Usá <strong>Agregar persona</strong> o <strong>Importar desde la planilla</strong>.</p>'}</div>`;
+  }
   const cab = dias.map(f => { const sh = showsDelDia(f), dw = dowDe(f);
     return `<th class="gd ${dw === 0 || dw === 6 ? 'fs' : ''} ${sh.length ? 'sh' : ''}" title="${sh.map(e => e.nombre).join(', ')}">${DOW_L[dw]}<br>${+f.slice(8)}${sh.length ? '<i></i>' : ''}</th>`; }).join('');
   const filas = d.personas.map(pid => { const p = persDe(pid), fs = new Set(d.pres[pid] || []);
@@ -5020,6 +5027,72 @@ function htmlMesa() {
         <div style="font-size:12.5px;color:var(--text2)">Mesa de entrada es mensualizada: se factura la venta mensual y se liquida el sueldo mensual neto del tarifario, completos, aunque en el mes haya trabajado menos días. El presentismo queda registrado como respaldo. Lo facturado contra lo liquidado (con cargas sociales) está en <a href="#" onclick="go('rentabilidad');return false">Facturación vs Liquidación</a>.</div></div>
     </div>`;
 }
+
+
+// ── Día a día (desde octubre): equipo del mes anterior, presentes por día, valores del mes ──
+function equipoAnterior(tipo, periodo) {
+  const previos = (APP.servArena || []).filter(x => x.tipo === tipo && x.periodo < periodo && (x.data?.personas || []).length).sort((a, b) => b.periodo.localeCompare(a.periodo));
+  return previos[0] ? { periodo: previos[0].periodo, personas: previos[0].data.personas.filter(pid => persDe(pid)) } : null;
+}
+window.traerEquipo = async function(tipo, periodo) {
+  const ant = equipoAnterior(tipo, periodo); if (!ant) return;
+  const d = servData(tipo, periodo); ant.personas.forEach(pid => { if (!d.personas.includes(pid)) d.personas.push(pid); });
+  if (await servGuardar(tipo, periodo, d)) { toast(`Equipo de ${mesLabel(ant.periodo).toLowerCase()} cargado`, 'ok'); render(); }
+};
+function valoresMes(tipo, periodo) {
+  const tm = getTarifaMes(periodo), t = tm?.filas || {};
+  const origen = !tm ? '<span style="color:#b45309">sin tarifario cargado</span>' : tm.origen === 'cargado' ? `tarifario de ${mesLabel(periodo).toLowerCase()}` : `estimado: ${mesLabel(tm.desde).toLowerCase()} + ${String(tm.aumento).replace('.', ',')}% por mes`;
+  const val = tipo === 'cargas'
+    ? `Sueldo neto por jornada: <strong>${fmt(t.CARGAS?.sueldo || 0)}</strong> · Venta por carga en el pedido: <strong>${fmt(t.CARGAS?.venta || 0)}</strong>`
+    : `Venta mensual: <strong>${fmt(t['MESA DE ENTRADA']?.venta || 0)}</strong> · Sueldo mensual neto: <strong>${fmt(t['MESA DE ENTRADA']?.sueldo || 0)}</strong>`;
+  return `<div class="nota-proy" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><i class="ti ti-coin"></i><span><strong>Valores de ${mesLabel(periodo).toLowerCase()}:</strong> ${val} <span style="color:var(--text2)">(${origen})</span></span>
+    <span style="flex:1"></span><a href="#" onclick="S_PROY.tab='tar';S_PROY.tarMes='${periodo}';S_PROY.tarDraft=null;go('proyecciones');return false" style="font-size:12px">Actualizar en Tarifario mensual</a></div>
+    ${tm && tm.origen !== 'cargado' ? '' : ''}`;
+}
+// Cargar los presentes de un día: el show de ese día, cuántos cargas pidió el Arena y el equipo para tildar
+window.cargarDia = function(fecha) {
+  const periodo = S_SERV.mes, hoy = hoyISO();
+  fecha = fecha || (hoy.slice(0, 7) === periodo ? hoy : diasDelMes(periodo)[0]);
+  const d = servData('cargas', fecha.slice(0, 7));
+  const equipo = d.personas.length ? d.personas : (equipoAnterior('cargas', fecha.slice(0, 7))?.personas || []);
+  const sh = showsDelDia(fecha), facs = APP.facturaciones || [];
+  const ped = sh.reduce((a, e) => a + (pedidoPorCat(facs.filter(x => x.evento_id === e.id)).CARGAS || 0), 0);
+  const L = liqsServ('arena-cargas', fecha.slice(0, 7)), w = semanasDelMes(fecha.slice(0, 7)).find(x => x.dias.includes(fecha));
+  const bloqueada = w && L.some(l => l.detalle?.semana === w.n);
+  showModal(`<div class="modal" style="max-width:480px">
+    <div class="modal-t"><i class="ti ti-calendar-check"></i> Presentes de cargas</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px"><input id="cd-fecha" type="date" value="${fecha}" min="${diasDelMes(periodo)[0]}" max="${diasDelMes(periodo).slice(-1)[0]}" onchange="closeModal();cargarDia(this.value)">
+      <span style="font-size:12.5px;color:var(--text2)">${DIA_LARGO[dowDe(fecha)]}</span></div>
+    <div class="nota-proy" style="margin-top:10px">${sh.length ? `<i class="ti ti-music"></i> ${sh.map(e => `<strong>${esc2(e.nombre)}</strong>`).join(', ')}${ped ? ` · el Arena pidió <strong>${ped}</strong> carga${ped > 1 ? 's' : ''}` : ' · todavía sin pedido del Arena'}` : '<i class="ti ti-info-circle"></i> No hay show del Arena cargado este día.'}</div>
+    ${bloqueada ? `<div class="alert alert-warn" style="margin-top:8px">La ${w.label.toLowerCase()} ya está liquidada: para cambiar este día, deshacé esa liquidación.</div>` : ''}
+    <div style="margin-top:10px">${equipo.length ? equipo.map(pid => { const p = persDe(pid); return `<label style="display:flex;gap:10px;align-items:center;padding:8px 4px;border-bottom:1px solid var(--border);cursor:pointer">
+        <input type="checkbox" class="cd-p" value="${pid}" ${(d.pres[pid] || []).includes(fecha) ? 'checked' : ''} ${bloqueada ? 'disabled' : ''} style="width:18px;height:18px">
+        <span><strong>${esc2(nomPers(p))}</strong><div style="font-size:11.5px;color:var(--text2)">${p?.cuil || ''}</div></span></label>`; }).join('')
+      : '<div style="font-size:12.5px;color:var(--text2)">No hay equipo cargado. Agregá personas con <strong>Agregar persona</strong>.</div>'}</div>
+    <div style="font-size:12px;color:var(--text2);margin-top:8px" id="cd-cuenta"></div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancelar</button>${bloqueada ? '' : `<button class="btn btn-primary" onclick="guardarDia('${fecha}')">Guardar</button>`}</div></div>`);
+  const cuenta = () => { const n = document.querySelectorAll('.cd-p:checked').length, el = document.getElementById('cd-cuenta'); if (el) el.innerHTML = `${n} presente${n !== 1 ? 's' : ''}${ped ? ` de ${ped} pedido${ped > 1 ? 's' : ''}${n !== ped ? ' <span style="color:#b45309">(no coincide con el pedido)</span>' : ''}` : ''}`; };
+  document.querySelectorAll('.cd-p').forEach(c => c.addEventListener('change', cuenta)); cuenta();
+};
+window.guardarDia = async function(fecha) {
+  const periodo = fecha.slice(0, 7), d = servData('cargas', periodo);
+  const marcados = new Set([...document.querySelectorAll('.cd-p:checked')].map(c => c.value));
+  document.querySelectorAll('.cd-p').forEach(c => {
+    const pid = c.value; if (!d.personas.includes(pid)) { if (!marcados.has(pid)) return; d.personas.push(pid); }
+    const fs = new Set(d.pres[pid] || []); marcados.has(pid) ? fs.add(fecha) : fs.delete(fecha); d.pres[pid] = [...fs].sort();
+  });
+  if (await servGuardar('cargas', periodo, d)) { closeModal(); toast(`Presentes del ${fd(fecha)} guardados`, 'ok'); render(); }
+};
+// Mesa de entrada: marca de lunes a viernes a todas las personas del mes (después se destildan las ausencias)
+window.marcarHabiles = async function() {
+  const periodo = S_SERV.mes, d = servData('mesa', periodo);
+  if (!d.personas.length) { toast('Primero agregá a la persona de mesa de entrada', 'err'); return; }
+  if (liqsServ('arena-mesa', periodo).length) { toast('El mes ya está liquidado', 'err'); return; }
+  const habiles = diasDelMes(periodo).filter(f => { const w = dowDe(f); return w >= 1 && w <= 5; });
+  if (Object.values(d.pres).some(x => x.length) && !confirm(`Se van a marcar los ${habiles.length} días de lunes a viernes de ${mesLabel(periodo).toLowerCase()}. Los días ya marcados se mantienen. ¿Seguir?`)) return;
+  d.personas.forEach(pid => { d.pres[pid] = [...new Set([...(d.pres[pid] || []), ...habiles])].sort(); });
+  if (await servGuardar('mesa', periodo, d)) { toast(`${habiles.length} días marcados. Destildá las ausencias en la grilla.`, 'ok'); render(); }
+};
 
 // ── Acciones ──
 window.togglePres = async function(tipo, pid, f) {
@@ -5291,6 +5364,29 @@ function calcPL(ventas, personal, fijos, E) {
   return { ventas, personal, cargas, totCargas, utBruta, impuestos, totImp, contrMarginal, fijos: r(fijos), ebit };
 }
 
+
+// Facturación de cargas de un show (renglones de cargas del pedido; las horas extra no cuentan)
+function cargasFactDe(evId) {
+  return (APP.facturaciones || []).filter(f => f.evento_id === evId).flatMap(f => (f.detalle?.secciones || []).flatMap(s => s.items || []))
+    .filter(i => !i.extra && catDeRecurso(i.recurso) === 'CARGAS').reduce((a, i) => a + (i.cant || 0) * (i.valor || 0), 0);
+}
+// Estado de resultados de cada área, con los mismos criterios que el total: costos fijos según ventas, Ganancias según
+// EBIT positivo, y los redondeos ajustados para que la suma de las áreas dé exactamente el total.
+function plPorArea(areas, T, fijosTot, E) {
+  const out = areas.map(x => { const pl = calcPL(x.ventas, x.personal, T.ventas ? fijosTot * x.ventas / T.ventas : 0, E);
+    return { ...x, cargas: pl.cargas, totCargas: pl.totCargas, impuestos: pl.impuestos, totImp: pl.totImp, utBruta: pl.utBruta, contrMarginal: pl.contrMarginal, fijos: pl.fijos, ebit: pl.ebit }; });
+  const ep = out.reduce((a, x) => a + Math.max(0, x.ebit), 0);
+  out.forEach(x => { x.iigg = ep ? Math.round(T.iigg.monto * Math.max(0, x.ebit) / ep) : 0; });
+  if (out.length) {
+    const aj = out[0];   // el ajuste de centavos va al área principal
+    ['totCargas', 'totImp', 'utBruta', 'contrMarginal', 'fijos', 'ebit'].forEach(k => { aj[k] += (T[k] || 0) - out.reduce((a, x) => a + (x[k] || 0), 0); });
+    aj.iigg += T.iigg.monto - out.reduce((a, x) => a + x.iigg, 0);
+    ['cargas', 'impuestos'].forEach(k => (T[k] || []).forEach((l, i) => { if (aj[k][i]) aj[k][i].monto += l.monto - out.reduce((a, x) => a + (x[k][i]?.monto || 0), 0); }));
+  }
+  out.forEach(x => { x.neto = x.ebit - x.iigg; });
+  return out;
+}
+
 // Arma la "foto" del período: todo lo que necesita la página pública, ya calculado.
 function buildInforme(tipo, periodo) {
   const E = getEstructura();
@@ -5321,7 +5417,7 @@ function buildInforme(tipo, periodo) {
              impuestos: pl.totImp, contrMarginal: pl.contrMarginal, fijos: pl.fijos, ebit: pl.ebit,
              presentes: r.presentes, zonas, posiciones,
              facturables: r.facturables, coordinador: r.coord, backups: { cant: r.backups, monto: r.backupsCosto },
-             cargasAparte: { cant: r.cargasCant, monto: Math.round(r.cargasCosto), origen: r.cargasOrigen } };
+             cargasAparte: { cant: r.cargasCant, monto: Math.round(r.cargasCosto), origen: r.cargasOrigen, facturado: cargasFactDe(r.ev.id) } };
   });
   // Servicios mensuales del Arena (mesa de entrada): uno por mes del período, hasta el mes actual
   const hoyM = (() => { const h = new Date(); return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}`; })();
@@ -5353,6 +5449,14 @@ function buildInforme(tipo, periodo) {
   T.shows = shows.length;
   // Totales solo de shows (para promedios por show y por puesto)
   const sumS = k => shows.reduce((a, x) => a + (x[k] || 0), 0);
+  // ── Resultado por área: Orientadores (shows sin cargas), Cargas / stagehands y Mesa de entrada ──
+  const cf = base.reduce((a, r) => a + cargasFactDe(r.ev.id), 0), cc = base.reduce((a, r) => a + (r.cargasCosto || 0), 0);
+  const areas = [
+    { key: 'ori', nombre: 'Orientadores', detalle: 'shows, sin cargas', ventas: ventasTot - cf, personal: costoShows - cc },
+    { key: 'cargas', nombre: 'Cargas / stagehands', detalle: 'facturadas en el pedido de cada show', ventas: cf, personal: cc },
+    { key: 'mesa', nombre: 'Mesa de entrada', detalle: 'servicio mensual', ventas: servVentas, personal: servPers },
+  ].filter(x => x.ventas || x.personal);
+  const porArea = plPorArea(areas, T, fijosTot, E);
   const totShows = { ventas: sumS('ventas'), personal: sumS('personal'), cargas: sumS('cargas'), impuestos: sumS('impuestos'), fijos: sumS('fijos'), iigg: sumS('iigg'), neto: sumS('neto'), staff: T.staff, shows: T.shows };
   let meses = null;
   if (tipo === 'anio') {
@@ -5371,7 +5475,7 @@ function buildInforme(tipo, periodo) {
     v: 2, tipo, periodo, periodoLabel, titulo: `Informe Movistar Arena, ${periodoLabel.toLowerCase()}`,
     desde: RENT_DESDE, generado: new Date().toISOString(), estructura: E,
     shows, pendientes: enPeriodo.filter(r => !r.nFac).map(r => ({ nombre: r.ev.nombre, fecha: r.fISO })),
-    totales: T, totShows, servicios, meses, hayEstimados: shows.some(s => s.estimado),
+    totales: T, totShows, servicios, porArea, meses, hayEstimados: shows.some(s => s.estimado),
     sinPresentismo: sinPresentismo.map(r => ({ nombre: r.ev.nombre, fecha: r.fISO, facturado: r.facturado })),
   };
 }

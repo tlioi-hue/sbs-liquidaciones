@@ -302,6 +302,17 @@ table.rank .vs { display: block; margin: 1px 0 0; }
   .proms { gap: 6px; margin-bottom: 8px; } .proms div { padding: 6px 8px; } .proms b { font-size: 13px; } .proms span { font-size: 10px; }
   table.rank th, table.rank td { padding: 4px 6px; font-size: 10.5px; }
 }
+
+/* Resultado por área */
+table.area-t td:first-child, table.area-t th:first-child { text-align: left; }
+table.area-t td small { display: block; }
+table.area-t td.ap { min-width: 150px; }
+.apbar { display: inline-block; vertical-align: middle; width: 90px; height: 8px; background: #eceeed; border-radius: 4px; overflow: hidden; margin-right: 8px; }
+.apbar div { height: 100%; background: var(--c-neto); border-radius: 4px; }
+table.eerr.areas th, table.eerr.areas td { white-space: nowrap; }
+table.eerr.areas tr:not(.final):not(.sec) td.tc, table.eerr.areas th.tc { font-weight: 700; background: #f7f8f7; }
+table.eerr.areas tr.mrg td { font-size: 12px; color: var(--muted); }
+@media print { table.eerr.areas th, table.eerr.areas td { font-size: 9.5px; padding: 3px 5px; } }
 </style>
 </head>
 <body>
@@ -373,6 +384,36 @@ function totalesVista() {
   const iigg = { pct: T.iigg.pct, monto: T.iigg.monto + add('iigg') };
   return { ...T, ventas, personal, cargas, totCargas, impuestos, totImp, utBruta, contrMarginal, ebit, iigg, neto: ebit - iigg.monto };
 }
+// Estado de resultados por área (Orientadores, Cargas, Mesa de entrada) para la vista actual.
+// Sin filtro, lo que calculó la app; con un mes filtrado en el anual, se recalcula con los mismos criterios.
+function plLineas(ventas, personal, fijos, E) {
+  const cargas = (E.cargas || []).filter(x => (x.nombre || '').trim()).map(x => ({ nombre: x.nombre.trim(), pct: +x.pct || 0, monto: Math.round(personal * (+x.pct || 0) / 100) }));
+  const impuestos = (E.impuestos || []).filter(x => (x.nombre || '').trim()).map(x => ({ nombre: x.nombre.trim(), pct: +x.pct || 0, monto: Math.round(ventas * (+x.pct || 0) / 100) }));
+  const totCargas = cargas.reduce((a, x) => a + x.monto, 0), totImp = impuestos.reduce((a, x) => a + x.monto, 0);
+  const utBruta = ventas - personal - totCargas, contrMarginal = utBruta - totImp;
+  return { ventas, personal, cargas, totCargas, impuestos, totImp, utBruta, contrMarginal, fijos: Math.round(fijos), ebit: contrMarginal - Math.round(fijos) };
+}
+function porAreaVista() {
+  if (!S.d.porArea) return null;
+  if (!S.mes) return S.d.porArea;
+  const T = totalesVista(), E = S.d.estructura || {}, sh = showsVisibles(), sv = servMesVista();
+  const sum = (arr, f) => arr.reduce((a, x) => a + (f(x) || 0), 0);
+  const cf = sum(sh, x => x.cargasAparte?.facturado), cc = sum(sh, x => x.cargasAparte?.monto);
+  const base = [
+    { key: 'ori', nombre: 'Orientadores', detalle: 'shows, sin cargas', ventas: sum(sh, x => x.ventas) - cf, personal: sum(sh, x => x.personal) - cc },
+    { key: 'cargas', nombre: 'Cargas / stagehands', detalle: 'facturadas en el pedido de cada show', ventas: cf, personal: cc },
+    { key: 'mesa', nombre: 'Mesa de entrada', detalle: 'servicio mensual', ventas: sum(sv, x => x.ventas), personal: sum(sv, x => x.personal) },
+  ].filter(x => x.ventas || x.personal);
+  const out = base.map(x => ({ ...x, ...plLineas(x.ventas, x.personal, T.ventas ? T.fijos * x.ventas / T.ventas : 0, E) }));
+  const ep = out.reduce((a, x) => a + Math.max(0, x.ebit), 0);
+  out.forEach(x => { x.iigg = ep ? Math.round(T.iigg.monto * Math.max(0, x.ebit) / ep) : 0; });
+  if (out.length) { const aj = out[0];
+    ['totCargas', 'totImp', 'utBruta', 'contrMarginal', 'fijos', 'ebit'].forEach(k => { aj[k] += (T[k] || 0) - out.reduce((a, x) => a + (x[k] || 0), 0); });
+    aj.iigg += T.iigg.monto - out.reduce((a, x) => a + x.iigg, 0);
+    ['cargas', 'impuestos'].forEach(k => (T[k] || []).forEach((l, i) => { if (aj[k][i]) aj[k][i].monto += l.monto - out.reduce((a, x) => a + (x[k][i]?.monto || 0), 0); })); }
+  out.forEach(x => { x.neto = x.ebit - x.iigg; });
+  return out;
+}
 // Totales solo de shows: para promedios por show, por puesto y comparaciones entre shows
 function totShowsVista() {
   const sh = showsVisibles(), sum = k => sh.reduce((a, x) => a + (x[k] || 0), 0);
@@ -440,10 +481,31 @@ function dibujar() {
     </section>`;
   }
 
-  // Estado de resultados
+  // Estado de resultados: con áreas, una columna por área y el total; sin áreas (informes viejos), como antes
+  const areas = porAreaVista();
+  let eerr;
+  if (areas && areas.length > 1) {
+    const cols = [...areas, { nombre: 'Total', total: true, ...T, totCargas: T.totCargas, totImp: T.totImp, iigg: T.iigg.monto, neto: T.neto }];
+    const celda = (v, tipo) => `<td>${tipo === 'menos' && v ? '−' + money(v) : money(v)}</td>`;
+    const fila = (lbl, get, tipo = '') => `<tr class="${tipo}"><td>${lbl}</td>${cols.map(c => celda(get(c), tipo).replace('<td>', c.total ? '<td class="tc">' : '<td>')).join('')}</tr>`;
+    const sec = t => `<tr class="sec"><td colspan="${cols.length + 1}">${t}</td></tr>`;
+    eerr = `<table class="eerr areas"><thead><tr><th>Concepto</th>${cols.map(c => `<th class="${c.total ? 'tc' : ''}">${esc(c.nombre)}</th>`).join('')}</tr></thead><tbody>
+      ${sec('Ingresos')}${fila('Ventas (sin IVA)', c => c.ventas, 'sub')}
+      ${sec('Egresos')}${fila('Liquidaciones al personal', c => c.personal, 'menos')}
+      ${T.cargas.map((l, i) => fila(`${esc(l.nombre)} (${pctTxt(l.pct)} de la liquidación)`, c => c.total ? l.monto : (c.cargas[i]?.monto || 0), 'menos')).join('')}
+      ${fila('Utilidad bruta', c => c.utBruta, 'parcial')}
+      ${T.impuestos.map((l, i) => fila(`${esc(l.nombre)} (${pctTxt(l.pct)} de las ventas)`, c => c.total ? l.monto : (c.impuestos[i]?.monto || 0), 'menos')).join('')}
+      ${fila('Contribución marginal', c => c.contrMarginal, 'parcial')}
+      ${T.fijos ? fila('Costos fijos', c => c.fijos, 'menos') + fila('EBIT', c => c.ebit, 'parcial') : ''}
+      ${fila(`Impuesto a las Ganancias (${pctTxt(T.iigg.pct)})`, c => c.iigg, 'menos')}
+      ${fila('Total egresos', c => c.ventas - c.neto, 'totegr')}
+      ${sec('Resultado')}${fila('Resultado neto', c => c.neto, 'final')}
+      <tr class="mrg"><td>Margen neto</td>${cols.map(c => `<td class="${c.total ? 'tc' : ''}">${p1(c.neto, c.ventas)}</td>`).join('')}</tr>
+    </tbody></table>`;
+  } else {
   const f = (lbl, v, tipo = '') => `<tr class="${tipo}"><td>${lbl}</td><td>${tipo === 'menos' && v ? '−' + money(v) : money(v)}</td><td>${p1(tipo === 'menos' ? -v : v, T.ventas)}</td></tr>`;
   const sec = t => `<tr class="sec"><td colspan="3">${t}</td></tr>`;
-  const eerr = `<table class="eerr"><thead><tr><th>Concepto</th><th>Monto</th><th>% ingresos</th></tr></thead><tbody>
+  eerr = `<table class="eerr"><thead><tr><th>Concepto</th><th>Monto</th><th>% ingresos</th></tr></thead><tbody>
     ${sec('Ingresos')}${f('Ventas al Movistar Arena (sin IVA)', T.ventas, 'sub')}
     ${sec('Egresos')}${f('Liquidaciones al personal', T.personal, 'menos')}
     ${T.cargas.map(c => f(`${esc(c.nombre)} (${pctTxt(c.pct)} de la liquidación)`, c.monto, 'menos')).join('')}
@@ -455,6 +517,7 @@ function dibujar() {
     ${f('Total egresos', egresosTot, 'totegr')}
     ${sec('Resultado')}${f('Resultado neto', T.neto, 'final')}
   </tbody></table>`;
+  }
 
   // Ranking de shows: posición por resultado, margen frente al promedio y economía por puesto
   const TS = totShowsVista(), servicios = servMesVista();
@@ -535,6 +598,16 @@ function dibujar() {
       ${kpi('neto', 'Resultado neto', money(T.neto), 'ingresos menos egresos', delta(T.neto, prev?.neto))}
       ${kpi('mar', 'Margen neto', p1(T.neto, T.ventas), 'resultado sobre ingresos', prev ? delta(margen(T), margen(prev), { pp: true }) : '')}
     </section>
+    ${areas && areas.length > 1 ? `<section class="panel areasp">
+      <h2>Resultado por área</h2>
+      <p class="desc">Cuánto factura, cuánto cuesta y cuánto deja cada servicio del Arena. Los shows incluyen sus cargas en el detalle show por show; acá se separan.</p>
+      <div class="tw"><table class="area-t"><thead><tr><th>Área</th><th>Ingresos</th><th>Egresos</th><th>Resultado neto</th><th>Margen</th><th>Aporte al resultado</th></tr></thead><tbody>
+        ${areas.map(x => { const ap = T.neto ? x.neto / T.neto * 100 : 0;
+          return `<tr><td><strong>${esc(x.nombre)}</strong><small>${esc(x.detalle || '')}</small></td><td>${money(x.ventas)}</td><td>${money(x.ventas - x.neto)}</td>
+            <td class="res ${x.neto < 0 ? 'neg' : ''}">${money(x.neto)}</td><td>${p1(x.neto, x.ventas)}</td>
+            <td class="ap"><div class="apbar"><div style="width:${Math.max(0, Math.min(100, ap))}%"></div></div><span>${nf1(ap)}%</span></td></tr>`; }).join('')}
+      </tbody><tfoot><tr><td>Total del área</td><td>${money(T.ventas)}</td><td>${money(T.ventas - T.neto)}</td><td class="res">${money(T.neto)}</td><td>${p1(T.neto, T.ventas)}</td><td>100%</td></tr></tfoot></table></div>
+    </section>` : ''}
     ${dests}
     <section class="panel showxshow">
       <h2>Show por show</h2>
@@ -544,7 +617,7 @@ function dibujar() {
       ${shows.length > 1 ? `<div class="sxchart"><div class="subh">Ingresos, egresos y resultado de cada show</div>
       <div class="chart" style="height:${altoShows}px"><canvas id="gShows" aria-label="Resultado por show" role="img"></canvas></div></div>` : ''}
     </section>
-    ${servicios.length ? `<section class="panel servm">
+    ${servicios.length && !(areas && areas.length > 1) ? `<section class="panel servm">
       <h2>Servicios mensuales</h2>
       <p class="desc">Se facturan y liquidan por mes, no por show. Están incluidos en el resultado del área.</p>
       <div class="tw"><table><thead><tr><th>Servicio</th><th>Ingresos</th><th>Personal</th><th>Cargas e impuestos</th><th>Resultado neto</th><th>Margen</th></tr></thead><tbody>
@@ -995,6 +1068,39 @@ function escIER(ctx, t) {
   vTexto(ctx, t, 3.9, `De cada 100 pesos que entraron, ${nf1(eg / T.ventas * 100)} fueron egresos y ${nf1(T.neto / T.ventas * 100)} quedaron como resultado neto.`);
 }
 
+
+function escAreas(ctx, t) {
+  const { areas, T } = V.data, n = areas.length;
+  vTitulo(ctx, t, 'Resultado por área', 'Orientadores, cargas y mesa de entrada');
+  ctx.save(); ctx.globalAlpha *= vIn(t, 0.3, 0.5); vLeyenda(ctx, [['Ingresos', C.ing], ['Egresos', C.egr], ['Resultado neto', C.neto]], 1420, 250); ctx.restore();
+  const ax = vEje(Math.min(0, ...areas.map(a => a.neto)), Math.max(...areas.map(a => Math.max(a.ventas, a.ventas - a.neto))));
+  const x0 = 560, x1 = 1420, yT = 300, yB = 820, rowH = (yB - yT) / n, bh = Math.min(34, rowH * 0.2);
+  const xv = v => x0 + (v - ax.min) / (ax.max - ax.min) * (x1 - x0), x0v = xv(0);
+  ctx.save(); ctx.globalAlpha *= vIn(t, 0.2, 0.5); ctx.font = vF(400, 22); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let v = ax.min; v <= ax.max + ax.paso / 1e6; v += ax.paso) { const x = xv(v), cero = Math.abs(v) < ax.paso / 1e6; ctx.strokeStyle = cero ? '#aab1ad' : C.rule; ctx.lineWidth = cero ? 2.5 : 1.5; vLinea(ctx, x, yT - 10, x, yB); ctx.fillStyle = C.muted; ctx.fillText(corto(v), x, yB + 12); }
+  ctx.fillStyle = C.muted; ctx.font = vF(600, 22); ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic'; ctx.fillText('Margen', 1640, yT - 22); ctx.fillText('Aporte', 1800, yT - 22);
+  ctx.restore();
+  areas.forEach((a, k) => {
+    const cy = yT + rowH * (k + 0.5), p = vEase(vIn(t, 0.6 + k * 0.4, 1.1)), al = vIn(t, 0.4 + k * 0.4, 0.4);
+    ctx.save(); ctx.globalAlpha *= al; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 30); ctx.fillText(a.nombre, x0 - 26, cy + 4);
+    ctx.fillStyle = C.muted; ctx.font = vF(400, 21); ctx.fillText(a.detalle || '', x0 - 26, cy + 34);
+    ctx.restore();
+    [[a.ventas, C.ing], [a.ventas - a.neto, C.egr], [a.neto, a.neto >= 0 ? C.neto : C.loss]].forEach(([v, c], j) => {
+      const y = cy + (j - 1.5) * (bh + 6) + 3, xe = xv(v * p);
+      ctx.fillStyle = c; vRR(ctx, Math.min(x0v, xe), y, Math.abs(xe - x0v), bh, 5); ctx.fill();
+      if (p === 1) V.med.push({ esc: 'areas', v, px: xe - x0v });
+      if (p > 0.05) V.hits.push({ r: [Math.min(x0v, xe), y - 3, Math.max(10, Math.abs(xe - x0v)), bh + 6], tip: [a.nombre, `${['Ingresos', 'Egresos', 'Resultado neto'][j]}: ${money(v)}`, j ? `${p1(v, a.ventas)} de sus ingresos` : ''] });
+      if (vIn(t, 1.5 + k * 0.4, 0.4)) { ctx.save(); ctx.globalAlpha *= vIn(t, 1.5 + k * 0.4, 0.4); ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 20); ctx.textBaseline = 'middle'; ctx.textAlign = v >= 0 ? 'left' : 'right'; ctx.fillText(corto(v), xe + (v >= 0 ? 10 : -10), y + bh / 2); ctx.restore(); }
+    });
+    const b = vIn(t, 1.6 + k * 0.4, 0.4);
+    if (b) { ctx.save(); ctx.globalAlpha *= b; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = a.neto < 0 ? C.loss : '#1f2421'; ctx.font = vF(700, 30); ctx.fillText(`${nf1(a.ventas ? a.neto / a.ventas * 100 : 0)}%`, 1640, cy);
+      ctx.fillStyle = C.neto; ctx.fillText(`${nf1(T.neto ? a.neto / T.neto * 100 : 0)}%`, 1800, cy); ctx.restore(); }
+  });
+  const ord = [...areas].sort((a, b) => b.neto - a.neto);
+  vTexto(ctx, t, 1.9 + n * 0.4, `${areas.map(a => `${a.nombre} aportó el ${nf1(T.neto ? a.neto / T.neto * 100 : 0)}% del resultado`).join('; ')}.${ord.length > 1 ? ` El mejor margen: ${[...areas].sort((a, b) => b.neto / b.ventas - a.neto / a.ventas)[0].nombre.toLowerCase()}.` : ''}`);
+}
 function escTorta(ctx, t) {
   const { eg, T, egresos } = V.data;
   vTitulo(ctx, t, 'Composición de los egresos', `En qué se fueron los ${money(eg)} de egresos`);
@@ -1290,7 +1396,7 @@ function escCierre(ctx, t) {
 
 
 // ── Interacción con el video (solo en la página; el archivo descargado es fijo) ──
-const V_CAP = { escPortada: 'Portada', escResumen: 'Resumen', escIER: 'Ingresos y egresos', escTorta: 'Egresos', escShows: 'Por show', escRanking: 'Ranking', escDestacado: 'Show destacado', escAlerta: 'Menor margen', escMeses: 'Por mes', escEERR: 'Estado de resultados', escCierre: 'Cierre' };
+const V_CAP = { escPortada: 'Portada', escResumen: 'Resumen', escIER: 'Ingresos y egresos', escAreas: 'Por área', escTorta: 'Egresos', escShows: 'Por show', escRanking: 'Ranking', escDestacado: 'Show destacado', escAlerta: 'Menor margen', escMeses: 'Por mes', escEERR: 'Estado de resultados', escCierre: 'Cierre' };
 function vInicios() { let a = 0; return V.escenas.map(e => { const r = a; a += e.dur; return r; }); }
 function vCapActual() { const ini = vInicios(); let k = 0; ini.forEach((v, i) => { if (V.t >= v - 1e-6) k = i; }); return k; }
 window.vIrCap = function(i) {
@@ -1379,11 +1485,13 @@ function vPreparar() {
   let lista = [...shows], recorte = false;
   if (lista.length > MAX) { lista = lista.sort((a, b) => b.ventas - a.ventas).slice(0, MAX); recorte = true; }
   lista.sort((a, b) => a.fecha.localeCompare(b.fecha));
-  V.data = { T, TS, shows, eg, per, egresos, lista, recorte };
+  const areas = porAreaVista();
+  V.data = { T, TS, shows, eg, per, egresos, lista, recorte, areas };
   V.escenas = [
     { dur: 5, draw: escPortada, marco: false },
     { dur: 8, draw: escResumen },
     { dur: 9.5, draw: escIER },
+    ...(areas && areas.length > 1 ? [{ dur: 8 + areas.length * 0.4, draw: escAreas }] : []),
     { dur: 9.5, draw: escTorta },
     { dur: 6.5 + lista.length * 0.45, draw: escShows },
     ...(shows.length >= 2 ? [{ dur: 6.5 + Math.min(8, shows.length) * 0.5, draw: escRanking }, { dur: 8, draw: escDestacado }] : []),
