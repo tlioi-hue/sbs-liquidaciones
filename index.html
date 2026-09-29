@@ -339,6 +339,11 @@ table.cal td:hover:not(.vac):not(.lk) { outline: 2px solid #a8d5b5; }
 .cal-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--text2); margin-bottom: 8px; }
 table.cal td.fer { background: #fdf3e3; } table.cal td.fer.p { background: #d9eedf; }
 table.cal td em.fe { color: #9a6a1c; font-size: 9.5px; font-weight: 600; }
+
+.db-pend { display: flex; gap: 10px; align-items: flex-start; padding: 9px 6px; border-bottom: 1px solid var(--border); cursor: pointer; border-radius: 6px; font-size: 13px; }
+.db-pend:hover { background: var(--card2); } .db-pend > i:first-child { color: #b45309; font-size: 16px; margin-top: 1px; }
+.db-pd { font-size: 11.5px; color: var(--text2); margin-top: 1px; }
+.db-acc { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; } .db-acc .btn { justify-content: flex-start; }
 </style>
 </head>
 <body>
@@ -768,146 +773,83 @@ function stF(ev, fechaId) {
 // ══════════════════════════════════════════════
 // DASHBOARD
 // ══════════════════════════════════════════════
+const S_DB = { mes: '' };
 async function pgDB(el) {
   await fetchAll();
-  const liqTotal   = APP.liquidaciones.reduce((s, l) => s + (l.total || 0), 0);
-  const extEvs     = APP.eventos.filter(e => e.area === 'Externos');
-  const arenaShows = APP.eventos.filter(e => e.area === 'Movistar Arena');
-  const liqExt     = APP.liquidaciones.filter(l => l.area === 'Externos');
-  const liqArena   = APP.liquidaciones.filter(l => l.area === 'Movistar Arena');
-  const liqFijos   = APP.liquidaciones.filter(l => l.area === 'Servicios Fijos');
-  const liqEco     = liqFijos.filter(l => l.lugar_fijo === 'ecoparque').reduce((s,l)=>s+(l.total||0),0);
-  const liqColon   = liqFijos.filter(l => l.lugar_fijo === 'teatro-colon').reduce((s,l)=>s+(l.total||0),0);
-  const liqPolo    = liqFijos.filter(l => l.lugar_fijo === 'campo-de-polo').reduce((s,l)=>s+(l.total||0),0);
-  const liqFijosTotal = liqFijos.reduce((s,l)=>s+(l.total||0),0);
-  const persFijos  = APP.personal.filter(p => p.area === 'Servicios Fijos');
-
-  // Meses liquidados por lugar (un mes = al menos 1 liquidación en ese mes_id/lugar_fijo)
-  const meses = getMesesFijos();
-  const quinCerradas = APP.quincenas.filter(q => q.cerrada).length;
-  const lugaresCerrados = meses.reduce((s, m) => s + Object.values(m.cerradoPorLugar||{}).filter(Boolean).length, 0);
-  const totalCerrados = quinCerradas + lugaresCerrados;
-  const mesesEco   = [...new Set(liqFijos.filter(l=>l.lugar_fijo==='ecoparque').map(l=>l.mes_id))].length;
-  const mesesColon = [...new Set(liqFijos.filter(l=>l.lugar_fijo==='teatro-colon').map(l=>l.mes_id))].length;
-  const mesesPolo  = [...new Set(liqFijos.filter(l=>l.lugar_fijo==='campo-de-polo').map(l=>l.mes_id))].length;
-
-  // ── Datos de Facturación (para la pestaña de facturación) ──
+  const hoy = hoyISO(), mesAct = hoy.slice(0, 7);
+  const meses = []; for (let d = new Date(+RENT_DESDE.slice(0, 4), +RENT_DESDE.slice(5, 7) - 1, 1); d <= new Date(); d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) meses.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  if (!meses.includes(mesAct)) meses.push(mesAct);
+  if (!S_DB.mes || !meses.includes(S_DB.mes)) S_DB.mes = mesAct;
+  const R = fvlResumen(S_DB.mes), cp = pctCargasSoc(), col = g => g >= 0 ? '#1a7a3e' : '#b45309';
+  // ── Pendientes (lo que hay que hacer) ──
   const facs = APP.facturaciones || [];
-  const nowKey = new Date().toISOString().slice(0, 7);
-  const factAcum = facs.reduce((s, f) => s + (f.total_iva || 0), 0);
-  const factAcumNeto = facs.reduce((s, f) => s + (f.total || 0), 0);
-  const factMesIva = facs.filter(f => f.periodo === nowKey).reduce((s, f) => s + (f.total_iva || 0), 0);
-  const factMesNeto = facs.filter(f => f.periodo === nowKey).reduce((s, f) => s + (f.total || 0), 0);
-  // Ganancia: mismo cálculo por show que "Facturación vs Liquidación" (desde RENT_DESDE, solo shows facturados)
-  const rentFact = rentPorShow().filter(r => r.nFac);
-  const gFn = rentFact.reduce((s, r) => s + r.facturado, 0);
-  const gLi = rentFact.reduce((s, r) => s + r.costo, 0);
-  const gGa = gFn - gLi;
-  const tab = APP.dbTab || 'liq';
-
-  const liqHTML = `
-  <div class="grid4" style="margin-bottom:14px">
-    <div class="metric"><div class="metric-l">Personal</div><div class="metric-v">${APP.personal.length}</div>
-      <div class="metric-s">${APP.personal.filter(p=>p.area==='Externos').length} ext · ${APP.personal.filter(p=>p.area==='Movistar Arena').length} arena · ${persFijos.length} fijos</div></div>
-    <div class="metric"><div class="metric-l"><span class="chip chip-ext" style="font-size:11px">Externos</span></div><div class="metric-v">${extEvs.length}</div>
-      <div class="metric-s">${extEvs.length ? fmt(liqExt.reduce((s,l)=>s+(l.total||0),0)) + ' liquidado' : 'sin eventos'}</div></div>
-    <div class="metric"><div class="metric-l"><span class="chip chip-arena" style="font-size:11px">Movistar Arena</span></div><div class="metric-v" style="font-size:17px">${fmt(liqArena.reduce((s,l)=>s+(l.total||0),0))}</div>
-      <div class="metric-s">${arenaShows.length} shows</div></div>
-    <div class="metric"><div class="metric-l">Total histórico</div><div class="metric-v" style="font-size:17px">${fmt(liqTotal)}</div>
-      <div class="metric-s">${totalCerrados} liquidación${totalCerrados!==1?'es':''} cerrada${totalCerrados!==1?'s':''}</div></div>
-  </div>
-  <div class="grid3" style="margin-bottom:14px">
-    ${LUGARES_FIJOS.map(l => {
-      const liqL = liqFijos.filter(x => x.lugar_fijo === l.id).reduce((s,x)=>s+(x.total||0),0);
-      const mesesL = [...new Set(liqFijos.filter(x=>x.lugar_fijo===l.id).map(x=>x.mes_id))].length;
-      return `<div class="metric"><div class="metric-l"><span class="chip ${chipClaseArea(l.nombre)}" style="font-size:11px">${l.nombre}</span></div>
-      <div class="metric-v" style="font-size:17px">${fmt(liqL)}</div>
-      <div class="metric-s">${mesesL} ${mesesL===1?'mes':'meses'} liquidado${mesesL===1?'':'s'}</div></div>`;
-    }).join('')}
-  </div>
-  <div class="grid2">
-    <div class="card">
-      <div style="font-size:13px;font-weight:600;margin-bottom:13px">Últimas liquidaciones</div>
-      ${!APP.liquidaciones.length
-        ? '<div class="empty-state"><i class="ti ti-receipt-off"></i><p>Sin liquidaciones aún</p></div>'
-        : APP.liquidaciones.slice(0, 6).map(l => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
-            <div>
-              <div style="font-size:12.5px;font-weight:500">${l.persona_nombre||'—'}</div>
-              <div style="font-size:11px;color:var(--text2)">${l.lugar_nombre||l.area} · ${l.quincena_nombre||l.periodo||''}</div>
-            </div>
-            <div style="text-align:right">
-              <div style="font-size:12.5px;font-weight:600">${fmt(l.total)}</div>
-              <span class="badge ${l.estado==='pagado'?'bs':l.estado==='aprobado'?'bi':'bw'}">${l.estado}</span>
-            </div>
-          </div>`).join('')}
-    </div>
-    <div class="card">
-      <div style="font-size:13px;font-weight:600;margin-bottom:13px">Accesos rápidos</div>
-      <div style="display:flex;flex-direction:column;gap:7px">
-        ${APP.rol==='rrhh'?`
-          <button class="btn" style="justify-content:flex-start" onclick="go('importar')"><i class="ti ti-file-upload"></i> Importar planilla de show</button>
-          <button class="btn" style="justify-content:flex-start" onclick="go('externos')"><i class="ti ti-world"></i> Gestionar Externos</button>
-          <button class="btn" style="justify-content:flex-start" onclick="go('arena')"><i class="ti ti-building"></i> Movistar Arena</button>
-          <button class="btn" style="justify-content:flex-start" onclick="go('fijos')"><i class="ti ti-calendar-repeat"></i> Servicios Fijos</button>
-          <button class="btn" style="justify-content:flex-start" onclick="go('personal')"><i class="ti ti-users"></i> Personal</button>
-          <button class="btn" style="justify-content:flex-start" onclick="go('tarifario')"><i class="ti ti-edit"></i> Tarifario</button>
-        `:`
-          <button class="btn" style="justify-content:flex-start" onclick="go('externos')"><i class="ti ti-world"></i> Liquidaciones Externos</button>
-          <button class="btn" style="justify-content:flex-start" onclick="go('arena')"><i class="ti ti-building"></i> Liquidaciones Arena</button>
-          <button class="btn" style="justify-content:flex-start" onclick="go('fijos')"><i class="ti ti-calendar-repeat"></i> Servicios Fijos</button>
-        `}
-      </div>
-    </div>
-  </div>`;
-
-  const factHTML = `
-  <div class="grid3" style="margin-bottom:14px">
-    <div class="metric"><div class="metric-l">Acumulado facturado</div><div class="metric-v">${fmt(factAcum)} <span style="font-size:12px;color:var(--text2);font-weight:500">c/IVA</span></div><div class="metric-s">sin IVA ${fmt(factAcumNeto)} · ${facs.length} fact.</div></div>
-    <div class="metric"><div class="metric-l">Mes actual · ${mesLabel(nowKey)}</div><div class="metric-v" style="font-size:17px">${fmt(factMesIva)} <span style="font-size:12px;color:var(--text2);font-weight:500">c/IVA</span></div><div class="metric-s">sin IVA ${fmt(factMesNeto)}</div></div>
-    <div class="metric"><div class="metric-l">Shows facturados</div><div class="metric-v">${facs.length}</div></div>
-  </div>
-  <div class="grid3" style="margin-bottom:14px">
-    <div class="metric"><div class="metric-l">Facturado (sin IVA)</div><div class="metric-v" style="font-size:17px">${fmt(gFn)}</div><div class="metric-s">shows desde ${fd(RENT_DESDE)}</div></div>
-    <div class="metric"><div class="metric-l">Liquidado Arena (costo)</div><div class="metric-v" style="font-size:17px">${fmt(gLi)}</div></div>
-    <div class="metric"><div class="metric-l">Margen sobre personal</div><div class="metric-v" style="font-size:17px;color:${gGa>=0?'#1a7a3e':'#b45309'}">${fmt(gGa)}</div><div class="metric-s">margen ${gFn?Math.round(gGa/gFn*100):0}%</div></div>
-  </div>
-  <div class="grid2">
-    <div class="card">
-      <div style="font-size:13px;font-weight:600;margin-bottom:13px">Últimas facturaciones</div>
-      ${!facs.length
-        ? '<div class="empty-state"><i class="ti ti-file-invoice"></i><p>Sin facturaciones aún</p></div>'
-        : facs.slice(0, 6).map(f => `
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
-            <div><div style="font-size:12.5px;font-weight:500">${f.show}</div><div style="font-size:11px;color:var(--text2)">${f.fecha||''}</div></div>
-            <div style="text-align:right"><div style="font-size:12.5px;font-weight:600">${fmt(f.total_iva)}</div><div style="font-size:11px;color:var(--text2)">sin IVA ${fmt(f.total)}</div></div>
-          </div>`).join('')}
-    </div>
-    <div class="card">
-      <div style="font-size:13px;font-weight:600;margin-bottom:13px">Accesos rápidos</div>
-      <div style="display:flex;flex-direction:column;gap:7px">
-        <button class="btn" style="justify-content:flex-start" onclick="go('facturacion')"><i class="ti ti-file-invoice"></i> Facturación Movistar Arena</button>
-        <button class="btn" style="justify-content:flex-start" onclick="go('rentabilidad')"><i class="ti ti-chart-bar"></i> Facturación vs Liquidación</button>
-      </div>
-    </div>
-  </div>`;
-
+  const pasados = (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e) >= RENT_DESDE && showFechaISO(e) <= hoy);
+  const sinFact = pasados.filter(e => !facs.some(f => f.evento_id === e.id));
+  const sinPres = pasados.filter(e => !(e.fechas || []).some(f => (f.presentismo || []).length));
+  const plataforma = pasados.filter(e => showFechaISO(e).slice(0, 7) >= SERV_PLATAFORMA);
+  const cargasPend = plataforma.filter(e => { const f = showFechaISO(e), d = servData('cargas', f.slice(0, 7)); return !d.personas.some(pid => (d.pres[pid] || []).includes(f)); });
+  let semPend = 0;
+  meses.filter(m => m >= SERV_PLATAFORMA).forEach(m => { const d = servData('cargas', m), L = liqsServ('arena-cargas', m);
+    semanasDelMes(m).forEach(w => { if (w.hasta < hoy && d.personas.some(pid => (d.pres[pid] || []).some(f => w.dias.includes(f))) && !L.some(l => l.detalle?.semana === w.n)) semPend++; }); });
+  const mesaPend = meses.filter(m => m >= SERV_PLATAFORMA && m < mesAct && servData('mesa', m).personas.length && !liqsServ('arena-mesa', m).length);
+  const quinVenc = (APP.quincenas || []).filter(q => !q.cerrada && q.fecha_fin && q.fecha_fin < hoy);
+  const pend = [
+    [sinFact.length, `show${sinFact.length !== 1 ? 's' : ''} del Arena sin facturar`, sinFact.slice(0, 4).map(e => e.nombre).join(', '), "go('facturacion')", 'ti-file-invoice'],
+    [sinPres.length, `show${sinPres.length !== 1 ? 's' : ''} sin presentes cargados`, sinPres.slice(0, 4).map(e => e.nombre).join(', '), "go('arena')", 'ti-users'],
+    [cargasPend.length, `show${cargasPend.length !== 1 ? 's' : ''} sin presentes de cargas`, cargasPend.slice(0, 4).map(e => e.nombre).join(', '), "go('cargas')", 'ti-truck'],
+    [semPend, `semana${semPend !== 1 ? 's' : ''} de cargas terminada${semPend !== 1 ? 's' : ''} sin liquidar`, '', "go('cargas')", 'ti-calendar-week'],
+    [mesaPend.length, `mes${mesaPend.length !== 1 ? 'es' : ''} de mesa de entrada sin liquidar`, mesaPend.map(m => mesLabel(m)).join(', '), "go('mesa')", 'ti-id-badge'],
+    [quinVenc.length, `quincena${quinVenc.length !== 1 ? 's' : ''} ya terminada${quinVenc.length !== 1 ? 's' : ''} sin cerrar`, quinVenc.map(q => q.nombre).join(', '), "go('arena')", 'ti-lock-open'],
+  ].filter(x => x[0]);
+  // ── Por pagar: liquidaciones aprobadas, por área (neto) ──
+  const aprob = (APP.liquidaciones || []).filter(l => l.estado === 'aprobado');
+  const areaDe = l => l.lugar_fijo === 'arena-cargas' ? 'Cargas' : l.lugar_fijo === 'arena-mesa' ? 'Mesa de entrada' : l.area === 'Servicios Fijos' ? (l.lugar_nombre || 'Servicios fijos') : l.area || 'Otros';
+  const porArea = {}; aprob.forEach(l => { const k = areaDe(l); porArea[k] = porArea[k] || { n: 0, t: 0 }; porArea[k].n++; porArea[k].t += l.total || 0; });
+  const totPagar = aprob.reduce((a, l) => a + (l.total || 0), 0);
+  const kpi = (l, v, s, c) => `<div class="metric"><div class="metric-l">${l}</div><div class="metric-v" style="font-size:19px${c ? ';color:' + c : ''}">${v}</div><div class="metric-s">${s}</div></div>`;
   el.innerHTML = `
-    <div style="display:flex;gap:6px;margin-bottom:16px">
-      <button class="btn ${tab==='liq'?'btn-primary':''}" id="dbtab-liq" onclick="dbTab('liq')"><i class="ti ti-receipt"></i> Liquidaciones</button>
-      <button class="btn ${tab==='fact'?'btn-primary':''}" id="dbtab-fact" onclick="dbTab('fact')"><i class="ti ti-file-invoice"></i> Facturación</button>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+      <div><h2 style="margin:0">Resumen</h2><div style="color:var(--text2);font-size:12.5px">Montos sin IVA. El IVA está en Facturación; el resultado neto, en Informes a socios.</div></div>
+      <select onchange="S_DB.mes=this.value;render()" style="width:auto;font-size:13px;padding:6px 9px">${meses.map(m => `<option value="${m}" ${m === S_DB.mes ? 'selected' : ''}>${mesLabel(m)}</option>`).join('')}</select>
     </div>
-    <div id="db-liq" style="display:${tab==='liq'?'block':'none'}">${liqHTML}</div>
-    <div id="db-fact" style="display:${tab==='fact'?'block':'none'}">${factHTML}</div>`;
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-weight:600"><span class="chip chip-arena" style="font-size:11px">Movistar Arena</span> ${mesLabel(S_DB.mes)}</div>
+        <a href="#" onclick="S_FVL.mes='${S_DB.mes}';go('rentabilidad');return false" style="font-size:12.5px">Ver detalle →</a></div>
+      ${R.fact || R.neto ? `<div class="grid3">
+        ${kpi('Facturado', fmt(R.fact), `${R.shows.n} show${R.shows.n !== 1 ? 's' : ''}${R.mesa.meses ? ' + mesa de entrada' : ''}`)}
+        ${kpi('Costo laboral', fmt(R.costo), `liquidado ${fmt(R.neto)} + ${cp}% cargas sociales`)}
+        ${kpi('Diferencia', fmt(R.dif), `${pctTxt1(R.dif, R.fact)} de lo facturado, antes de impuestos`, col(R.dif))}
+      </div>` : `<div style="font-size:12.5px;color:var(--text2)">Todavía no hay shows facturados en ${mesLabel(S_DB.mes).toLowerCase()}.</div>`}
+    </div>
+    <div class="grid2" style="align-items:start">
+      <div class="card">
+        <div style="font-weight:600;margin-bottom:10px">Pendientes</div>
+        ${pend.length ? pend.map(([n, t, det, go_, ic]) => `<div class="db-pend" onclick="${go_}"><i class="ti ${ic}"></i><div><b>${n}</b> ${t}${det ? `<div class="db-pd">${esc2(det)}${n > 4 && det.split(',').length >= 4 ? '…' : ''}</div>` : ''}</div><i class="ti ti-chevron-right" style="margin-left:auto;color:var(--text2)"></i></div>`).join('')
+          : '<div style="font-size:12.5px;color:#1a7a3e"><i class="ti ti-circle-check"></i> Todo al día.</div>'}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px"><div style="font-weight:600">Por pagar</div><div style="font-size:12px;color:var(--text2)">liquidaciones aprobadas, neto</div></div>
+          ${aprob.length ? Object.entries(porArea).sort((a, b) => b[1].t - a[1].t).map(([k, v]) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px"><span>${esc2(k)} <span style="color:var(--text2)">· ${v.n}</span></span><b>${fmt(v.t)}</b></div>`).join('')
+            + `<div style="display:flex;justify-content:space-between;padding-top:7px;font-size:13px"><b>Total</b><b>${fmt(totPagar)}</b></div>` : '<div style="font-size:12.5px;color:var(--text2)">No hay liquidaciones pendientes de pago.</div>'}
+        </div>
+        <div class="card">
+          <div style="font-weight:600;margin-bottom:10px">Accesos rápidos</div>
+          <div class="db-acc">
+            ${APP.rol === 'rrhh' ? `<button class="btn" onclick="go('importar')"><i class="ti ti-file-upload"></i> Importar planilla</button>` : ''}
+            <button class="btn" onclick="go('arena')"><i class="ti ti-building"></i> Movistar Arena</button>
+            <button class="btn" onclick="go('cargas')"><i class="ti ti-truck"></i> Cargas</button>
+            <button class="btn" onclick="go('mesa')"><i class="ti ti-id-badge"></i> Mesa de entrada</button>
+            <button class="btn" onclick="go('facturacion')"><i class="ti ti-file-invoice"></i> Facturación</button>
+            <button class="btn" onclick="go('externos')"><i class="ti ti-world"></i> Externos</button>
+            <button class="btn" onclick="go('fijos')"><i class="ti ti-calendar-repeat"></i> Servicios fijos</button>
+            <button class="btn" onclick="go('informes')"><i class="ti ti-presentation-analytics"></i> Informes a socios</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
 }
-window.dbTab = function(t) {
-  APP.dbTab = t;
-  const L = document.getElementById('db-liq'), F = document.getElementById('db-fact');
-  if (L) L.style.display = t === 'liq' ? 'block' : 'none';
-  if (F) F.style.display = t === 'fact' ? 'block' : 'none';
-  document.getElementById('dbtab-liq')?.classList.toggle('btn-primary', t === 'liq');
-  document.getElementById('dbtab-fact')?.classList.toggle('btn-primary', t === 'fact');
-};
+window.dbTab = function() {};   // (se mantiene por compatibilidad: el dashboard ya no tiene pestañas)
 
 // ══════════════════════════════════════════════
 // PERSONAL
@@ -4078,20 +4020,20 @@ async function pgFacturacion(el, ac) {
       </div>
       ${facs.length ? `
       <div class="grid3" style="margin-bottom:16px">
-        <div class="metric"><div class="metric-l">Acumulado facturado</div><div class="metric-v">${fmt(acum)} <span style="font-size:12px;color:var(--text2);font-weight:500">c/IVA</span></div><div class="metric-s">sin IVA ${fmt(acumNeto)} · ${facs.length} facturación${facs.length !== 1 ? 'es' : ''}</div></div>
-        <div class="metric"><div class="metric-l">Mes actual · ${mesLabel(nowKey)}</div><div class="metric-v" style="font-size:17px">${fmt(mesTot)} <span style="font-size:12px;color:var(--text2);font-weight:500">c/IVA</span></div><div class="metric-s">sin IVA ${fmt(mesNeto)}</div></div>
+        <div class="metric"><div class="metric-l">Facturado acumulado (sin IVA)</div><div class="metric-v">${fmt(acumNeto)}</div><div class="metric-s">con IVA ${fmt(acum)} · ${facs.length} facturación${facs.length !== 1 ? 'es' : ''}</div></div>
+        <div class="metric"><div class="metric-l">${mesLabel(nowKey)} (sin IVA)</div><div class="metric-v" style="font-size:17px">${fmt(mesNeto)}</div><div class="metric-s">con IVA ${fmt(mesTot)}</div></div>
         <div class="metric"><div class="metric-l">Shows facturados</div><div class="metric-v">${facs.length}</div></div>
       </div>
       ${periodos.map(pk => {
         const arr = grupos[pk].slice().sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
-        const subt = arr.reduce((s, f) => s + (f.total_iva || 0), 0);
+        const subt = arr.reduce((s, f) => s + (f.total || 0), 0), subtIva = arr.reduce((s, f) => s + (f.total_iva || 0), 0);
         return `<div class="card" style="padding:0;margin-bottom:14px;overflow:hidden">
           <div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--card2);font-weight:600">
-            <span>${mesLabel(pk)}</span><span>${fmt(subt)} <span style="color:var(--text2);font-size:12px;font-weight:500">c/IVA</span></span></div>
+            <span>${mesLabel(pk)}</span><span>${fmt(subt)} <span style="color:var(--text2);font-size:12px;font-weight:500">sin IVA · ${fmt(subtIva)} con IVA</span></span></div>
           <table class="tbl"><tbody>
           ${arr.map(f => `<tr>
             <td><strong>${f.show}</strong> <span style="color:var(--text2);font-size:12px">· ${f.fecha || ''}</span>${f.presentes != null && f.presentes !== f.cant_staff ? ` <span class="badge bw" style="font-size:10px" title="pedido ${f.cant_staff} vs presentes ${f.presentes}">≠ presentes</span>` : ''}</td>
-            <td style="text-align:right">${fmt(f.total)} <span style="color:var(--text2);font-size:11px">/ ${fmt(f.total_iva)} c/IVA</span></td>
+            <td style="text-align:right">${fmt(f.total)} <span style="color:var(--text2);font-size:11px">· con IVA ${fmt(f.total_iva)}</span></td>
             <td style="text-align:right;width:110px;white-space:nowrap">
               <button class="btn btn-sm" title="Descargar Excel" onclick="descargarFacturacionGuardada('${f.id}')"><i class="ti ti-download"></i></button>
               <button class="btn btn-sm btn-danger" title="Borrar" onclick="borrarFacturacion('${f.id}')"><i class="ti ti-trash"></i></button>
@@ -4258,53 +4200,51 @@ function rentPorShow() {
 }
 
 // Facturación vs Liquidación de Arena: ganancia neta por show (facturado sin IVA − costo).
+const S_FVL = { mes: '' };
 async function pgRentabilidad(el, ac) {
   document.querySelectorAll('.sb-item').forEach(n => n.classList.remove('active'));
   document.getElementById('n-rentabilidad')?.classList.add('active');
   ac.innerHTML = '';
-  const filas = rentPorShow();
-  const facturados = filas.filter(r => r.nFac);
-  const pendientes = filas.filter(r => !r.nFac);
-  const tot = facturados.reduce((a, r) => ({ fn: a.fn + r.facturado, fi: a.fi + r.facturadoIva, co: a.co + r.costo, ga: a.ga + r.ganancia }), { fn: 0, fi: 0, co: 0, ga: 0 });
-  const costoPend = pendientes.reduce((s, r) => s + r.costo, 0);
-  const pct = (g, f) => f ? Math.round(g / f * 100) : 0;
+  const todas = rentPorShow(), cp = pctCargasSoc();
+  const meses = [...new Set(todas.map(r => r.fISO.slice(0, 7)))].sort();
+  if (S_FVL.mes && !meses.includes(S_FVL.mes)) S_FVL.mes = '';
+  const filas = todas.filter(r => !S_FVL.mes || r.fISO.slice(0, 7) === S_FVL.mes).sort((a, b) => a.fISO.localeCompare(b.fISO));   // de lo más viejo a lo más nuevo
+  const R = fvlResumen(S_FVL.mes || null);
   const col = g => g >= 0 ? '#1a7a3e' : '#b45309';
+  const kpi = (l, v, s, c) => `<div class="metric"><div class="metric-l">${l}</div><div class="metric-v" style="font-size:18px${c ? ';color:' + c : ''}">${v}</div><div class="metric-s">${s}</div></div>`;
+  let cuerpo = '';
+  [...new Set(filas.map(r => r.fISO.slice(0, 7)))].sort().forEach(m => {
+    const fm = filas.filter(r => r.fISO.slice(0, 7) === m), fac = fm.filter(r => r.nFac);
+    const tF = fac.reduce((a, r) => a + r.facturado, 0), tN = fac.reduce((a, r) => a + r.costo, 0), tC = costoLaboral(tN);
+    cuerpo += `<tr style="background:var(--card2)"><td colspan="7" style="font-weight:600">${mesLabel(m)}</td></tr>` + fm.map(r => {
+      const c = costoLaboral(r.costo), d = r.facturado - c;
+      return `<tr><td style="white-space:nowrap">${fd(r.fISO)}</td>
+        <td><strong>${r.ev.nombre}</strong>${!r.nFac ? ' <span class="badge bw" style="font-size:10px" title="todavía no guardaste la facturación">sin facturar</span>' : ''}${r.estimado ? ' <span class="badge bi" style="font-size:10px" title="quincena abierta: costo según presentismo × tarifario">estimado</span>' : ''}</td>
+        <td style="text-align:right">${r.nFac ? fmt(r.facturado) : '—'}</td><td style="text-align:right">${fmt(r.costo)}</td><td style="text-align:right">${fmt(c)}</td>
+        <td style="text-align:right;font-weight:600;color:${col(d)}">${r.nFac ? fmt(d) : '—'}</td><td style="text-align:center">${r.nFac ? pctTxt1(d, r.facturado) : '—'}</td></tr>`; }).join('')
+      + `<tr style="font-weight:600"><td colspan="2" style="text-align:right;color:var(--text2)">Subtotal ${mesLabel(m).toLowerCase()}${fac.length < fm.length ? ` (${fac.length} facturados)` : ''}</td><td style="text-align:right">${fmt(tF)}</td><td style="text-align:right">${fmt(tN)}</td><td style="text-align:right">${fmt(tC)}</td><td style="text-align:right;color:${col(tF - tC)}">${fmt(tF - tC)}</td><td style="text-align:center">${pctTxt1(tF - tC, tF)}</td></tr>`;
+  });
+  const sinFac = filas.filter(r => !r.nFac);
   el.innerHTML = `
-    <div style="margin-bottom:14px"><h2 style="margin:0">Facturación vs Liquidación</h2>
-      <div style="color:var(--text2);font-size:13px">Margen de Movistar Arena por show, desde el ${fd(RENT_DESDE)}: lo facturado al Arena (sin IVA) menos lo liquidado al personal.</div></div>
-    <div class="grid3" style="margin-bottom:16px">
-      <div class="metric"><div class="metric-l">Facturado (sin IVA)</div><div class="metric-v">${fmt(tot.fn)}</div><div class="metric-s">c/IVA ${fmt(tot.fi)}</div></div>
-      <div class="metric"><div class="metric-l">Liquidado (costo)</div><div class="metric-v">${fmt(tot.co)}</div></div>
-      <div class="metric"><div class="metric-l">Margen sobre personal</div><div class="metric-v" style="color:${col(tot.ga)}">${fmt(tot.ga)}</div><div class="metric-s">margen ${pct(tot.ga, tot.fn)}%</div></div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+      <div><h2 style="margin:0">Facturación vs Liquidación</h2>
+        <div style="color:var(--text2);font-size:12.5px">Lo facturado al Arena <strong>sin IVA</strong> contra el <strong>costo laboral</strong> (lo liquidado a la gente + ${cp}% de cargas sociales). La diferencia es antes de impuestos: el resultado neto está en <a href="#" onclick="go('informes');return false">Informes a socios</a>.</div></div>
+      <select onchange="S_FVL.mes=this.value;render()" style="width:auto;font-size:13px;padding:6px 9px"><option value="">Todos los meses</option>${meses.map(m => `<option value="${m}" ${m === S_FVL.mes ? 'selected' : ''}>${mesLabel(m)}</option>`).join('')}</select>
     </div>
-    <div class="card" style="padding:0;overflow:hidden">
-      <table class="tbl"><thead><tr>
-        <th>Show</th><th style="text-align:right">Facturado s/IVA</th><th style="text-align:right">Facturado c/IVA</th>
-        <th style="text-align:right">Liquidado</th><th style="text-align:right" title="Se facturan en el pedido pero se liquidan en otra planilla">Cargas (aparte)</th><th style="text-align:right">Margen s/ personal</th><th style="text-align:center">Margen</th>
-      </tr></thead><tbody>
-      ${filas.length ? filas.map(r => `<tr>
-        <td><strong>${r.ev.nombre}</strong> <span style="color:var(--text2);font-size:12px">· ${fd(r.fISO)}</span>
-          ${!r.nFac ? ' <span class="badge bw" style="font-size:10px" title="todavía no guardaste la facturación de este show">sin fact.</span>' : ''}
-          ${r.estimado ? ' <span class="badge bi" style="font-size:10px" title="quincena abierta: costo estimado con el tarifario actual">estimado</span>' : ''}</td>
-        <td style="text-align:right">${fmt(r.facturado)}</td>
-        <td style="text-align:right;color:var(--text2)">${fmt(r.facturadoIva)}</td>
-        <td style="text-align:right">${fmt(r.costo - r.cargasCosto)}${r.backups ? `<div style="font-size:11px;color:var(--text2)">incl. ${r.backups} back-up${r.backups > 1 ? 's' : ''}</div>` : ''}</td>
-        <td style="text-align:right;white-space:nowrap">${r.cargasCant ? `${fmt(r.cargasCosto)} <button class="btn btn-sm" style="padding:1px 6px" title="Cargar el costo real (de la planilla de cargas)" onclick="editCargasReal('${r.ev.id}')"><i class="ti ti-pencil"></i></button>
-          <div style="font-size:11px;color:${r.cargasOrigen === 'real' ? '#1a7a3e' : r.cargasOrigen === 'sin tarifario' ? '#b45309' : 'var(--text2)'}">${r.cargasCant} · ${r.cargasOrigen}</div>` : '<span style="color:var(--text2)">—</span>'}</td>
-        <td style="text-align:right;font-weight:600;color:${col(r.ganancia)}">${r.nFac ? fmt(r.ganancia) : '—'}</td>
-        <td style="text-align:center">${r.nFac ? pct(r.ganancia, r.facturado) + '%' : '—'}</td>
-      </tr>`).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:16px">No hay shows de Arena desde el ${fd(RENT_DESDE)}.</td></tr>`}
-      </tbody>
-      <tfoot><tr style="background:var(--card2);font-weight:700">
-        <td>Total</td><td style="text-align:right">${fmt(tot.fn)}</td><td style="text-align:right;color:var(--text2)">${fmt(tot.fi)}</td>
-        <td style="text-align:right">${fmt(tot.co - facturados.reduce((a, r) => a + r.cargasCosto, 0))}</td><td style="text-align:right">${fmt(facturados.reduce((a, r) => a + r.cargasCosto, 0))}</td><td style="text-align:right;color:${col(tot.ga)}">${fmt(tot.ga)}</td>
-        <td style="text-align:center">${pct(tot.ga, tot.fn)}%</td>
-      </tr></tfoot></table>
+    <div class="grid4" style="margin-bottom:16px">
+      ${kpi('Facturado (sin IVA)', fmt(R.fact), `${R.shows.n} shows${R.mesa.meses ? ' + mesa de entrada' : ''}`)}
+      ${kpi('Liquidado (neto)', fmt(R.neto), 'lo pagado a la gente')}
+      ${kpi('Costo laboral', fmt(R.costo), `neto + ${cp}% de cargas sociales`)}
+      ${kpi('Diferencia', fmt(R.dif), `${pctTxt1(R.dif, R.fact)} de lo facturado`, col(R.dif))}
     </div>
-    ${pendientes.length ? `<div class="alert alert-warn" style="margin-top:10px"><i class="ti ti-alert-triangle"></i> ${pendientes.length} show${pendientes.length>1?'s':''} sin facturación guardada (costo ${fmt(costoPend)}), no incluido${pendientes.length>1?'s':''} en los totales hasta que lo${pendientes.length>1?'s':''} factures.</div>` : ''}
-    <div style="color:var(--text2);font-size:11.5px;margin-top:8px">Este margen todavía no descuenta cargas sociales ni impuestos: el resultado neto completo está en Informes a socios. Los totales incluyen solo shows facturados. "Cargas (aparte)": los stagehands del pedido se liquidan en otra planilla; su costo se estima con el sueldo neto del renglón CARGAS del tarifario mensual hasta que cargues el real con el lápiz. El coordinador y los back-ups (presentes por encima de lo pedido) se pagan y no se facturan: ya están dentro de "Liquidado". "Estimado" en el show: la quincena del show sigue abierta, el costo sale de presentismo × tarifario actual; al cerrarla pasa a usar lo liquidado.</div>
-    ${htmlFvlCargas()}
-    ${htmlFvlMesa()}`;
+    <div class="card" style="padding:0;overflow:auto"><div style="padding:12px 14px 4px;font-weight:600"><i class="ti ti-building-arena"></i> Shows <span style="font-weight:400;color:var(--text2);font-size:12px">· incluyen sus cargas, como se facturan al Arena</span></div>
+      <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th style="text-align:right">Facturado</th><th style="text-align:right">Liquidado (neto)</th><th style="text-align:right">Costo laboral</th><th style="text-align:right">Diferencia</th><th style="text-align:center">%</th></tr></thead>
+      <tbody>${cuerpo || `<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:16px">No hay shows del Arena en el período.</td></tr>`}</tbody>
+      <tfoot><tr style="background:var(--card2);font-weight:700"><td colspan="2">Total shows</td><td style="text-align:right">${fmt(R.shows.fact)}</td><td style="text-align:right">${fmt(R.shows.neto)}</td><td style="text-align:right">${fmt(R.shows.costo)}</td><td style="text-align:right;color:${col(R.shows.fact - R.shows.costo)}">${fmt(R.shows.fact - R.shows.costo)}</td><td style="text-align:center">${pctTxt1(R.shows.fact - R.shows.costo, R.shows.fact)}</td></tr></tfoot></table>
+      ${sinFac.length ? `<div style="padding:8px 14px;font-size:12px;color:#b45309">${sinFac.length} show${sinFac.length > 1 ? 's' : ''} sin facturación guardada: no ${sinFac.length > 1 ? 'entran' : 'entra'} en los totales hasta que se facture${sinFac.length > 1 ? 'n' : ''}.</div>` : ''}
+      <div style="padding:0 14px 10px;font-size:11.5px;color:var(--text2)">Liquidado: orientadores, supervisores, coordinador, back-ups y cargas de ese día. "Estimado": la quincena sigue abierta y el costo sale del presentismo × tarifario; al cerrarla pasa a usar lo liquidado.</div></div>
+    ${htmlFvlMesa(S_FVL.mes)}
+    ${htmlFvlCargas(S_FVL.mes)}`;
 }
 
 // Costo real de los cargas de un show (sale de la otra planilla); vacío = volver a la estimación del tarifario
@@ -4559,15 +4499,39 @@ window.guardarShowArena = async function(evId) {
   closeModal(); await fetchAll(); toast(liqs.length ? `Show actualizado (también en ${liqs.length} liquidaciones)` : 'Show actualizado', 'ok'); render();
 };
 
+
+// ══════════════════════════════════════════════
+// CRITERIO ÚNICO de la app (todas las pantallas usan esto):
+//  · Facturado: sin IVA. El IVA solo aparece en Facturación.
+//  · Liquidado (neto): lo que se le paga a la gente.
+//  · Costo laboral: liquidado + cargas sociales de la estructura de costos.
+//  · Diferencia: facturado − costo laboral (antes de impuestos). El resultado neto está solo en Informes a socios.
+// ══════════════════════════════════════════════
+const pctCargasSoc = () => (getEstructura().cargas || []).reduce((a, c) => a + (+c.pct || 0), 0);
+const costoLaboral = neto => Math.round((neto || 0) * (1 + pctCargasSoc() / 100));
+function fvlResumen(periodo) {   // periodo 'AAAA-MM', o null para todo desde el inicio
+  const en = f => !periodo || f.slice(0, 7) === periodo;
+  const shows = rentPorShow().filter(r => r.nFac && en(r.fISO));
+  const sF = shows.reduce((a, r) => a + r.facturado, 0), sN = shows.reduce((a, r) => a + r.costo, 0);
+  const meses = (APP.servArena || []).filter(x => x.tipo === 'mesa' && x.periodo >= RENT_DESDE.slice(0, 7) && (x.data?.personas || []).length && (!periodo || x.periodo === periodo)).map(x => x.periodo);
+  let mF = 0, mN = 0;
+  meses.forEach(m => { const d = servData('mesa', m), n = d.personas.length, t = getTarifaMes(m)?.filas?.['MESA DE ENTRADA'] || {}, L = liqsServ('arena-mesa', m);
+    mF += (t.venta || 0) * n; mN += L.length ? L.reduce((a, l) => a + (l.total || 0), 0) : (t.sueldo || 0) * n; });
+  const fact = sF + mF, neto = sN + mN, costo = costoLaboral(sN) + costoLaboral(mN);
+  return { fact, neto, costo, dif: fact - costo, shows: { n: shows.length, fact: sF, neto: sN, costo: costoLaboral(sN) }, mesa: { meses: meses.length, fact: mF, neto: mN, costo: costoLaboral(mN) } };
+}
+const pctTxt1 = (a, b) => b ? `${(a / b * 100).toFixed(1).replace('.', ',')}%` : '—';
+
 // ══ Facturación vs liquidación de los servicios del Arena (se muestra en la página Facturación vs Liquidación) ══
 const hoyISO = () => { const h = new Date(); return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getDate()).padStart(2, '0')}`; };
-function htmlFvlCargas() {
+function htmlFvlCargas(filtro) {
   const E = getEstructura(), cp = (E.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0), facs = APP.facturaciones || [];
   const col = n => n >= 0 ? '#1a7a3e' : '#b45309';
   const shows = (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e) >= RENT_DESDE && (showFechaISO(e) <= hoyISO() || facs.some(f => f.evento_id === e.id)))
     .sort((a, b) => showFechaISO(a).localeCompare(showFechaISO(b)));
   if (!shows.length) return '';
-  const meses = [...new Set(shows.map(e => showFechaISO(e).slice(0, 7)))];
+  const meses = [...new Set(shows.map(e => showFechaISO(e).slice(0, 7)))].filter(m => !filtro || m === filtro);
+  if (!meses.length) return '';
   let tF = 0, tC = 0, cuerpo = '', avisos = [];
   meses.forEach(m => {
     const d = servData('cargas', m), sueldo = getTarifaMes(m)?.filas?.CARGAS?.sueldo || 0, cargado = d.personas.length > 0;
@@ -4592,17 +4556,17 @@ function htmlFvlCargas() {
     cuerpo += `<tr style="background:var(--card2)"><td colspan="8" style="font-weight:600">${mesLabel(m)}</td></tr>${filas}
       <tr style="font-weight:600"><td colspan="4" style="text-align:right;color:var(--text2)">Subtotal ${mesLabel(m).toLowerCase()}</td><td style="text-align:right">${fmt(mF)}</td><td></td><td style="text-align:right">${fmt(mC)}</td><td style="text-align:right;color:${col(mF - mC)}">${fmt(mF - mC)}</td></tr>`;
   });
-  return `<div class="card" style="padding:0;overflow:auto;margin-top:16px"><div style="padding:12px 14px 4px;font-weight:600"><i class="ti ti-truck"></i> Cargas / stagehands · facturación vs liquidación, show por show</div>
-    <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th style="text-align:center" title="Cargas del pedido del Arena">Pedidos</th><th style="text-align:center">Presentes</th><th style="text-align:right">Facturado</th><th style="text-align:right">Liquidado (neto)</th><th style="text-align:right" title="Neto + cargas sociales (${cp}%)">Costo c/ cargas sociales</th><th style="text-align:right">Diferencia</th></tr></thead>
+  return `<div class="card" style="padding:0;overflow:auto;margin-top:16px"><div style="padding:12px 14px 4px;font-weight:600"><i class="ti ti-truck"></i> Detalle de cargas / stagehands <span style="font-weight:400;color:var(--text2);font-size:12px">· ya incluidas en los shows de arriba</span></div>
+    <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th style="text-align:center" title="Cargas del pedido del Arena">Pedidos</th><th style="text-align:center">Presentes</th><th style="text-align:right">Facturado</th><th style="text-align:right">Liquidado (neto)</th><th style="text-align:right" title="Neto + cargas sociales (${cp}%)">Costo laboral</th><th style="text-align:right">Diferencia</th></tr></thead>
     <tbody>${cuerpo}</tbody><tfoot><tr style="font-weight:700;background:var(--card2)"><td colspan="4">Total</td><td style="text-align:right">${fmt(tF)}</td><td></td><td style="text-align:right">${fmt(tC)}</td><td style="text-align:right;color:${col(tF - tC)}">${fmt(tF - tC)}</td></tr></tfoot></table>
     ${avisos.length ? `<div style="padding:8px 14px;font-size:12.5px;color:#b45309">${avisos.join('<br>')}</div>` : ''}
     <div style="padding:0 14px 10px;font-size:11.5px;color:var(--text2)">Facturado: las cargas del pedido de cada show. Liquidado: los cargas presentes ese día × sueldo neto de CARGAS del tarifario del mes. En naranja, los días en que los presentes no coinciden con lo pedido.</div></div>`;
 }
-function htmlFvlMesa() {
+function htmlFvlMesa(filtro) {
   const E = getEstructura(), cp = (E.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0);
   const col = n => n >= 0 ? '#1a7a3e' : '#b45309';
-  const meses = (APP.servArena || []).filter(x => x.tipo === 'mesa' && x.periodo >= RENT_DESDE.slice(0, 7) && (x.data?.personas || []).length).map(x => x.periodo).sort();
-  if (!meses.length) return `<div class="card" style="margin-top:16px;padding:12px 14px"><div style="font-weight:600"><i class="ti ti-id-badge"></i> Mesa de entrada · facturación vs liquidación</div><div style="font-size:12.5px;color:var(--text2);margin-top:4px">Todavía no hay meses cargados en la sección Mesa de entrada.</div></div>`;
+  const meses = (APP.servArena || []).filter(x => x.tipo === 'mesa' && x.periodo >= RENT_DESDE.slice(0, 7) && (x.data?.personas || []).length && (!filtro || x.periodo === filtro)).map(x => x.periodo).sort();
+  if (!meses.length) return '';
   let tF = 0, tC = 0;
   const filas = meses.map(m => {
     const d = servData('mesa', m), n = d.personas.length, t = getTarifaMes(m)?.filas?.['MESA DE ENTRADA'] || {};
@@ -4610,13 +4574,13 @@ function htmlFvlMesa() {
     const fact = (t.venta || 0) * n, neto = liq ? liqs.reduce((a, l) => a + (l.total || 0), 0) : (t.sueldo || 0) * n;
     const costo = Math.round(neto * (1 + cp / 100)), dif = fact - costo; tF += fact; tC += costo;
     const est = esHistorico(m) ? '<span class="badge bs" style="font-size:10px">Fuera de la plataforma</span>' : pag ? '<span class="badge bs" style="font-size:10px">Pagada</span>' : liq ? '<span class="badge bi" style="font-size:10px">Liquidada</span>' : '<span class="badge bw" style="font-size:10px">Sin liquidar</span>';
-    return `<tr><td><strong>${mesLabel(m)}</strong></td><td style="text-align:center">${d.personas.map(pid => (d.pres[pid] || []).length).join(' / ')}</td><td style="text-align:right">${fmt(fact)}</td><td style="text-align:right;color:var(--text2)">${fmt(fact * 1.21)}</td>
+    return `<tr><td><strong>${mesLabel(m)}</strong></td><td style="text-align:center">${d.personas.map(pid => (d.pres[pid] || []).length).join(' / ')}</td><td style="text-align:right">${fmt(fact)}</td>
       <td style="text-align:right">${fmt(neto)}</td><td style="text-align:right">${fmt(costo)}</td><td style="text-align:right;font-weight:600;color:${col(dif)}">${fmt(dif)}</td><td>${est}</td></tr>`;
   }).join('');
-  return `<div class="card" style="padding:0;overflow:auto;margin-top:16px"><div style="padding:12px 14px 4px;font-weight:600"><i class="ti ti-id-badge"></i> Mesa de entrada · facturación vs liquidación, mes por mes</div>
-    <table class="tbl"><thead><tr><th>Mes</th><th style="text-align:center">Días trabajados</th><th style="text-align:right">Facturado (sin IVA)</th><th style="text-align:right">Con IVA</th><th style="text-align:right">Liquidado (neto)</th><th style="text-align:right" title="Neto + cargas sociales (${cp}%)">Costo c/ cargas sociales</th><th style="text-align:right">Diferencia</th><th>Estado</th></tr></thead>
-    <tbody>${filas}</tbody>${meses.length > 1 ? `<tfoot><tr style="font-weight:700;background:var(--card2)"><td colspan="2">Total</td><td style="text-align:right">${fmt(tF)}</td><td></td><td></td><td style="text-align:right">${fmt(tC)}</td><td style="text-align:right;color:${col(tF - tC)}">${fmt(tF - tC)}</td><td></td></tr></tfoot>` : ''}</table>
-    <div style="padding:6px 14px 10px;font-size:11.5px;color:var(--text2)">Mensualizada: se factura la venta mensual y se liquida el sueldo mensual neto del tarifario, completos. La diferencia es antes de impuestos sobre ventas y Ganancias (el resultado neto está en Informes a socios).</div></div>`;
+  return `<div class="card" style="padding:0;overflow:auto;margin-top:16px"><div style="padding:12px 14px 4px;font-weight:600"><i class="ti ti-id-badge"></i> Mesa de entrada <span style="font-weight:400;color:var(--text2);font-size:12px">· mes por mes</span></div>
+    <table class="tbl"><thead><tr><th>Mes</th><th style="text-align:center">Días trabajados</th><th style="text-align:right">Facturado</th><th style="text-align:right">Liquidado (neto)</th><th style="text-align:right" title="Neto + cargas sociales (${cp}%)">Costo laboral</th><th style="text-align:right">Diferencia</th><th>Estado</th></tr></thead>
+    <tbody>${filas}</tbody>${meses.length > 1 ? `<tfoot><tr style="font-weight:700;background:var(--card2)"><td colspan="2">Total</td><td style="text-align:right">${fmt(tF)}</td><td></td><td style="text-align:right">${fmt(tC)}</td><td style="text-align:right;color:${col(tF - tC)}">${fmt(tF - tC)}</td><td></td></tr></tfoot>` : ''}</table>
+    <div style="padding:6px 14px 10px;font-size:11.5px;color:var(--text2)">Mensualizada: se factura la venta mensual y se liquida el sueldo mensual neto del tarifario, completos.</div></div>`;
 }
 window.subirFacturaArena = function(input) {
   const file = input.files?.[0]; if (!file) return;
@@ -5027,10 +4991,13 @@ const persDe = id => (APP.personal || []).find(p => p.id === id);
 const nomPers = p => p ? `${p.apellido}, ${p.nombre}` : '—';
 function showsDelDia(f) { return (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e) === f); }
 function mesesServicios() {
-  const hoy = new Date(), set = new Set(), desde = SERV_DESDE.slice(0, 7);
-  for (let i = -3; i <= 1; i++) { const d = new Date(hoy.getFullYear(), hoy.getMonth() + i, 1); set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
-  (APP.servArena || []).forEach(x => set.add(x.periodo));
-  return [...set].filter(m => m >= desde).sort();   // de lo más viejo a lo más nuevo
+  // Todos los meses seguidos, desde el inicio (septiembre 2026) hasta el mes que viene, más cualquier mes posterior con datos
+  const hoy = new Date(), set = new Set();
+  const fin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
+  const [y0, m0] = SERV_DESDE.slice(0, 7).split('-').map(Number);
+  for (let d = new Date(y0, m0 - 1, 1); d <= fin; d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  (APP.servArena || []).forEach(x => { if (x.periodo >= SERV_DESDE.slice(0, 7)) set.add(x.periodo); });
+  return [...set].sort();   // de lo más viejo a lo más nuevo
 }
 // Días que cuentan: desde el corte (22/09/2026)
 const diasVigentes = periodo => diasDelMes(periodo).filter(f => f >= SERV_DESDE);
@@ -5719,41 +5686,19 @@ async function pgInformes(el, ac) {
   APP.infTipo = APP.infTipo || 'mes';
   const opciones = APP.infTipo === 'mes' ? meses : anios;
   if (!opciones.includes(APP.infPeriodo)) APP.infPeriodo = opciones[0] || '';
-  const { data: pubs, error: ePub } = await sb.from('informes').select('id,token,tipo,periodo,titulo,updated_at').order('periodo', { ascending: false });
-
-  const cab = `
-    <div style="margin-bottom:14px"><h2 style="margin:0">Informes a socios</h2>
-      <div style="color:var(--text2);font-size:13px">Elegí el período, revisá el estado de resultados y publicá un link para mandarles a los socios.</div></div>`;
+  const { data: pubsAll, error: ePub } = await sb.from('informes').select('id,token,tipo,periodo,titulo,updated_at').order('periodo', { ascending: false });
+  const pubs = (pubsAll || []).filter(x => x.tipo === 'mes' || x.tipo === 'anio');
+  const cab = `<div style="margin-bottom:12px"><h2 style="margin:0">Informes a socios</h2>
+      <div style="color:var(--text2);font-size:12.5px">Lo que ves abajo es exactamente el informe que reciben los socios. Elegí el período, ajustá la estructura de costos si hace falta y publicá.</div></div>`;
   if (!APP.infPeriodo) {
     el.innerHTML = cab + `<div class="empty-state"><i class="ti ti-presentation-analytics"></i><p>Todavía no hay shows facturados desde el ${fd(RENT_DESDE)}. Guardá facturaciones en "Facturación Movistar Arena" para armar el primer informe.</p></div>`;
     return;
   }
   const inf = buildInforme(APP.infTipo, APP.infPeriodo);
   window._informeActual = inf;
-  const T = inf.totales, E = inf.estructura;
-  const p = n => T.ventas ? (n / T.ventas * 100).toFixed(1).replace('.', ',') + '%' : '—';
-  const yaPub = (pubs || []).find(x => x.tipo === inf.tipo && x.periodo === inf.periodo);
-  const col = n => n >= 0 ? '#1a7a3e' : '#b45309';
-
-  // Filas del estado de resultados
-  const linea = (lbl, monto, { sub = false, neg = false, indent = false } = {}) => `<tr style="${sub ? 'font-weight:700;background:var(--card2)' : ''}">
-    <td style="${indent ? 'padding-left:22px;color:var(--text2)' : ''}">${lbl}</td>
-    <td style="text-align:right;${sub ? 'color:' + col(monto) : ''}">${neg && monto ? '−' + fmt(monto) : fmt(monto)}</td>
-    <td style="text-align:right;color:var(--text2)">${p(neg ? -monto : monto)}</td></tr>`;
-  const plHTML = `
-    <table class="tbl"><thead><tr><th>Estado de resultados</th><th style="text-align:right">Monto</th><th style="text-align:right">% ventas</th></tr></thead><tbody>
-      ${linea('Ventas (sin IVA)', T.ventas, { sub: true })}
-      ${linea('Liquidaciones al personal', T.personal, { neg: true, indent: true })}
-      ${T.cargas.map(c => linea(`${c.nombre} (${String(c.pct).replace('.', ',')}% s/ liquidación)`, c.monto, { neg: true, indent: true })).join('')}
-      ${linea('Utilidad bruta', T.utBruta, { sub: true })}
-      ${T.impuestos.map(c => linea(`${c.nombre} (${String(c.pct).replace('.', ',')}% s/ ventas)`, c.monto, { neg: true, indent: true })).join('')}
-      ${linea('Contribución marginal', T.contrMarginal, { sub: true })}
-      ${linea('Costos fijos', T.fijos, { neg: true, indent: true })}
-      ${linea('EBIT', T.ebit, { sub: true })}
-      ${linea(`Impuesto a las Ganancias (${String(T.iigg.pct).replace('.', ',')}% s/ EBIT)`, T.iigg.monto, { neg: true, indent: true })}
-      ${linea('Resultado neto', T.neto, { sub: true })}
-    </tbody></table>`;
-
+  const E = inf.estructura;
+  const yaPub = pubs.find(x => x.tipo === inf.tipo && x.periodo === inf.periodo);
+  try { localStorage.setItem('sbs_informe_preview', JSON.stringify(inf)); } catch {}
   // Editor de la estructura de costos
   const filaPct = (grupo, x, i, sobre) => `<tr>
     <td><input value="${(x.nombre || '').replace(/"/g, '&quot;')}" onchange="editEstructura('${grupo}',${i},'nombre',this.value)" style="width:100%"></td>
@@ -5779,52 +5724,33 @@ async function pgInformes(el, ac) {
     </div>`;
 
   el.innerHTML = cab + `
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
       <button class="btn ${APP.infTipo === 'mes' ? 'btn-primary' : ''}" onclick="APP.infTipo='mes';APP.infPeriodo='';render()">Mensual</button>
       <button class="btn ${APP.infTipo === 'anio' ? 'btn-primary' : ''}" onclick="APP.infTipo='anio';APP.infPeriodo='';render()">Anual</button>
-      <select onchange="APP.infPeriodo=this.value;render()" style="font-size:12.5px;padding:6px 9px">
+      <select onchange="APP.infPeriodo=this.value;render()" style="font-size:12.5px;padding:6px 9px;width:auto">
         ${opciones.map(o => `<option value="${o}" ${o === APP.infPeriodo ? 'selected' : ''}>${APP.infTipo === 'mes' ? mesLabel(o) : o}</option>`).join('')}
       </select>
+      ${yaPub ? `<span class="badge bs" title="Actualizado el ${new Date(yaPub.updated_at).toLocaleDateString('es-AR')}">Publicado</span>` : '<span class="badge bw">Sin publicar</span>'}
       <div style="flex:1"></div>
-      <button class="btn" onclick="previewInforme()"><i class="ti ti-eye"></i> Vista previa</button>
-      <button class="btn btn-success" onclick="publicarInforme()"><i class="ti ti-world-upload"></i> ${yaPub ? 'Actualizar informe publicado' : 'Publicar informe'}</button>
+      <button class="btn" onclick="previewInforme()" title="Abrir el informe en una pestaña nueva"><i class="ti ti-external-link"></i> Abrir en pestaña</button>
+      <button class="btn btn-success" onclick="publicarInforme()"><i class="ti ti-world-upload"></i> ${yaPub ? 'Actualizar publicado' : 'Publicar informe'}</button>
     </div>
-    ${inf.hayEstimados ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Hay shows con costo <strong>estimado</strong> (su quincena sigue abierta). Conviene cerrar la quincena antes de mandar el informe, así el costo es el liquidado.</div>` : ''}
-    ${inf.pendientes.length ? `<div class="alert alert-warn"><i class="ti ti-info-circle"></i> ${inf.pendientes.length} show${inf.pendientes.length > 1 ? 's' : ''} del período sin facturación guardada (${inf.pendientes.map(x => x.nombre).join(', ')}): no entran en el informe hasta que los factures.</div>` : ''}
-    <div class="grid4" style="margin-bottom:14px">
-      <div class="metric"><div class="metric-l">Ventas (sin IVA)</div><div class="metric-v" style="font-size:17px">${fmt(T.ventas)}</div><div class="metric-s">${T.shows} show${T.shows !== 1 ? 's' : ''} · ${T.staff} puestos</div></div>
-      <div class="metric"><div class="metric-l">Utilidad bruta</div><div class="metric-v" style="font-size:17px;color:${col(T.utBruta)}">${fmt(T.utBruta)}</div><div class="metric-s">${p(T.utBruta)} de las ventas</div></div>
-      <div class="metric"><div class="metric-l">Contribución marginal</div><div class="metric-v" style="font-size:17px;color:${col(T.contrMarginal)}">${fmt(T.contrMarginal)}</div><div class="metric-s">${p(T.contrMarginal)} de las ventas</div></div>
-      <div class="metric"><div class="metric-l">Resultado neto</div><div class="metric-v" style="font-size:17px;color:${col(T.neto)}">${fmt(T.neto)}</div><div class="metric-s">${p(T.neto)} de las ventas</div></div>
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
+      <iframe id="inf-frame" src="informe.html?preview=1&embed=1&t=${Date.now()}" allow="fullscreen" style="width:100%;height:78vh;min-height:560px;border:0;display:block;background:#f4f5f4" title="Informe a socios"></iframe>
     </div>
-    <div class="grid2" style="margin-bottom:14px;align-items:start">
-      <div class="card" style="padding:0;overflow:hidden">${plHTML}</div>
+    <div class="grid2" style="align-items:start">
       <div class="card">${editorHTML}</div>
-    </div>
-    <div class="grid2" style="margin-bottom:14px;align-items:start">
-      <div class="card" style="padding:0;overflow:auto">
-        <table class="tbl"><thead><tr>
-          <th>Show</th><th style="text-align:right">Ventas</th><th style="text-align:right">Ut. bruta</th><th style="text-align:right">Resultado neto</th><th style="text-align:center">%</th>
-        </tr></thead><tbody>
-        ${inf.shows.map(s => `<tr>
-          <td><strong>${s.nombre}</strong> <span style="color:var(--text2);font-size:12px">${fd(s.fecha)}</span>${s.estimado ? ' <span class="badge bi" style="font-size:10px">estimado</span>' : ''}</td>
-          <td style="text-align:right">${fmt(s.ventas)}</td>
-          <td style="text-align:right">${fmt(s.utBruta)}</td>
-          <td style="text-align:right;font-weight:600;color:${col(s.neto)}">${fmt(s.neto)}</td>
-          <td style="text-align:center">${s.ventas ? Math.round(s.neto / s.ventas * 100) : 0}%</td>
-        </tr>`).join('')}
-        </tbody></table>
-      </div>
       <div class="card">
         <div style="font-size:13px;font-weight:600;margin-bottom:10px">Informes publicados</div>
         ${ePub ? `<div class="alert alert-warn" style="margin:0"><i class="ti ti-database-off"></i> Falta crear la tabla <strong>informes</strong> en Supabase para publicar.</div>`
-          : !(pubs || []).length ? '<div style="font-size:12.5px;color:var(--text2)">Todavía no publicaste ninguno.</div>'
+          : !pubs.length ? '<div style="font-size:12.5px;color:var(--text2)">Todavía no publicaste ninguno.</div>'
           : pubs.map(x => `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
               <div><div style="font-size:12.5px;font-weight:500">${x.tipo === 'mes' ? mesLabel(x.periodo) : 'Año ' + x.periodo}</div>
                 <div style="font-size:11px;color:var(--text2)">actualizado ${new Date(x.updated_at).toLocaleDateString('es-AR')}</div></div>
               <div style="white-space:nowrap">
+                <button class="btn btn-sm" title="Ver en la app" onclick="APP.infTipo='${x.tipo}';APP.infPeriodo='${x.periodo}';render()"><i class="ti ti-eye"></i></button>
                 <button class="btn btn-sm" title="Link y mail" onclick="abrirLinkInforme('${x.id}')"><i class="ti ti-link"></i></button>
-                <button class="btn btn-sm" title="Abrir" onclick="window.open(informeUrl('${x.token}'),'_blank')"><i class="ti ti-external-link"></i></button>
+                <button class="btn btn-sm" title="Abrir el publicado" onclick="window.open(informeUrl('${x.token}'),'_blank')"><i class="ti ti-external-link"></i></button>
               </div></div>`).join('')}
       </div>
     </div>`;

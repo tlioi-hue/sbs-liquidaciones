@@ -335,7 +335,7 @@ const pctTxt = n => String(n).replace('.', ',') + '%';
 function estado(msg) { $('app').innerHTML = `<div class="estado">${esc(msg)}</div>`; }
 
 // ══ Estado de la vista (filtro de mes, montos/%, orden de la tabla, show abierto) ══
-const S = { d: null, preview: false, mes: null, modo: 'monto', orden: { col: 'neto', dir: -1 }, abierto: null, fuentes: false };
+const S = { d: null, preview: false, embed: new URLSearchParams(location.search).has('embed'), mes: null, modo: 'monto', orden: { col: 'neto', dir: -1 }, abierto: null, fuentes: false };
 const egr = s => s.ventas - s.neto;
 const nf1 = v => v.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
@@ -569,7 +569,7 @@ function dibujar() {
 
   const altoShows = Math.max(200, shows.length * (pct ? 44 : 70) + 70);
   $('app').innerHTML = `
-    ${S.preview ? '<div class="tagrow"><span class="tag">Vista previa, todavía no publicada</span></div>' : ''}
+    ${S.preview && !S.embed ? '<div class="tagrow"><span class="tag">Vista previa, todavía no publicada</span></div>' : ''}
     <header class="head">
       <img src="${LOGO}" alt="SBS">
       <div class="emp"><b>Show Business Solutions</b><span>Informe de resultados, Movistar Arena</span></div>
