@@ -1943,6 +1943,7 @@ function renderQCard(q, isRRHH) {
               </div>
               <span class="pill">${jEv} colaboradores</span>
               <div style="display:flex;gap:5px;flex-shrink:0">
+                ${isRRHH ? `<button class="btn btn-sm" title="Editar nombre y fecha" onclick="editShowArena('${ev.id}')"><i class="ti ti-pencil"></i></button>` : ''}
                 <button class="btn btn-sm" onclick="verShowArena('${ev.id}')"><i class="ti ti-eye"></i></button>
                 ${isRRHH ? `<button class="btn btn-sm btn-danger" onclick="delShowArena('${ev.id}')"><i class="ti ti-trash"></i></button>` : ''}
               </div>
@@ -4252,7 +4253,7 @@ window.guardarPresCargas = async function() {
 // PAQUETE DE DATOS — facturaciones, tarifario y servicios armados desde las planillas del Drive
 // ══════════════════════════════════════════════
 function planPaquete(P) {
-  const plan = { facturas: [], servicios: [], tarifario: [], avisos: [] };
+  const plan = { facturas: [], servicios: [], tarifario: [], avisos: [], correcciones: [] };
   const facs = APP.facturaciones || [];
   (P.facturaciones || []).forEach(f => {
     const tot = (f.secciones || []).reduce((a, s) => a + (s.items || []).reduce((b, i) => b + (i.cant || 0) * (i.valor || 0), 0), 0);
@@ -4268,7 +4269,11 @@ function planPaquete(P) {
       // (descarta los shows cuya fecha ya coincide con otra planilla del paquete: esos están bien)
       const fechasPaq = new Set((P.facturaciones || []).map(x => x.fecha)), bn = baseNombre(f.show);
       const parecido = (APP.eventos || []).find(e => e.area === 'Movistar Arena' && bn && !fechasPaq.has(showFechaISO(e)) && normTxt(e.nombre).replace(/[^a-z0-9]+/g, ' ').includes(bn));
-      if (parecido) nota = `hay un "${parecido.nombre}" cargado el ${fd(showFechaISO(parecido))}: si es el mismo show, corregí la fecha en Movistar Arena y volvé a importar`;
+      if (parecido && showFechaISO(parecido).slice(8) === f.fecha.slice(8) && !(APP.facturaciones || []).some(x => x.evento_id === parecido.id)) {
+        // mismo nombre, mismo día, otro mes: casi seguro un error de carga -> se corrige al importar
+        estado = 'corregir fecha'; nota = `"${parecido.nombre}" está cargado el ${fd(showFechaISO(parecido))}: al importar se corrige al ${fd(f.fecha)}`;
+        plan.correcciones.push({ ev: parecido, de: showFechaISO(parecido), a: f.fecha });
+      } else if (parecido) nota = `hay un "${parecido.nombre}" cargado el ${fd(showFechaISO(parecido))}: si es el mismo show, corregí la fecha en Movistar Arena y volvé a importar`;
     }
     else if (evs.length > 1) { estado = 'sin show'; nota = `hay ${evs.length} shows ese día; cargala a mano`; }
     else if (ya) {
@@ -4295,7 +4300,7 @@ window.leerPaquete = function(input) {
     let P; try { P = JSON.parse(r.result); } catch { toast('El archivo no es un paquete válido', 'err'); return; }
     if (P.tipo !== 'sbs-paquete-arena') { toast('El archivo no es un paquete de datos de SBS', 'err'); return; }
     window._paquete = P;
-    const plan = planPaquete(P), badge = e => ({ 'nueva': 'bs', 'se carga': 'bs', 'completar': 'bs', 'ya estaba': 'bi', 'omitida': 'bw', 'omitido': 'bw', 'sin show': 'bw' }[e] || 'bi');
+    const plan = planPaquete(P), badge = e => ({ 'nueva': 'bs', 'se carga': 'bs', 'completar': 'bs', 'corregir fecha': 'bi', 'ya estaba': 'bi', 'omitida': 'bw', 'omitido': 'bw', 'sin show': 'bw' }[e] || 'bi');
     showModal(`<div class="modal" style="max-width:720px">
       <div class="modal-t"><i class="ti ti-package-import"></i> Importar paquete de datos</div>
       <div class="modal-s">${esc2(P.fuente || '')}. Revisá lo que se va a cargar; nada se pisa: si algo ya existe, se deja como está.</div>
@@ -4314,9 +4319,17 @@ window.leerPaquete = function(input) {
 };
 window.aplicarPaquete = async function() {
   const P = window._paquete; if (!P) return;
-  const plan = planPaquete(P), res = { facturas: 0, tarifario: 0, servicios: 0, personas: 0, errores: [] };
+  let plan = planPaquete(P);
+  const res = { facturas: 0, tarifario: 0, servicios: 0, personas: 0, fechas: 0, errores: [] };
   loading(true);
   try {
+    // 0) corregir fechas mal cargadas (show y su jornada), y volver a planificar con las fechas buenas
+    for (const c of plan.correcciones) {
+      const e1 = (await sb.from('eventos').update({ fecha: c.a }).eq('id', c.ev.id)).error;
+      for (const fe of (c.ev.fechas || []).filter(x => x.fecha === c.de)) { const e2 = (await sb.from('fechas').update({ fecha: c.a }).eq('id', fe.id)).error; if (e2) res.errores.push(`Jornada de ${c.ev.nombre}: ${e2.message}`); }
+      if (e1) res.errores.push(`Fecha de ${c.ev.nombre}: ${e1.message}`); else res.fechas++;
+    }
+    if (plan.correcciones.length) { await fetchAll(); plan = planPaquete(P); }
     // 1) tarifario (primero: la facturación y los servicios lo usan)
     for (const t of P.tarifario || []) {
       const prev = (APP.tarArena || []).find(x => x.periodo === t.periodo)?.filas || {};
@@ -4359,10 +4372,46 @@ window.aplicarPaquete = async function() {
     await fetchAll();
   } catch (e) { res.errores.push(e.message); }
   loading(false); closeModal();
-  const txt = `${res.facturas} facturación${res.facturas !== 1 ? 'es' : ''}, ${res.tarifario} tarifario${res.tarifario !== 1 ? 's' : ''}, ${res.servicios} servicio${res.servicios !== 1 ? 's' : ''}${res.personas ? `, ${res.personas} persona${res.personas > 1 ? 's' : ''} nueva${res.personas > 1 ? 's' : ''} en el padrón` : ''}`;
+  const txt = `${res.fechas ? `${res.fechas} fecha${res.fechas > 1 ? 's' : ''} corregida${res.fechas > 1 ? 's' : ''}, ` : ''}${res.facturas} facturación${res.facturas !== 1 ? 'es' : ''}, ${res.tarifario} tarifario${res.tarifario !== 1 ? 's' : ''}, ${res.servicios} servicio${res.servicios !== 1 ? 's' : ''}${res.personas ? `, ${res.personas} persona${res.personas > 1 ? 's' : ''} nueva${res.personas > 1 ? 's' : ''} en el padrón` : ''}`;
   if (res.errores.length) showModal(`<div class="modal" style="max-width:560px"><div class="modal-t">Importado con errores</div><div class="modal-s">Se cargó: ${txt}.</div><div class="alert alert-warn" style="margin-top:8px">${res.errores.map(esc2).join('<br>')}</div><div class="modal-f"><button class="btn" onclick="closeModal()">Cerrar</button></div></div>`);
   else toast('Importado: ' + txt, 'ok');
   render();
+};
+
+// ── Editar nombre y fecha de un show del Arena ──
+window.editShowArena = function(evId) {
+  const ev = (APP.eventos || []).find(e => e.id === evId); if (!ev) return;
+  const q = (APP.quincenas || []).find(x => x.id === ev.quincena_id);
+  if (q?.cerrada) { toast('La quincena está cerrada: no se puede editar el show (sus liquidaciones ya lo usan).', 'err'); return; }
+  showModal(`<div class="modal" style="max-width:440px">
+    <div class="modal-t"><i class="ti ti-pencil"></i> Editar show</div>
+    <div class="modal-s">${q ? `${q.nombre} (${fd(q.fecha_inicio)} al ${fd(q.fecha_fin)})` : ''}</div>
+    <label style="font-size:12.5px;display:block;margin-top:10px">Nombre del show</label>
+    <input id="es-nom" value="${String(ev.nombre || '').replace(/"/g, '&quot;')}" style="width:100%">
+    <label style="font-size:12.5px;display:block;margin-top:10px">Fecha</label>
+    <input id="es-fec" type="date" value="${ev.fecha || showFechaISO(ev) || ''}" style="width:100%">
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="guardarShowArena('${evId}')">Guardar</button></div></div>`);
+  setTimeout(() => document.getElementById('es-nom')?.focus(), 50);
+};
+window.guardarShowArena = async function(evId) {
+  const ev = (APP.eventos || []).find(e => e.id === evId); if (!ev) return;
+  const nombre = document.getElementById('es-nom').value.trim(), fecha = document.getElementById('es-fec').value;
+  if (!nombre) { toast('El nombre no puede quedar vacío', 'err'); return; }
+  if (!fecha) { toast('Elegí una fecha', 'err'); return; }
+  const q = (APP.quincenas || []).find(x => x.id === ev.quincena_id);
+  if (q && (fecha < q.fecha_inicio || fecha > q.fecha_fin) && !confirm(`La fecha ${fd(fecha)} queda fuera de ${q.nombre} (${fd(q.fecha_inicio)} al ${fd(q.fecha_fin)}). ¿Guardar igual?`)) return;
+  const vieja = ev.fecha || showFechaISO(ev);
+  loading(true);
+  const e1 = (await sb.from('eventos').update({ nombre, fecha }).eq('id', evId)).error;
+  // la jornada del show (donde cuelgan los presentes) pasa a la fecha nueva
+  let e2 = null;
+  const fec = ev.fechas || [];
+  for (const f of fec.filter(f => f.fecha === vieja || fec.length === 1)) { const r = await sb.from('fechas').update({ fecha }).eq('id', f.id); if (r.error) e2 = r.error; }
+  // si ya tiene facturación, se actualiza el nombre y la fecha que muestra
+  for (const f of (APP.facturaciones || []).filter(f => f.evento_id === evId)) await sb.from('facturaciones').update({ show: nombre, fecha: fd(fecha), periodo: fecha.slice(0, 7) }).eq('id', f.id);
+  loading(false);
+  if (e1 || e2) { toast('No se pudo guardar: ' + (e1 || e2).message, 'err'); return; }
+  closeModal(); await fetchAll(); toast('Show actualizado', 'ok'); render();
 };
 window.subirFacturaArena = function(input) {
   const file = input.files?.[0]; if (!file) return;
@@ -5149,7 +5198,10 @@ function buildInforme(tipo, periodo) {
   const E = getEstructura();
   const facs = APP.facturaciones || [];
   const enPeriodo = rentPorShow().filter(r => tipo === 'mes' ? r.fISO.slice(0, 7) === periodo : r.fISO.slice(0, 4) === periodo);
-  const base = enPeriodo.filter(r => r.nFac);
+  // Resguardo: un show facturado sin presentes cargados no tiene costo de personal y mostraría una ganancia irreal.
+  // Queda fuera del resultado hasta que se cargue su presentismo, y el informe lo avisa.
+  const sinPresentismo = enPeriodo.filter(r => r.nFac && !r.presentes && !((r.costo || 0) - (r.cargasCosto || 0)));
+  const base = enPeriodo.filter(r => r.nFac && !sinPresentismo.includes(r));
   const ventasTot = base.reduce((s, r) => s + r.facturado, 0);
   const nMeses = new Set(base.map(r => r.fISO.slice(0, 7))).size || 1;
   const fijosTot = (+E.fijosMes || 0) * (tipo === 'mes' ? 1 : nMeses);
@@ -5222,6 +5274,7 @@ function buildInforme(tipo, periodo) {
     desde: RENT_DESDE, generado: new Date().toISOString(), estructura: E,
     shows, pendientes: enPeriodo.filter(r => !r.nFac).map(r => ({ nombre: r.ev.nombre, fecha: r.fISO })),
     totales: T, totShows, servicios, meses, hayEstimados: shows.some(s => s.estimado),
+    sinPresentismo: sinPresentismo.map(r => ({ nombre: r.ev.nombre, fecha: r.fISO, facturado: r.facturado })),
   };
 }
 

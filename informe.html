@@ -419,6 +419,8 @@ function dibujar() {
   const avisos = [];
   if (shows.some(s => s.estimado)) avisos.push('Algunos shows tienen el costo de personal estimado porque su quincena todavía no se cerró. El número final puede variar levemente.');
   const pend = (d.pendientes || []).filter(p => !S.mes || p.fecha.slice(0, 7) === S.mes);
+  const sinP = (d.sinPresentismo || []).filter(p => !S.mes || p.fecha.slice(0, 7) === S.mes);
+  if (sinP.length) avisos.push(`${sinP.length > 1 ? `No incluye ${sinP.length} shows facturados` : 'No incluye un show facturado'} que todavía no tiene${sinP.length > 1 ? 'n' : ''} los presentes cargados, para no mostrar un resultado sin su costo de personal: ${sinP.map(p => esc(p.nombre)).join(', ')}.`);
   if (pend.length) avisos.push(pend.length > 1
     ? `No incluye ${pend.length} shows del período que todavía no se facturaron: ${pend.map(p => esc(p.nombre)).join(', ')}.`
     : `No incluye un show del período que todavía no se facturó: ${esc(pend[0].nombre)}.`);
