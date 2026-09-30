@@ -344,6 +344,30 @@ table.cal td em.fe { color: #9a6a1c; font-size: 9.5px; font-weight: 600; }
 .db-pend:hover { background: var(--card2); } .db-pend > i:first-child { color: #b45309; font-size: 16px; margin-top: 1px; }
 .db-pd { font-size: 11.5px; color: var(--text2); margin-top: 1px; }
 .db-acc { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; } .db-acc .btn { justify-content: flex-start; }
+
+.grilla.g2 th.gd.clk { cursor: pointer; } .grilla.g2 th.gd.clk:hover { background: var(--card2); color: var(--text); }
+.dia-show { font-size: 14px; margin: 4px 0 10px; }
+.dia-box { background: var(--card2); border-radius: 9px; padding: 8px 12px; margin-bottom: 8px; }
+.dia-f { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; padding: 4px 0; } .dia-f span { color: var(--text2); }
+.dia-p { font-size: 12px; color: var(--text); padding: 2px 0 4px 10px; border-left: 2px solid #d9eedf; margin: 2px 0 4px; }
+.sv-vacio { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px 16px; }
+.svv-t { display: flex; gap: 12px; align-items: flex-start; } .svv-t > i { font-size: 20px; color: var(--text2); margin-top: 2px; }
+.svv-t b { display: block; font-size: 13.5px; } .svv-t span { display: block; font-size: 12px; color: var(--text2); margin-top: 2px; }
+.svv-a { display: flex; gap: 6px; }
+
+.pf-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.pf-bar input { max-width: 260px; }
+.pf-chips, .pf-bar2 { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pf-bar2 { margin-bottom: 12px; font-size: 12px; color: var(--text2); }
+.pchipf { font: inherit; font-size: 12.5px; border: 1px solid var(--border); background: var(--card); color: var(--text); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+.pchipf b { font-weight: 600; color: var(--text2); margin-left: 3px; } .pchipf.on { background: #1f2421; color: #fff; border-color: #1f2421; } .pchipf.on b { color: #fff; opacity: .7; }
+.pchipf.sm { font-size: 11.5px; padding: 3px 10px; } .pchipf.warn:not(.on) { border-color: #e5a24a; color: #9a5a0c; }
+.p-tabla tr.p-grupo td { background: var(--card2); font-size: 12px; font-weight: 600; padding: 7px 12px; } .p-tabla tr.p-grupo span:last-child { color: var(--text2); margin-left: 4px; }
+.p-tabla tr.p-inact td { opacity: .6; }
+.tf-nota { display: flex; gap: 10px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; font-size: 12.5px; margin-bottom: 14px; }
+.tf-nota > i { color: var(--text2); font-size: 16px; margin-top: 1px; } .tf-nota span { display: block; color: var(--text2); margin-top: 3px; }
+.tf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; align-items: start; }
+.tf-card { padding: 0; overflow: hidden; } .tf-h { display: flex; justify-content: space-between; align-items: center; padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text2); }
 </style>
 </head>
 <body>
@@ -812,15 +836,7 @@ async function pgDB(el) {
       <div><h2 style="margin:0">Resumen</h2><div style="color:var(--text2);font-size:12.5px">Montos sin IVA. El IVA está en Facturación; el resultado neto, en Informes a socios.</div></div>
       <select onchange="S_DB.mes=this.value;render()" style="width:auto;font-size:13px;padding:6px 9px">${meses.map(m => `<option value="${m}" ${m === S_DB.mes ? 'selected' : ''}>${mesLabel(m)}</option>`).join('')}</select>
     </div>
-    <div class="card" style="margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-weight:600"><span class="chip chip-arena" style="font-size:11px">Movistar Arena</span> ${mesLabel(S_DB.mes)}</div>
-        <a href="#" onclick="S_FVL.mes='${S_DB.mes}';go('rentabilidad');return false" style="font-size:12.5px">Ver detalle →</a></div>
-      ${R.fact || R.neto ? `<div class="grid3">
-        ${kpi('Facturado', fmt(R.fact), `${R.shows.n} show${R.shows.n !== 1 ? 's' : ''}${R.mesa.meses ? ' + mesa de entrada' : ''}`)}
-        ${kpi('Costo laboral', fmt(R.costo), `liquidado ${fmt(R.neto)} + ${cp}% cargas sociales`)}
-        ${kpi('Diferencia', fmt(R.dif), `${pctTxt1(R.dif, R.fact)} de lo facturado, antes de impuestos`, col(R.dif))}
-      </div>` : `<div style="font-size:12.5px;color:var(--text2)">Todavía no hay shows facturados en ${mesLabel(S_DB.mes).toLowerCase()}.</div>`}
-    </div>
+    ${tablaAreasDB(S_DB.mes)}
     <div class="grid2" style="align-items:start">
       <div class="card">
         <div style="font-weight:600;margin-bottom:10px">Pendientes</div>
@@ -849,6 +865,26 @@ async function pgDB(el) {
       </div>
     </div>`;
 }
+
+function tablaAreasDB(mes) {
+  const A = fvlPorArea(mes), otras = liquidadoOtrasAreas(mes), col = g => g >= 0 ? '#1a7a3e' : '#b45309', cp = pctCargasSoc();
+  const fila = (nombre, x, conFact, sub = '') => `<tr><td>${nombre}${sub ? `<div style="font-size:11px;color:var(--text2)">${sub}</div>` : ''}</td>
+    <td style="text-align:right">${conFact ? fmt(x.fact) : '<span style="color:var(--text2)">—</span>'}</td><td style="text-align:right">${fmt(x.neto)}</td><td style="text-align:right">${fmt(x.costo)}</td>
+    <td style="text-align:right;font-weight:600;${conFact ? `color:${col(x.dif)}` : ''}">${conFact ? fmt(x.dif) : '<span style="color:var(--text2);font-weight:400">—</span>'}</td><td style="text-align:center">${conFact ? pctTxt1(x.dif, x.fact) : ''}</td></tr>`;
+  const otrasTot = otras.reduce((a, x) => ({ neto: a.neto + x.neto, costo: a.costo + x.costo }), { neto: 0, costo: 0 });
+  return `<div class="card" style="padding:0;overflow:auto;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px 6px"><div style="font-weight:600">Por área · ${mesLabel(mes)}</div>
+      <a href="#" onclick="S_FVL.mes='${mes}';go('rentabilidad');return false" style="font-size:12.5px">Ver detalle del Arena →</a></div>
+    <table class="tbl"><thead><tr><th>Área</th><th style="text-align:right">Facturado</th><th style="text-align:right">Liquidado (neto)</th><th style="text-align:right" title="neto + ${cp}% de cargas sociales">Costo laboral</th><th style="text-align:right">Diferencia</th><th style="text-align:center">%</th></tr></thead><tbody>
+      <tr style="background:var(--card2)"><td colspan="6" style="font-weight:600;font-size:12px"><span class="chip chip-arena" style="font-size:10.5px">Movistar Arena</span> ${A.nShows} show${A.nShows !== 1 ? 's' : ''} facturado${A.nShows !== 1 ? 's' : ''}</td></tr>
+      ${A.areas.map(x => fila(`&nbsp;&nbsp;${x.nombre}`, x, true, x.k === 'ori' ? 'shows, sin sus cargas' : x.k === 'cargas' ? 'facturadas en el pedido de cada show' : 'servicio mensual')).join('')}
+      <tr style="font-weight:700"><td>&nbsp;&nbsp;Total Movistar Arena</td><td style="text-align:right">${fmt(A.tot.fact)}</td><td style="text-align:right">${fmt(A.tot.neto)}</td><td style="text-align:right">${fmt(A.tot.costo)}</td><td style="text-align:right;color:${col(A.tot.dif)}">${fmt(A.tot.dif)}</td><td style="text-align:center">${pctTxt1(A.tot.dif, A.tot.fact)}</td></tr>
+      <tr style="background:var(--card2)"><td colspan="6" style="font-weight:600;font-size:12px">Otras áreas <span style="font-weight:400;color:var(--text2)">· la facturación se hace fuera de la plataforma</span></td></tr>
+      ${otras.map(x => fila(`&nbsp;&nbsp;${x.nombre}`, x, false)).join('')}
+      <tr style="font-weight:700"><td>&nbsp;&nbsp;Total otras áreas</td><td></td><td style="text-align:right">${fmt(otrasTot.neto)}</td><td style="text-align:right">${fmt(otrasTot.costo)}</td><td></td><td></td></tr>
+    </tbody><tfoot><tr style="background:var(--card2);font-weight:700"><td>Total liquidado del mes</td><td></td><td style="text-align:right">${fmt(A.tot.neto + otrasTot.neto)}</td><td style="text-align:right">${fmt(A.tot.costo + otrasTot.costo)}</td><td></td><td></td></tr></tfoot></table>
+    <div style="padding:6px 14px 10px;font-size:11.5px;color:var(--text2)">Sin IVA. Orientadores + Cargas + Mesa de entrada = Total del Arena (las cargas se muestran una sola vez). Externos y Servicios Fijos: lo liquidado del mes.</div></div>`;
+}
 window.dbTab = function() {};   // (se mantiene por compatibilidad: el dashboard ya no tiene pestañas)
 
 // ══════════════════════════════════════════════
@@ -861,11 +897,15 @@ async function pgPersonal(el, ac) {
   renderPersonalUI(el);
 }
 
+const S_PERS = { area: '', falta: '', q: '' };
+const areaPersona = p => p.area === 'Servicios Fijos' ? (LUGARES_FIJOS.find(l => l.id === p.lugar_fijo)?.nombre || 'Servicios Fijos') : (p.area || 'Sin área');
+const ORDEN_AREAS = ['Movistar Arena', 'Externos', 'Ecoparque', 'Teatro Colón', 'Teatro San Martín', 'Campo de Polo', 'Servicios Fijos', 'General'];
+const ordenArea = a => { const i = ORDEN_AREAS.indexOf(a); return i < 0 ? 99 : i; };
 function renderPersonalUI(el) {
-  // Áreas únicas para el filtro, reemplazando "Servicios Fijos" por los lugares específicos
-  const areas = [...new Set(APP.personal.map(p =>
-    p.area === 'Servicios Fijos' ? (LUGARES_FIJOS.find(l => l.id === p.lugar_fijo)?.nombre || 'Servicios Fijos') : p.area
-  ))].sort();
+  const todas = APP.personal || [];
+  const areas = [...new Set(todas.map(areaPersona))].sort((a, b) => ordenArea(a) - ordenArea(b) || a.localeCompare(b));
+  const cuenta = a => todas.filter(p => areaPersona(p) === a).length;
+  const sinCbu = todas.filter(p => !p.cbu).length, sinCuil = todas.filter(p => !p.cuil).length, inact = todas.filter(p => p.activo === false).length;
   const dups = gruposDuplicadosCuil();
   el.innerHTML = `
     ${dups.length ? `<div class="alert alert-warn" style="display:flex;align-items:center;gap:10px">
@@ -873,30 +913,34 @@ function renderPersonalUI(el) {
       <span style="flex:1">Hay <strong>${dups.length}</strong> CUIL con registros duplicados. Los duplicados pueden hacer fallar las liquidaciones.</span>
       <button class="btn btn-sm btn-primary" onclick="modalDuplicados()"><i class="ti ti-git-merge"></i> Combinar duplicados</button>
     </div>` : ''}
-    <div style="margin-bottom:13px;display:flex;gap:9px;align-items:center;flex-wrap:wrap">
-      <input type="text" id="buscar-p" placeholder="Buscar nombre, CUIL, posición..." style="max-width:280px" oninput="filtrarP()">
-      <select id="filtro-area-p" onchange="filtrarP()" style="font-size:12.5px;padding:5px 9px">
-        <option value="">Todas las áreas</option>
-        ${areas.map(a => `<option value="${a}">${a}</option>`).join('')}
-      </select>
-      <span style="font-size:12px;color:var(--text2)">${APP.personal.length} registros</span>
+    <div class="pf-bar">
+      <input type="text" id="buscar-p" placeholder="Buscar por nombre, CUIL o posición" value="${esc2(S_PERS.q)}" oninput="S_PERS.q=this.value;filtrarP()">
+      <div class="pf-chips">
+        <button class="pchipf ${!S_PERS.area ? 'on' : ''}" onclick="S_PERS.area='';renderPersonalUI(document.getElementById('content'))">Todas <b>${todas.length}</b></button>
+        ${areas.map(a => `<button class="pchipf ${S_PERS.area === a ? 'on' : ''}" onclick="S_PERS.area='${a.replace(/'/g, "\\'")}';renderPersonalUI(document.getElementById('content'))">${esc2(a)} <b>${cuenta(a)}</b></button>`).join('')}
+      </div>
+    </div>
+    <div class="pf-bar2">
+      <span>Mostrar:</span>
+      ${[['', 'Todos'], ['cbu', `Sin CBU (${sinCbu})`], ['cuil', `Sin CUIL (${sinCuil})`], ['inact', `Inactivos (${inact})`]].map(([k, l]) => `<button class="pchipf sm ${S_PERS.falta === k ? 'on' : ''} ${k && k !== 'inact' && (k === 'cbu' ? sinCbu : sinCuil) ? 'warn' : ''}" onclick="S_PERS.falta='${k}';filtrarP()">${l}</button>`).join('')}
+      <span style="flex:1"></span><span id="p-cuenta" style="font-size:12px;color:var(--text2)"></span>
     </div>
     <div id="personal-bulk-bar"></div>
     <div class="card" style="padding:0;overflow:hidden" id="tabla-p"></div>`;
-  renderTablaP(APP.personal);
+  filtrarP();
 }
 
 window.filtrarP = function() {
-  const q = document.getElementById('buscar-p')?.value || '';
-  const areaFiltro = document.getElementById('filtro-area-p')?.value || '';
-  const lista = APP.personal.filter(p => {
-    const areaMostrada = p.area === 'Servicios Fijos'
-      ? (LUGARES_FIJOS.find(l => l.id === p.lugar_fijo)?.nombre || 'Servicios Fijos')
-      : p.area;
-    const matchQ = !q || (p.apellido+' '+p.nombre+(p.cuil||'')+(p.posicion||'')).toLowerCase().includes(q.toLowerCase());
-    const matchA = !areaFiltro || areaMostrada === areaFiltro;
-    return matchQ && matchA;
-  });
+  const q = normTxt(S_PERS.q || '');
+  document.querySelectorAll('.pf-bar2 .pchipf').forEach(b => b.classList.toggle('on', b.getAttribute('onclick').includes(`'${S_PERS.falta}'`)));
+  const lista = (APP.personal || []).filter(p => {
+    const matchQ = !q || normTxt(`${p.apellido} ${p.nombre} ${p.cuil || ''} ${p.posicion || ''}`).includes(q);
+    const matchA = !S_PERS.area || areaPersona(p) === S_PERS.area;
+    const matchF = !S_PERS.falta || (S_PERS.falta === 'cbu' ? !p.cbu : S_PERS.falta === 'cuil' ? !p.cuil : p.activo === false);
+    return matchQ && matchA && matchF;
+  }).sort((a, b) => ordenArea(areaPersona(a)) - ordenArea(areaPersona(b)) || areaPersona(a).localeCompare(areaPersona(b)) || (a.activo === false) - (b.activo === false)
+    || String(a.apellido || '').localeCompare(String(b.apellido || ''), 'es') || String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'));
+  const c = document.getElementById('p-cuenta'); if (c) c.textContent = `${lista.length} persona${lista.length !== 1 ? 's' : ''}`;
   renderTablaP(lista);
 };
 
@@ -974,27 +1018,27 @@ window.delSelPersonal = async function() {
 function renderTablaP(lista) {
   const el = document.getElementById('tabla-p'); if (!el) return;
   if (!lista.length) { el.innerHTML = '<div class="empty-state"><i class="ti ti-user-off"></i><p>Sin resultados</p></div>'; return; }
-  el.innerHTML = `<table><thead><tr>
+  const agrupar = !S_PERS.area;
+  let areaAnt = null, filas = '';
+  lista.forEach(p => {
+    const a = areaPersona(p);
+    if (agrupar && a !== areaAnt) { areaAnt = a; filas += `<tr class="p-grupo"><td colspan="7"><span class="chip ${chipClaseArea(a)}">${esc2(a)}</span> <span>${lista.filter(x => areaPersona(x) === a).length}</span></td></tr>`; }
+    filas += `<tr id="prow-${p.id}" class="${p.activo === false ? 'p-inact' : ''}">
+    <td><input type="checkbox" class="chk chk-p" data-id="${p.id}" ${selPersonal.has(p.id) ? 'checked' : ''} onchange="toggleSelPersona('${p.id}',this.checked)"></td>
+    <td><strong>${esc2(p.apellido)}, ${esc2(p.nombre)}</strong>${!agrupar ? '' : ''}</td>
+    <td style="font-family:monospace;font-size:11.5px">${p.cuil || '<span class="badge bw" style="font-size:10px">sin CUIL</span>'}</td>
+    <td>${esc2(p.posicion || '—')}</td>
+    <td style="font-family:monospace;font-size:11.5px">${p.cbu ? p.cbu.slice(0, 6) + '···' + p.cbu.slice(-4) : '<span class="badge bw" style="font-size:10px">sin CBU</span>'}</td>
+    <td>${p.activo !== false ? '' : '<span class="badge bg">inactivo</span>'}</td>
+    <td style="display:flex;gap:4px;justify-content:flex-end">
+      <button class="btn btn-sm" onclick="modalPersona('${p.id}')" title="Editar"><i class="ti ti-edit"></i></button>
+      <button class="btn btn-sm btn-danger" onclick="delP('${p.id}')" title="Borrar"><i class="ti ti-trash"></i></button>
+    </td></tr>`;
+  });
+  el.innerHTML = `<table class="p-tabla"><thead><tr>
     <th style="width:36px"><input type="checkbox" class="chk" onchange="selTodosPersonal(this.checked)" title="Seleccionar todos"></th>
-    <th>Apellido y nombre</th><th>CUIL</th><th>Área</th><th>Posición habitual</th><th>CBU</th><th>Estado</th><th></th>
-  </tr></thead><tbody>${lista.map(p => `<tr id="prow-${p.id}">
-    <td><input type="checkbox" class="chk chk-p" data-id="${p.id}" ${selPersonal.has(p.id)?'checked':''} onchange="toggleSelPersona('${p.id}',this.checked)"></td>
-    <td><strong>${p.apellido}, ${p.nombre}</strong></td>
-    <td style="font-family:monospace;font-size:11.5px">${p.cuil||'—'}</td>
-    <td>${(() => {
-      const areaMostrada = p.area === 'Servicios Fijos'
-        ? (LUGARES_FIJOS.find(l => l.id === p.lugar_fijo)?.nombre || 'Servicios Fijos')
-        : p.area;
-      return `<span class="chip ${chipClaseArea(areaMostrada)}">${areaMostrada}</span>`;
-    })()}</td>
-    <td>${p.posicion||'—'}</td>
-    <td style="font-family:monospace;font-size:11.5px">${p.cbu?p.cbu.slice(0,6)+'···'+p.cbu.slice(-4):'—'}</td>
-    <td><span class="badge ${p.activo!==false?'bs':'bg'}">${p.activo!==false?'activo':'inactivo'}</span></td>
-    <td style="display:flex;gap:4px">
-      <button class="btn btn-sm" onclick="modalPersona('${p.id}')"><i class="ti ti-edit"></i></button>
-      <button class="btn btn-sm btn-danger" onclick="delP('${p.id}')"><i class="ti ti-trash"></i></button>
-    </td>
-  </tr>`).join('')}</tbody></table>`;
+    <th>Apellido y nombre</th><th>CUIL</th><th>Posición habitual</th><th>CBU</th><th></th><th></th>
+  </tr></thead><tbody>${filas}</tbody></table>`;
 }
 
 window.modalPersona = function(id) {
@@ -1233,25 +1277,19 @@ async function pgTarifario(el, ac) {
   if (APP.rol !== 'rrhh') { el.innerHTML = '<div class="alert alert-warn"><i class="ti ti-lock"></i> Sin acceso</div>'; return; }
   await fetchAll();
   ac.innerHTML = `<button class="btn btn-primary" onclick="modalTarifa()"><i class="ti ti-plus"></i> Agregar posición</button>`;
+  const tar = APP.tarifario || [];
+  const areas = [...new Set(tar.map(t => t.area || 'General'))].sort((a, b) => ordenArea(a) - ordenArea(b) || a.localeCompare(b));
   el.innerHTML = `
-    <div class="alert alert-info"><i class="ti ti-info-circle"></i>
-      El monto por jornada se aplica según la posición de cada fecha. Al actualizar un monto por convenio, las nuevas jornadas usan el nuevo valor; las liquidaciones ya generadas no se modifican.
-    </div>
-    <div class="card" style="padding:0;overflow:hidden">
-    ${!APP.tarifario.length
-      ? '<div class="empty-state"><i class="ti ti-list-check"></i><p>Sin posiciones.</p></div>'
-      : `<table><thead><tr><th>Posición</th><th>Área</th><th>$/jornada</th><th>Actualizado</th><th></th></tr></thead>
-        <tbody>${[...APP.tarifario].sort((a,b) => a.area.localeCompare(b.area) || (a.monto||0) - (b.monto||0)).map(t => `<tr>
-          <td><strong>${t.posicion}</strong></td>
-          <td><span class="chip ${chipClaseArea(t.area)}">${t.area}</span></td>
-          <td style="font-weight:600">${fmt(t.monto)}${t.monto_finde ? `<br><span style="font-size:11px;font-weight:400;color:var(--text2)">finde: ${fmt(t.monto_finde)}</span>` : ''}</td>
-          <td style="font-size:11.5px;color:var(--text2)">${t.updated_at ? new Date(t.updated_at).toLocaleDateString('es-AR') : '—'}</td>
-          <td style="display:flex;gap:4px">
-            <button class="btn btn-sm" onclick="modalTarifa('${t.id}')"><i class="ti ti-edit"></i></button>
-            <button class="btn btn-sm btn-danger" onclick="delTarifa('${t.id}')"><i class="ti ti-trash"></i></button>
-          </td>
-        </tr>`).join('')}</tbody></table>`}
-    </div>`;
+    <div class="tf-nota"><i class="ti ti-info-circle"></i><div><b>Tarifario de liquidación:</b> lo que se le paga a cada posición por jornada. Si actualizás un monto, las jornadas nuevas usan el valor nuevo; las liquidaciones ya generadas no cambian.
+      <span>Los valores mensuales del Arena por paritarias (venta al Arena y sueldo de cargas y mesa de entrada) están en <a href="#" onclick="S_PROY.tab='tar';go('proyecciones');return false">Tarifario mensual del Arena</a>.</span></div></div>
+    ${!tar.length ? '<div class="card"><div class="empty-state"><i class="ti ti-list-check"></i><p>Sin posiciones.</p></div></div>' :
+      `<div class="tf-grid">${areas.map(a => { const fil = tar.filter(t => (t.area || 'General') === a).sort((x, y) => String(x.posicion).localeCompare(String(y.posicion), 'es'));
+        const finde = fil.some(t => t.monto_finde);
+        return `<div class="card tf-card"><div class="tf-h"><span class="chip ${chipClaseArea(a)}">${esc2(a)}</span><span>${fil.length} ${fil.length !== 1 ? 'posiciones' : 'posición'}</span></div>
+          <table class="tbl"><thead><tr><th>Posición</th><th style="text-align:right">${finde ? 'Semana' : '$ por jornada'}</th>${finde ? '<th style="text-align:right">Fin de semana</th>' : ''}<th style="text-align:right">Actualizado</th><th></th></tr></thead>
+          <tbody>${fil.map(t => `<tr><td><strong>${esc2(t.posicion)}</strong></td><td style="text-align:right;font-weight:600">${fmt(t.monto)}</td>${finde ? `<td style="text-align:right">${t.monto_finde ? fmt(t.monto_finde) : '—'}</td>` : ''}
+            <td style="text-align:right;font-size:11.5px;color:var(--text2)">${t.updated_at ? new Date(t.updated_at).toLocaleDateString('es-AR') : '—'}</td>
+            <td style="text-align:right;white-space:nowrap"><button class="btn btn-sm" onclick="modalTarifa('${t.id}')" title="Editar"><i class="ti ti-edit"></i></button> <button class="btn btn-sm btn-danger" onclick="delTarifa('${t.id}')" title="Borrar"><i class="ti ti-trash"></i></button></td></tr>`).join('')}</tbody></table></div>`; }).join('')}</div>`}`;
 }
 
 window.modalTarifa = function(id) {
@@ -4079,6 +4117,7 @@ function catDeRecurso(recurso) {
   return 'ORIENTADOR';
 }
 const esCoordinador = pos => /coordin/i.test(normTxt(pos));
+const esCargaPos = pos => /\bcarga|stagehand/i.test(normTxt(pos));
 // Servicios mensualizados del Arena (se facturan y liquidan por mes, no por show)
 const SERV_MENSUALES = [{ key: 'MESA DE ENTRADA', nombre: 'Mesa de entrada' }];
 // Presentismo de cargas cargado para un mes: { dias: { 'AAAA-MM-DD': cantidad } }
@@ -4155,8 +4194,10 @@ function rentPorShow() {
       let costo = 0, estimado = false;
       const posiciones = {};   // costo de personal por posición: { posición: { cant, monto } }
       const coord = { cant: 0, monto: 0 };   // coordinador: a cargo de SBS, no se factura
+      const cargasPres = { cant: 0, monto: 0 };   // cargas que vengan en la planilla de presentes del show (para no contarlas dos veces)
       const sumPos = (pos, monto) => { const k = pos || 'Sin posición'; (posiciones[k] = posiciones[k] || { cant: 0, monto: 0 }); posiciones[k].cant++; posiciones[k].monto += monto || 0;
-        if (esCoordinador(k)) { coord.cant++; coord.monto += monto || 0; } };
+        if (esCoordinador(k)) { coord.cant++; coord.monto += monto || 0; }
+        if (esCargaPos(k)) { cargasPres.cant++; cargasPres.monto += monto || 0; } };
       if (q?.cerrada) {
         APP.liquidaciones.filter(l => l.quincena_id === q.id).forEach(l => {
           let det = l.detalle;
@@ -4172,14 +4213,17 @@ function rentPorShow() {
         }));
       }
       // Presentes de la planilla, sin el coordinador (que no se factura)
-      const presentes = (ev.fechas || []).reduce((a, fe) => a + (fe.presentismo || []).filter(p => !esCoordinador(p.posicion)).length, 0);
+      const presentes = (ev.fechas || []).reduce((a, fe) => a + (fe.presentismo || []).filter(p => !esCoordinador(p.posicion) && !esCargaPos(p.posicion)).length, 0);
       // Cargas / stagehands: se facturan en el pedido pero se liquidan en otra planilla.
       // Costo = el real cargado, o cantidad del pedido × sueldo neto del renglón CARGAS del tarifario del mes.
       const pedido = f.reduce((a, x) => a + (x.cant_staff || 0), 0);
       const cargasCant = pedidoPorCat(f).CARGAS || 0;
       const reales = f.map(x => x.detalle?.cargasCostoReal).filter(v => v != null && v !== '');
       let cargasCosto = 0, cargasOrigen = 'sin cargas';
-      if (cargasCant) {
+      if (cargasPres.cant) {
+        // Resguardo contra la doble cuenta: si la planilla de presentes del show ya trae cargas, su costo ya está sumado
+        cargasCosto = cargasPres.monto; cargasOrigen = 'planilla de presentes del show';
+      } else if (cargasCant) {
         const cp = cargasPresentismo(fISO.slice(0, 7)), cDia = cp?.dias?.[fISO];
         if (reales.length) { cargasCosto = reales.reduce((a, v) => a + (+v || 0), 0); cargasOrigen = 'real'; }
         else if (cDia != null && getTarifaMes(fISO.slice(0, 7))?.filas?.CARGAS?.sueldo) { cargasCosto = cDia * getTarifaMes(fISO.slice(0, 7)).filas.CARGAS.sueldo; cargasOrigen = `presentismo (${cDia})`; }
@@ -4201,6 +4245,16 @@ function rentPorShow() {
 
 // Facturación vs Liquidación de Arena: ganancia neta por show (facturado sin IVA − costo).
 const S_FVL = { mes: '' };
+
+function tablaAreasFvl(periodo) {
+  const A = fvlPorArea(periodo), col = g => g >= 0 ? '#1a7a3e' : '#b45309';
+  const f = x => `<td style="text-align:right">${fmt(x.fact)}</td><td style="text-align:right">${fmt(x.neto)}</td><td style="text-align:right">${fmt(x.costo)}</td><td style="text-align:right;font-weight:600;color:${col(x.dif)}">${fmt(x.dif)}</td><td style="text-align:center">${pctTxt1(x.dif, x.fact)}</td>`;
+  return `<div class="card" style="padding:0;overflow:auto;margin-bottom:14px"><div style="padding:12px 14px 4px;font-weight:600"><i class="ti ti-chart-pie"></i> Por área <span style="font-weight:400;color:var(--text2);font-size:12px">· cada peso aparece una sola vez</span></div>
+    <table class="tbl"><thead><tr><th>Área</th><th style="text-align:right">Facturado</th><th style="text-align:right">Liquidado (neto)</th><th style="text-align:right">Costo laboral</th><th style="text-align:right">Diferencia</th><th style="text-align:center">%</th></tr></thead>
+    <tbody>${A.areas.map(x => `<tr><td><strong>${x.nombre}</strong><div style="font-size:11px;color:var(--text2)">${x.k === 'ori' ? 'shows, sin sus cargas' : x.k === 'cargas' ? 'facturadas y liquidadas por show' : 'servicio mensual'}</div></td>${f(x)}</tr>`).join('')}</tbody>
+    <tfoot><tr style="background:var(--card2);font-weight:700"><td>Total Movistar Arena</td>${f(A.tot)}</tr></tfoot></table>
+    <div style="padding:6px 14px 10px;font-size:11.5px;color:var(--text2)">Orientadores + Cargas + Mesa de entrada = Total. Más abajo, la tabla de shows muestra cada show completo (con sus cargas) y la de cargas es solo el detalle: no se suman de nuevo.</div></div>`;
+}
 async function pgRentabilidad(el, ac) {
   document.querySelectorAll('.sb-item').forEach(n => n.classList.remove('active'));
   document.getElementById('n-rentabilidad')?.classList.add('active');
@@ -4215,7 +4269,7 @@ async function pgRentabilidad(el, ac) {
   let cuerpo = '';
   [...new Set(filas.map(r => r.fISO.slice(0, 7)))].sort().forEach(m => {
     const fm = filas.filter(r => r.fISO.slice(0, 7) === m), fac = fm.filter(r => r.nFac);
-    const tF = fac.reduce((a, r) => a + r.facturado, 0), tN = fac.reduce((a, r) => a + r.costo, 0), tC = costoLaboral(tN);
+    const tF = fac.reduce((a, r) => a + r.facturado, 0), tN = fac.reduce((a, r) => a + r.costo, 0), tC = fac.reduce((a, r) => a + costoLaboral(r.costo), 0);
     cuerpo += `<tr style="background:var(--card2)"><td colspan="7" style="font-weight:600">${mesLabel(m)}</td></tr>` + fm.map(r => {
       const c = costoLaboral(r.costo), d = r.facturado - c;
       return `<tr><td style="white-space:nowrap">${fd(r.fISO)}</td>
@@ -4237,7 +4291,8 @@ async function pgRentabilidad(el, ac) {
       ${kpi('Costo laboral', fmt(R.costo), `neto + ${cp}% de cargas sociales`)}
       ${kpi('Diferencia', fmt(R.dif), `${pctTxt1(R.dif, R.fact)} de lo facturado`, col(R.dif))}
     </div>
-    <div class="card" style="padding:0;overflow:auto"><div style="padding:12px 14px 4px;font-weight:600"><i class="ti ti-building-arena"></i> Shows <span style="font-weight:400;color:var(--text2);font-size:12px">· incluyen sus cargas, como se facturan al Arena</span></div>
+    ${tablaAreasFvl(S_FVL.mes || null)}
+    <div class="card" style="padding:0;overflow:auto"><div style="padding:12px 14px 4px;font-weight:600"><i class="ti ti-building-arena"></i> Shows <span style="font-weight:400;color:var(--text2);font-size:12px">· cada show completo, orientadores + sus cargas, como se le factura al Arena</span></div>
       <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th style="text-align:right">Facturado</th><th style="text-align:right">Liquidado (neto)</th><th style="text-align:right">Costo laboral</th><th style="text-align:right">Diferencia</th><th style="text-align:center">%</th></tr></thead>
       <tbody>${cuerpo || `<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:16px">No hay shows del Arena en el período.</td></tr>`}</tbody>
       <tfoot><tr style="background:var(--card2);font-weight:700"><td colspan="2">Total shows</td><td style="text-align:right">${fmt(R.shows.fact)}</td><td style="text-align:right">${fmt(R.shows.neto)}</td><td style="text-align:right">${fmt(R.shows.costo)}</td><td style="text-align:right;color:${col(R.shows.fact - R.shows.costo)}">${fmt(R.shows.fact - R.shows.costo)}</td><td style="text-align:center">${pctTxt1(R.shows.fact - R.shows.costo, R.shows.fact)}</td></tr></tfoot></table>
@@ -4514,11 +4569,43 @@ function fvlResumen(periodo) {   // periodo 'AAAA-MM', o null para todo desde el
   const shows = rentPorShow().filter(r => r.nFac && en(r.fISO));
   const sF = shows.reduce((a, r) => a + r.facturado, 0), sN = shows.reduce((a, r) => a + r.costo, 0);
   const meses = (APP.servArena || []).filter(x => x.tipo === 'mesa' && x.periodo >= RENT_DESDE.slice(0, 7) && (x.data?.personas || []).length && (!periodo || x.periodo === periodo)).map(x => x.periodo);
-  let mF = 0, mN = 0;
+  let mF = 0, mN = 0, mC = 0;
   meses.forEach(m => { const d = servData('mesa', m), n = d.personas.length, t = getTarifaMes(m)?.filas?.['MESA DE ENTRADA'] || {}, L = liqsServ('arena-mesa', m);
-    mF += (t.venta || 0) * n; mN += L.length ? L.reduce((a, l) => a + (l.total || 0), 0) : (t.sueldo || 0) * n; });
-  const fact = sF + mF, neto = sN + mN, costo = costoLaboral(sN) + costoLaboral(mN);
-  return { fact, neto, costo, dif: fact - costo, shows: { n: shows.length, fact: sF, neto: sN, costo: costoLaboral(sN) }, mesa: { meses: meses.length, fact: mF, neto: mN, costo: costoLaboral(mN) } };
+    const neto = L.length ? L.reduce((a, l) => a + (l.total || 0), 0) : (t.sueldo || 0) * n;
+    mF += (t.venta || 0) * n; mN += neto; mC += costoLaboral(neto); });
+  // el costo laboral se redondea show por show (y mes por mes) y después se suma: así todas las tablas cierran igual
+  const sC = shows.reduce((a, r) => a + costoLaboral(r.costo), 0);
+  const fact = sF + mF, neto = sN + mN, costo = sC + mC;
+  return { fact, neto, costo, dif: fact - costo, shows: { n: shows.length, fact: sF, neto: sN, costo: sC }, mesa: { meses: meses.length, fact: mF, neto: mN, costo: mC } };
+}
+
+// Por área, SIN superposición: Orientadores (shows sin sus cargas) + Cargas + Mesa de entrada = Total del Arena.
+function fvlPorArea(periodo) {
+  const R = fvlResumen(periodo), en = f => !periodo || f.slice(0, 7) === periodo;
+  const shows = rentPorShow().filter(r => r.nFac && en(r.fISO));
+  const cF = shows.reduce((a, r) => a + cargasFactDe(r.ev.id), 0), cN = shows.reduce((a, r) => a + (r.cargasCosto || 0), 0);
+  const cC = shows.reduce((a, r) => a + costoLaboral(r.cargasCosto || 0), 0);
+  const fila = (k, nombre, fact, neto, costo) => ({ k, nombre, fact, neto, costo, dif: fact - costo });
+  const areas = [
+    fila('ori', 'Orientadores', R.shows.fact - cF, R.shows.neto - cN, R.shows.costo - cC),
+    fila('cargas', 'Cargas / stagehands', cF, cN, cC),
+    fila('mesa', 'Mesa de entrada', R.mesa.fact, R.mesa.neto, R.mesa.costo),
+  ];
+  // redondeo: el costo laboral total es el de cada área sumado (así el total cierra exacto)
+  const tot = areas.reduce((a, x) => ({ fact: a.fact + x.fact, neto: a.neto + x.neto, costo: a.costo + x.costo }), { fact: 0, neto: 0, costo: 0 });
+  tot.dif = tot.fact - tot.costo;
+  return { areas, tot, nShows: shows.length };
+}
+// Liquidado (neto) del mes en las otras áreas (sin facturación en la plataforma)
+function liquidadoOtrasAreas(periodo) {
+  const liqs = APP.liquidaciones || [];
+  const mesDe = p => { const m = String(p || '').match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}` : ''; };
+  const ext = liqs.filter(l => l.area === 'Externos' && mesDe(l.periodo) === periodo).reduce((a, l) => a + (l.total || 0), 0);
+  const mesesF = getMesesFijos().filter(m => m.periodo === periodo).map(m => m.id);
+  const out = [{ nombre: 'Externos', neto: ext }];
+  (typeof LUGARES_FIJOS !== 'undefined' ? LUGARES_FIJOS : []).forEach(l => out.push({ nombre: l.nombre,
+    neto: liqs.filter(x => x.area === 'Servicios Fijos' && x.lugar_fijo === l.id && mesesF.includes(x.mes_id)).reduce((a, x) => a + (x.total || 0), 0) }));
+  return out.map(x => ({ ...x, costo: costoLaboral(x.neto) }));
 }
 const pctTxt1 = (a, b) => b ? `${(a / b * 100).toFixed(1).replace('.', ',')}%` : '—';
 
@@ -5086,7 +5173,7 @@ function htmlCargas() {
   const primero = f => wk(f)?.dias[0] === f;
   const cabSem = sem.map(w => `<th colspan="${w.dias.length}" class="gsem">${w.label}<span>${w.rango}</span></th>`).join('');
   const cabDia = dias.map(f => { const sh = showsDelDia(f), dw = dowDe(f);
-    return `<th class="gd ${dw === 0 || dw === 6 ? 'fs' : ''} ${primero(f) ? 'wk' : ''}" title="${sh.map(e => e.nombre).join(', ') || 'sin show'}">${DOW_L[dw]}<b>${+f.slice(8)}</b>${sh.length ? '<i></i>' : ''}</th>`; }).join('');
+    return `<th class="gd clk ${dw === 0 || dw === 6 ? 'fs' : ''} ${primero(f) ? 'wk' : ''}" title="${sh.map(e => e.nombre).join(', ') || 'sin show'} · tocá para ver el día" onclick="verDiaCargas('${f}')">${DOW_L[dw]}<b>${+f.slice(8)}</b>${sh.length ? '<i></i>' : ''}</th>`; }).join('');
   const filas = d.personas.map(pid => { const p = persDe(pid), fs = new Set(d.pres[pid] || []);
     return `<tr><td class="gn"><div class="gnn">${p ? esc2(nomPers(p)) : 'Persona no encontrada'}</div><div class="gns">${p?.cuil || ''}${p && !p.cbu ? ' · <span style="color:#b45309">sin CBU</span>' : ''}</div>
         ${hist ? '' : `<button class="gx" title="Quitar del mes" onclick="quitarPersServ('cargas','${pid}')"><i class="ti ti-x"></i></button>`}</td>
@@ -5151,9 +5238,14 @@ function htmlMesa() {
 }
 function grillaVacia(tipo, periodo) {
   const ant = equipoAnterior(tipo, periodo), cfg = SERV_TIPOS[tipo];
-  return `<div class="card sv-card empty-state" style="padding:28px"><i class="ti ti-users"></i><p>Todavía no hay personas en ${cfg.nombre.toLowerCase()} para ${mesLabel(periodo).toLowerCase()}.</p>
-    ${ant ? `<button class="btn btn-primary" onclick="traerEquipo('${tipo}','${periodo}')"><i class="ti ti-users-plus"></i> Usar el equipo de ${mesLabel(ant.periodo).toLowerCase()} (${ant.personas.length})</button>` : ''}
-    <p style="font-size:12px;color:var(--text2);margin-top:8px">O agregá a alguien con el botón <i class="ti ti-user-plus"></i>.</p></div>`;
+  const nombres = ant ? ant.personas.map(pid => nomPers(persDe(pid))).filter(Boolean) : [];
+  return `<div class="card sv-vacio">
+    <div class="svv-t"><i class="ti ti-users"></i><div><b>${mesLabel(periodo)} todavía no tiene equipo de ${cfg.nombre.toLowerCase()}</b>
+      <span>${ant ? `El de ${mesLabel(ant.periodo).toLowerCase()} era: ${nombres.slice(0, 4).map(esc2).join(' · ')}${nombres.length > 4 ? ` y ${nombres.length - 4} más` : ''}.` : 'Agregá a las personas que van a trabajar este mes.'}</span></div></div>
+    <div class="svv-a">
+      ${ant ? `<button class="btn btn-primary btn-sm" onclick="traerEquipo('${tipo}','${periodo}')">Usar el equipo de ${mesLabel(ant.periodo).split(' ')[0].toLowerCase()}</button>` : ''}
+      <button class="btn btn-sm" onclick="agregarPersServ('${tipo}')">Agregar persona</button>
+    </div></div>`;
 }
 
 // ── Día a día (desde octubre): equipo del mes anterior, presentes por día, valores del mes ──
@@ -5273,6 +5365,37 @@ window.toggleFeriado = async function(f) {
   const i = (APP.tarArena || []).findIndex(x => x.periodo === 'feriados'); const reg = { periodo: 'feriados', filas: cfg };
   if (i >= 0) APP.tarArena[i] = reg; else APP.tarArena.push(reg);
   render();
+};
+
+
+// Resumen de un día de cargas: qué show fue, cuántos cargas pidió el Arena, quiénes vinieron y cuánto se liquidó
+window.verDiaCargas = function(f) {
+  const periodo = f.slice(0, 7), d = servData('cargas', periodo), facs = APP.facturaciones || [], hist = esHistorico(periodo);
+  const sh = showsDelDia(f), sueldo = getTarifaMes(periodo)?.filas?.CARGAS?.sueldo || 0;
+  const items = sh.flatMap(e => facs.filter(x => x.evento_id === e.id).flatMap(x => (x.detalle?.secciones || []).flatMap(s => s.items || []))).filter(i => !i.extra && catDeRecurso(i.recurso) === 'CARGAS');
+  const tieneFact = sh.some(e => facs.some(x => x.evento_id === e.id));
+  const ped = items.reduce((a, i) => a + (i.cant || 0), 0), fact = items.reduce((a, i) => a + (i.cant || 0) * (i.valor || 0), 0);
+  const pres = d.personas.filter(pid => (d.pres[pid] || []).includes(f));
+  const liq = pres.length * sueldo, costo = costoLaboral(liq);
+  const w = semanasDelMes(periodo).find(x => x.dias.includes(f)), L = w ? liqsServ('arena-cargas', periodo).filter(l => l.detalle?.semana === w.n) : [];
+  const estSem = hist ? 'liquidada con la planilla' : !L.length ? 'semana sin liquidar' : L.every(l => l.estado === 'pagado') ? 'semana pagada' : 'semana liquidada';
+  const fila = (l, v, fuerte) => `<div class="dia-f"><span>${l}</span><b style="${fuerte ? '' : 'font-weight:500'}">${v}</b></div>`;
+  showModal(`<div class="modal" style="max-width:440px">
+    <div class="modal-t" style="text-transform:none"><i class="ti ti-calendar-event"></i> ${DIA_LARGO[dowDe(f)].charAt(0).toUpperCase() + DIA_LARGO[dowDe(f)].slice(1)} ${fd(f)}</div>
+    <div class="dia-show">${sh.length ? sh.map(e => `<b>${esc2(e.nombre)}</b>`).join(' · ') : '<span style="color:var(--text2)">Sin show del Arena este día</span>'}</div>
+    <div class="dia-box">
+      ${fila('Cargas pedidas por el Arena', sh.length ? (tieneFact ? ped : 'sin pedido todavía') : '—')}
+      ${fila('Cargas presentes', `${pres.length}${tieneFact && ped && pres.length !== ped ? ' <span style="color:#b45309">(distinto de lo pedido)</span>' : ''}`)}
+      ${pres.length ? `<div class="dia-p">${pres.map(pid => esc2(nomPers(persDe(pid)))).join('<br>')}</div>` : ''}
+    </div>
+    <div class="dia-box">
+      ${fila('Facturado al Arena (cargas)', tieneFact ? fmt(fact) : '—')}
+      ${fila(`Liquidado (neto) · ${pres.length} × ${fmt(sueldo)}`, fmt(liq))}
+      ${fila('Costo laboral (con cargas sociales)', fmt(costo))}
+      ${tieneFact ? fila('Diferencia', `<span style="color:${fact - costo >= 0 ? '#1a7a3e' : '#b45309'}">${fmt(fact - costo)}</span>`, true) : ''}
+    </div>
+    <div style="font-size:11.5px;color:var(--text2);margin-top:6px">${w ? `${w.label} (${w.rango}) · ${estSem}` : ''}</div>
+    <div class="modal-f">${!hist && !(L.length) ? `<button class="btn btn-primary" onclick="closeModal();cargarDia('${f}')"><i class="ti ti-pencil"></i> Editar presentes</button>` : ''}<button class="btn" onclick="closeModal()">Cerrar</button></div></div>`);
 };
 
 // ── Acciones ──
