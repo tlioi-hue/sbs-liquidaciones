@@ -368,6 +368,17 @@ table.cal td em.fe { color: #9a6a1c; font-size: 9.5px; font-weight: 600; }
 .tf-nota > i { color: var(--text2); font-size: 16px; margin-top: 1px; } .tf-nota span { display: block; color: var(--text2); margin-top: 3px; }
 .tf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; align-items: start; }
 .tf-card { padding: 0; overflow: hidden; } .tf-h { display: flex; justify-content: space-between; align-items: center; padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text2); }
+
+.db-legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 11.5px; color: var(--text2); margin: -4px 0 10px; }
+.db-legend b { color: var(--text); font-weight: 600; }
+.db-ah { display: flex; gap: 10px; align-items: center; padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text2); }
+.db-ah a { margin-left: auto; font-size: 12.5px; }
+.db-total { font-size: 12.5px; color: var(--text2); margin: -4px 0 14px; text-align: right; } .db-total b { color: var(--text); }
+.metric.clk-k { cursor: pointer; } .metric.clk-k:hover { border-color: var(--text2); } .metric.clk-k u { text-decoration-color: #9aa19d; }
+.inf-tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+.inf-tab { font: inherit; font-size: 13px; font-weight: 500; background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 14px; cursor: pointer; color: var(--text2); margin-bottom: -1px; }
+.inf-tab:hover { color: var(--text); } .inf-tab.on { color: var(--text); border-bottom-color: #1f2421; font-weight: 600; } .inf-tab.anual { margin-left: auto; } .inf-tab.anual ~ .inf-tab.anual { margin-left: 0; }
+.inf-tab i { font-size: 12px; color: #1a7a3e; }
 </style>
 </head>
 <body>
@@ -845,9 +856,11 @@ async function pgDB(el) {
       </div>
       <div style="display:flex;flex-direction:column;gap:14px">
         <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px"><div style="font-weight:600">Por pagar</div><div style="font-size:12px;color:var(--text2)">liquidaciones aprobadas, neto</div></div>
-          ${aprob.length ? Object.entries(porArea).sort((a, b) => b[1].t - a[1].t).map(([k, v]) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px"><span>${esc2(k)} <span style="color:var(--text2)">· ${v.n}</span></span><b>${fmt(v.t)}</b></div>`).join('')
-            + `<div style="display:flex;justify-content:space-between;padding-top:7px;font-size:13px"><b>Total</b><b>${fmt(totPagar)}</b></div>` : '<div style="font-size:12.5px;color:var(--text2)">No hay liquidaciones pendientes de pago.</div>'}
+          <div style="font-weight:600">Liquidaciones sin pagar</div>
+          <div style="font-size:12px;color:var(--text2);margin:2px 0 8px">Ya liquidadas y aprobadas, pero todavía no marcadas como pagadas: es lo que falta transferir (neto).</div>
+          ${aprob.length ? Object.entries(porArea).sort((a, b) => b[1].t - a[1].t).map(([k, v]) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px">
+              <span><span class="chip ${/^cargas$|^mesa de entrada$/i.test(k) ? 'chip-arena' : chipClaseArea(k)}" style="font-size:11px">${esc2(k)}</span> <span style="color:var(--text2)">${v.n} ${v.n !== 1 ? 'liquidaciones' : 'liquidación'}</span></span><b>${fmt(v.t)}</b></div>`).join('')
+            + `<div style="display:flex;justify-content:space-between;padding-top:7px;font-size:13px"><b>Total a transferir</b><b>${fmt(totPagar)}</b></div>` : '<div style="font-size:12.5px;color:#1a7a3e"><i class="ti ti-circle-check"></i> No hay liquidaciones pendientes de pago.</div>'}
         </div>
         <div class="card">
           <div style="font-weight:600;margin-bottom:10px">Accesos rápidos</div>
@@ -868,22 +881,34 @@ async function pgDB(el) {
 
 function tablaAreasDB(mes) {
   const A = fvlPorArea(mes), otras = liquidadoOtrasAreas(mes), col = g => g >= 0 ? '#1a7a3e' : '#b45309', cp = pctCargasSoc();
-  const fila = (nombre, x, conFact, sub = '') => `<tr><td>${nombre}${sub ? `<div style="font-size:11px;color:var(--text2)">${sub}</div>` : ''}</td>
-    <td style="text-align:right">${conFact ? fmt(x.fact) : '<span style="color:var(--text2)">—</span>'}</td><td style="text-align:right">${fmt(x.neto)}</td><td style="text-align:right">${fmt(x.costo)}</td>
-    <td style="text-align:right;font-weight:600;${conFact ? `color:${col(x.dif)}` : ''}">${conFact ? fmt(x.dif) : '<span style="color:var(--text2);font-weight:400">—</span>'}</td><td style="text-align:center">${conFact ? pctTxt1(x.dif, x.fact) : ''}</td></tr>`;
-  const otrasTot = otras.reduce((a, x) => ({ neto: a.neto + x.neto, costo: a.costo + x.costo }), { neto: 0, costo: 0 });
-  return `<div class="card" style="padding:0;overflow:auto;margin-bottom:14px">
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px 6px"><div style="font-weight:600">Por área · ${mesLabel(mes)}</div>
-      <a href="#" onclick="S_FVL.mes='${mes}';go('rentabilidad');return false" style="font-size:12.5px">Ver detalle del Arena →</a></div>
-    <table class="tbl"><thead><tr><th>Área</th><th style="text-align:right">Facturado</th><th style="text-align:right">Liquidado (neto)</th><th style="text-align:right" title="neto + ${cp}% de cargas sociales">Costo laboral</th><th style="text-align:right">Diferencia</th><th style="text-align:center">%</th></tr></thead><tbody>
-      <tr style="background:var(--card2)"><td colspan="6" style="font-weight:600;font-size:12px"><span class="chip chip-arena" style="font-size:10.5px">Movistar Arena</span> ${A.nShows} show${A.nShows !== 1 ? 's' : ''} facturado${A.nShows !== 1 ? 's' : ''}</td></tr>
-      ${A.areas.map(x => fila(`&nbsp;&nbsp;${x.nombre}`, x, true, x.k === 'ori' ? 'shows, sin sus cargas' : x.k === 'cargas' ? 'facturadas en el pedido de cada show' : 'servicio mensual')).join('')}
-      <tr style="font-weight:700"><td>&nbsp;&nbsp;Total Movistar Arena</td><td style="text-align:right">${fmt(A.tot.fact)}</td><td style="text-align:right">${fmt(A.tot.neto)}</td><td style="text-align:right">${fmt(A.tot.costo)}</td><td style="text-align:right;color:${col(A.tot.dif)}">${fmt(A.tot.dif)}</td><td style="text-align:center">${pctTxt1(A.tot.dif, A.tot.fact)}</td></tr>
-      <tr style="background:var(--card2)"><td colspan="6" style="font-weight:600;font-size:12px">Otras áreas <span style="font-weight:400;color:var(--text2)">· la facturación se hace fuera de la plataforma</span></td></tr>
-      ${otras.map(x => fila(`&nbsp;&nbsp;${x.nombre}`, x, false)).join('')}
-      <tr style="font-weight:700"><td>&nbsp;&nbsp;Total otras áreas</td><td></td><td style="text-align:right">${fmt(otrasTot.neto)}</td><td style="text-align:right">${fmt(otrasTot.costo)}</td><td></td><td></td></tr>
-    </tbody><tfoot><tr style="background:var(--card2);font-weight:700"><td>Total liquidado del mes</td><td></td><td style="text-align:right">${fmt(A.tot.neto + otrasTot.neto)}</td><td style="text-align:right">${fmt(A.tot.costo + otrasTot.costo)}</td><td></td><td></td></tr></tfoot></table>
-    <div style="padding:6px 14px 10px;font-size:11.5px;color:var(--text2)">Sin IVA. Orientadores + Cargas + Mesa de entrada = Total del Arena (las cargas se muestran una sola vez). Externos y Servicios Fijos: lo liquidado del mes.</div></div>`;
+  const cab = conFact => `<thead><tr><th>${conFact ? 'Servicio' : 'Lugar'}</th>${conFact ? '<th style="text-align:right">Facturado</th>' : ''}<th style="text-align:right" title="Lo que se le transfiere a la gente">Pagado (neto)</th><th style="text-align:right" title="Pagado + ${cp}% de cargas sociales: lo que le cuesta a SBS">Costo real</th>${conFact ? '<th style="text-align:right">Diferencia</th><th style="text-align:center">%</th>' : ''}</tr></thead>`;
+  const filaA = (x, sub) => `<tr><td>${x.nombre}<div style="font-size:11px;color:var(--text2)">${sub}</div></td><td style="text-align:right">${fmt(x.fact)}</td><td style="text-align:right">${fmt(x.neto)}</td><td style="text-align:right">${fmt(x.costo)}</td>
+    <td style="text-align:right;font-weight:600;color:${col(x.dif)}">${fmt(x.dif)}</td><td style="text-align:center">${pctTxt1(x.dif, x.fact)}</td></tr>`;
+  const ext = otras.find(x => x.nombre === 'Externos') || { neto: 0, costo: 0 }, fijos = otras.filter(x => x.nombre !== 'Externos');
+  const totF = fijos.reduce((a, x) => ({ neto: a.neto + x.neto, costo: a.costo + x.costo }), { neto: 0, costo: 0 });
+  const nExt = (APP.liquidaciones || []).filter(l => l.area === 'Externos' && String(l.periodo || '').includes(`/${mes.slice(5, 7)}/${mes.slice(0, 4)}`)).length;
+  return `
+  <div class="db-legend"><span><b>Pagado (neto):</b> lo que se le transfiere a la gente.</span><span><b>Costo real:</b> lo pagado + ${cp}% de cargas sociales, lo que le cuesta a SBS.</span><span><b>Diferencia:</b> facturado − costo real, antes de impuestos.</span></div>
+  <div class="card db-area" style="padding:0;overflow:auto;margin-bottom:14px">
+    <div class="db-ah"><span class="chip chip-arena">Movistar Arena</span><span>${A.nShows} show${A.nShows !== 1 ? 's' : ''} facturado${A.nShows !== 1 ? 's' : ''} en ${mesLabel(mes).toLowerCase()}</span>
+      <a href="#" onclick="S_FVL.mes='${mes}';go('rentabilidad');return false">Ver detalle →</a></div>
+    <table class="tbl">${cab(true)}<tbody>
+      ${filaA(A.areas[0], 'shows, sin sus cargas')}${filaA(A.areas[1], 'facturadas en el pedido de cada show')}${filaA(A.areas[2], 'servicio mensual')}
+    </tbody><tfoot><tr style="font-weight:700;background:var(--card2)"><td>Total Movistar Arena</td><td style="text-align:right">${fmt(A.tot.fact)}</td><td style="text-align:right">${fmt(A.tot.neto)}</td><td style="text-align:right">${fmt(A.tot.costo)}</td>
+      <td style="text-align:right;color:${col(A.tot.dif)}">${fmt(A.tot.dif)}</td><td style="text-align:center">${pctTxt1(A.tot.dif, A.tot.fact)}</td></tr></tfoot></table>
+  </div>
+  <div class="grid2" style="align-items:start;margin-bottom:14px">
+    <div class="card db-area" style="padding:0;overflow:auto">
+      <div class="db-ah"><span class="chip chip-ext">Externos</span><span>${nExt} ${nExt !== 1 ? 'liquidaciones' : 'liquidación'} en el mes · la facturación va por fuera de la plataforma</span><a href="#" onclick="go('externos');return false">Ver →</a></div>
+      <table class="tbl">${cab(false)}<tbody><tr><td>Eventos externos</td><td style="text-align:right">${fmt(ext.neto)}</td><td style="text-align:right">${fmt(ext.costo)}</td></tr></tbody></table>
+    </div>
+    <div class="card db-area" style="padding:0;overflow:auto">
+      <div class="db-ah"><span class="chip chip-fijos">Servicios Fijos</span><span>la facturación va por fuera de la plataforma</span><a href="#" onclick="go('fijos');return false">Ver →</a></div>
+      <table class="tbl">${cab(false)}<tbody>${fijos.map(x => `<tr><td><span class="chip ${chipClaseArea(x.nombre)}" style="font-size:11px">${x.nombre}</span></td><td style="text-align:right">${fmt(x.neto)}</td><td style="text-align:right">${fmt(x.costo)}</td></tr>`).join('')}</tbody>
+      <tfoot><tr style="font-weight:700;background:var(--card2)"><td>Total Servicios Fijos</td><td style="text-align:right">${fmt(totF.neto)}</td><td style="text-align:right">${fmt(totF.costo)}</td></tr></tfoot></table>
+    </div>
+  </div>
+  <div class="db-total">Total pagado en ${mesLabel(mes).toLowerCase()}, todas las áreas: <b>${fmt(A.tot.neto + ext.neto + totF.neto)}</b> neto · <b>${fmt(A.tot.costo + ext.costo + totF.costo)}</b> de costo real</div>`;
 }
 window.dbTab = function() {};   // (se mantiene por compatibilidad: el dashboard ya no tiene pestañas)
 
@@ -1273,24 +1298,49 @@ window.combinarDuplicados = async function() {
 // ══════════════════════════════════════════════
 // TARIFARIO
 // ══════════════════════════════════════════════
+const S_TAR = { area: '', q: '' };
 async function pgTarifario(el, ac) {
   if (APP.rol !== 'rrhh') { el.innerHTML = '<div class="alert alert-warn"><i class="ti ti-lock"></i> Sin acceso</div>'; return; }
   await fetchAll();
   ac.innerHTML = `<button class="btn btn-primary" onclick="modalTarifa()"><i class="ti ti-plus"></i> Agregar posición</button>`;
-  const tar = APP.tarifario || [];
-  const areas = [...new Set(tar.map(t => t.area || 'General'))].sort((a, b) => ordenArea(a) - ordenArea(b) || a.localeCompare(b));
+  renderTarifarioUI(el);
+}
+function renderTarifarioUI(el) {
+  el = el || document.getElementById('content');
+  const tar = APP.tarifario || [], areaT = t => t.area || 'General';
+  const areas = [...new Set(tar.map(areaT))].sort((a, b) => ordenArea(a) - ordenArea(b) || a.localeCompare(b));
   el.innerHTML = `
     <div class="tf-nota"><i class="ti ti-info-circle"></i><div><b>Tarifario de liquidación:</b> lo que se le paga a cada posición por jornada. Si actualizás un monto, las jornadas nuevas usan el valor nuevo; las liquidaciones ya generadas no cambian.
       <span>Los valores mensuales del Arena por paritarias (venta al Arena y sueldo de cargas y mesa de entrada) están en <a href="#" onclick="S_PROY.tab='tar';go('proyecciones');return false">Tarifario mensual del Arena</a>.</span></div></div>
-    ${!tar.length ? '<div class="card"><div class="empty-state"><i class="ti ti-list-check"></i><p>Sin posiciones.</p></div></div>' :
-      `<div class="tf-grid">${areas.map(a => { const fil = tar.filter(t => (t.area || 'General') === a).sort((x, y) => String(x.posicion).localeCompare(String(y.posicion), 'es'));
-        const finde = fil.some(t => t.monto_finde);
-        return `<div class="card tf-card"><div class="tf-h"><span class="chip ${chipClaseArea(a)}">${esc2(a)}</span><span>${fil.length} ${fil.length !== 1 ? 'posiciones' : 'posición'}</span></div>
-          <table class="tbl"><thead><tr><th>Posición</th><th style="text-align:right">${finde ? 'Semana' : '$ por jornada'}</th>${finde ? '<th style="text-align:right">Fin de semana</th>' : ''}<th style="text-align:right">Actualizado</th><th></th></tr></thead>
-          <tbody>${fil.map(t => `<tr><td><strong>${esc2(t.posicion)}</strong></td><td style="text-align:right;font-weight:600">${fmt(t.monto)}</td>${finde ? `<td style="text-align:right">${t.monto_finde ? fmt(t.monto_finde) : '—'}</td>` : ''}
-            <td style="text-align:right;font-size:11.5px;color:var(--text2)">${t.updated_at ? new Date(t.updated_at).toLocaleDateString('es-AR') : '—'}</td>
-            <td style="text-align:right;white-space:nowrap"><button class="btn btn-sm" onclick="modalTarifa('${t.id}')" title="Editar"><i class="ti ti-edit"></i></button> <button class="btn btn-sm btn-danger" onclick="delTarifa('${t.id}')" title="Borrar"><i class="ti ti-trash"></i></button></td></tr>`).join('')}</tbody></table></div>`; }).join('')}</div>`}`;
+    <div class="pf-bar">
+      <input type="text" id="buscar-t" placeholder="Buscar posición" value="${esc2(S_TAR.q)}" oninput="S_TAR.q=this.value;filtrarTar()">
+      <div class="pf-chips">
+        <button class="pchipf ${!S_TAR.area ? 'on' : ''}" onclick="S_TAR.area='';renderTarifarioUI()">Todas <b>${tar.length}</b></button>
+        ${areas.map(a => `<button class="pchipf ${S_TAR.area === a ? 'on' : ''}" onclick="S_TAR.area='${a.replace(/'/g, "\\'")}';renderTarifarioUI()">${esc2(a)} <b>${tar.filter(t => areaT(t) === a).length}</b></button>`).join('')}
+      </div>
+      <span style="flex:1"></span><span id="t-cuenta" style="font-size:12px;color:var(--text2)"></span>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden" id="tabla-t"></div>`;
+  filtrarTar();
 }
+window.filtrarTar = function() {
+  const el = document.getElementById('tabla-t'); if (!el) return;
+  const q = normTxt(S_TAR.q || ''), areaT = t => t.area || 'General';
+  const lista = (APP.tarifario || []).filter(t => (!S_TAR.area || areaT(t) === S_TAR.area) && (!q || normTxt(t.posicion).includes(q)))
+    .sort((a, b) => ordenArea(areaT(a)) - ordenArea(areaT(b)) || areaT(a).localeCompare(areaT(b)) || String(a.posicion).localeCompare(String(b.posicion), 'es'));
+  const c = document.getElementById('t-cuenta'); if (c) c.textContent = `${lista.length} ${lista.length !== 1 ? 'posiciones' : 'posición'}`;
+  if (!lista.length) { el.innerHTML = '<div class="empty-state"><i class="ti ti-list-check"></i><p>Sin resultados</p></div>'; return; }
+  const finde = lista.some(t => t.monto_finde);
+  let ant = null, filas = '';
+  lista.forEach(t => {
+    const a = areaT(t);
+    if (a !== ant) { ant = a; filas += `<tr class="p-grupo"><td colspan="${finde ? 5 : 4}"><span class="chip ${chipClaseArea(a)}">${esc2(a)}</span> <span>${lista.filter(x => areaT(x) === a).length}</span></td></tr>`; }
+    filas += `<tr><td><strong>${esc2(t.posicion)}</strong></td><td style="text-align:right;font-weight:600">${fmt(t.monto)}</td>${finde ? `<td style="text-align:right">${t.monto_finde ? fmt(t.monto_finde) : '<span style="color:var(--text2)">—</span>'}</td>` : ''}
+      <td style="text-align:right;font-size:11.5px;color:var(--text2)">${t.updated_at ? new Date(t.updated_at).toLocaleDateString('es-AR') : '—'}</td>
+      <td style="text-align:right;white-space:nowrap"><button class="btn btn-sm" onclick="modalTarifa('${t.id}')" title="Editar"><i class="ti ti-edit"></i></button> <button class="btn btn-sm btn-danger" onclick="delTarifa('${t.id}')" title="Borrar"><i class="ti ti-trash"></i></button></td></tr>`;
+  });
+  el.innerHTML = `<table class="p-tabla"><thead><tr><th>Posición</th><th style="text-align:right">$ por jornada${finde ? ' (semana)' : ''}</th>${finde ? '<th style="text-align:right">Fin de semana</th>' : ''}<th style="text-align:right">Actualizado</th><th></th></tr></thead><tbody>${filas}</tbody></table>`;
+};
 
 window.modalTarifa = function(id) {
   const t = id ? APP.tarifario.find(x => x.id === id) : null;
@@ -4244,13 +4294,55 @@ function rentPorShow() {
 }
 
 // Facturación vs Liquidación de Arena: ganancia neta por show (facturado sin IVA − costo).
+
+// ── Desglose del costo real: qué hay adentro del "pagado (neto)" y cuánto suman las cargas sociales ──
+function desgloseCosto(rs, mesaNeto = 0, mesaCosto = null) {
+  let pedido = 0, backups = 0, coord = 0, cargas = 0, nBk = 0, nCoord = 0, nCargas = 0;
+  rs.forEach(r => {
+    const bk = r.backupsCosto || 0, co = r.coord?.monto || 0, cg = r.cargasCosto || 0;
+    pedido += (r.costo || 0) - bk - co - cg; backups += bk; coord += co; cargas += cg;
+    nBk += r.backups || 0; nCoord += r.coord?.cant || 0; nCargas += r.posiciones?.['Cargas / stagehands']?.cant || 0;
+  });
+  const L = [
+    ['Personal del pedido', 'orientadores, supervisores, recepción y demás puestos facturados', pedido],
+    ['Back-ups', `${nBk} persona${nBk !== 1 ? 's' : ''} por encima del pedido · se pagan, no se facturan`, backups],
+    ['Coordinación', `${nCoord} jornada${nCoord !== 1 ? 's' : ''} · a cargo de SBS, no se factura`, coord],
+    ['Cargas / stagehands', 'facturadas y liquidadas por show', cargas],
+  ];
+  if (mesaNeto) L.push(['Mesa de entrada', 'servicio mensual', mesaNeto]);
+  const out = L.filter(x => x[2]).map(([n, d, v]) => ({ n, d, neto: Math.round(v), costo: costoLaboral(v) }));
+  // mismo criterio que el resumen: el costo real se redondea show por show y después se suma
+  const meta = rs.reduce((a, r) => a + costoLaboral(r.costo || 0), 0) + (mesaCosto ?? costoLaboral(mesaNeto));
+  if (out.length) out[0].costo += meta - out.reduce((a, x) => a + x.costo, 0);   // cierre exacto con el total
+  return out;
+}
+function modalDesglose(titulo, sub, lineas, fact) {
+  const cp = pctCargasSoc(), tN = lineas.reduce((a, x) => a + x.neto, 0), tC = lineas.reduce((a, x) => a + x.costo, 0), col = g => g >= 0 ? '#1a7a3e' : '#b45309';
+  showModal(`<div class="modal" style="max-width:640px">
+    <div class="modal-t"><i class="ti ti-receipt"></i> ${titulo}</div><div class="modal-s">${sub}</div>
+    <table class="tbl" style="margin-top:10px"><thead><tr><th>Concepto</th><th style="text-align:right">Pagado (neto)</th><th style="text-align:right">+ ${cp}% cargas sociales</th><th style="text-align:right">Costo real</th></tr></thead>
+    <tbody>${lineas.map(x => `<tr><td><b>${x.n}</b><div style="font-size:11px;color:var(--text2)">${x.d}</div></td><td style="text-align:right">${fmt(x.neto)}</td><td style="text-align:right;color:var(--text2)">${fmt(x.costo - x.neto)}</td><td style="text-align:right;font-weight:600">${fmt(x.costo)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr style="font-weight:700;background:var(--card2)"><td>Total</td><td style="text-align:right">${fmt(tN)}</td><td style="text-align:right">${fmt(tC - tN)}</td><td style="text-align:right">${fmt(tC)}</td></tr>
+      ${fact != null ? `<tr><td>Facturado (sin IVA)</td><td colspan="3" style="text-align:right">${fmt(fact)}</td></tr><tr style="font-weight:700"><td>Diferencia (facturado − costo real)</td><td colspan="3" style="text-align:right;color:${col(fact - tC)}">${fmt(fact - tC)} · ${pctTxt1(fact - tC, fact)}</td></tr>` : ''}</tfoot></table>
+    <div style="font-size:11.5px;color:var(--text2);margin-top:8px"><b>Pagado (neto):</b> lo que se le transfiere a la gente. <b>Costo real:</b> lo pagado + ${cp}% de cargas sociales (aportes y contribuciones que paga SBS). Es el costo antes de impuestos; el resultado neto está en Informes a socios.</div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cerrar</button></div></div>`);
+}
+window.verDesgloseCosto = function() {
+  const per = S_FVL.mes || null, rs = rentPorShow().filter(r => r.nFac && (!per || r.fISO.slice(0, 7) === per)), R = fvlResumen(per);
+  modalDesglose('¿Qué es el costo real?', `${per ? mesLabel(per) : 'Todos los meses'} · ${rs.length} shows${R.mesa.meses ? ' + mesa de entrada' : ''}`, desgloseCosto(rs, R.mesa.neto, R.mesa.costo), R.fact);
+};
+window.verCostoShow = function(evId) {
+  const r = rentPorShow().find(x => x.ev.id === evId); if (!r) return;
+  modalDesglose(`${r.ev.nombre} · ${fd(r.fISO)}`, `${r.nFac ? 'Facturado y liquidado' : 'Sin facturación guardada'}${r.estimado ? ' · costo estimado (quincena abierta)' : ''}`, desgloseCosto([r]), r.nFac ? r.facturado : null);
+};
+
 const S_FVL = { mes: '' };
 
 function tablaAreasFvl(periodo) {
   const A = fvlPorArea(periodo), col = g => g >= 0 ? '#1a7a3e' : '#b45309';
   const f = x => `<td style="text-align:right">${fmt(x.fact)}</td><td style="text-align:right">${fmt(x.neto)}</td><td style="text-align:right">${fmt(x.costo)}</td><td style="text-align:right;font-weight:600;color:${col(x.dif)}">${fmt(x.dif)}</td><td style="text-align:center">${pctTxt1(x.dif, x.fact)}</td>`;
   return `<div class="card" style="padding:0;overflow:auto;margin-bottom:14px"><div style="padding:12px 14px 4px;font-weight:600"><i class="ti ti-chart-pie"></i> Por área <span style="font-weight:400;color:var(--text2);font-size:12px">· cada peso aparece una sola vez</span></div>
-    <table class="tbl"><thead><tr><th>Área</th><th style="text-align:right">Facturado</th><th style="text-align:right">Liquidado (neto)</th><th style="text-align:right">Costo laboral</th><th style="text-align:right">Diferencia</th><th style="text-align:center">%</th></tr></thead>
+    <table class="tbl"><thead><tr><th>Área</th><th style="text-align:right">Facturado</th><th style="text-align:right">Pagado (neto)</th><th style="text-align:right">Costo real</th><th style="text-align:right">Diferencia</th><th style="text-align:center">%</th></tr></thead>
     <tbody>${A.areas.map(x => `<tr><td><strong>${x.nombre}</strong><div style="font-size:11px;color:var(--text2)">${x.k === 'ori' ? 'shows, sin sus cargas' : x.k === 'cargas' ? 'facturadas y liquidadas por show' : 'servicio mensual'}</div></td>${f(x)}</tr>`).join('')}</tbody>
     <tfoot><tr style="background:var(--card2);font-weight:700"><td>Total Movistar Arena</td>${f(A.tot)}</tr></tfoot></table>
     <div style="padding:6px 14px 10px;font-size:11.5px;color:var(--text2)">Orientadores + Cargas + Mesa de entrada = Total. Más abajo, la tabla de shows muestra cada show completo (con sus cargas) y la de cargas es solo el detalle: no se suman de nuevo.</div></div>`;
@@ -4272,7 +4364,7 @@ async function pgRentabilidad(el, ac) {
     const tF = fac.reduce((a, r) => a + r.facturado, 0), tN = fac.reduce((a, r) => a + r.costo, 0), tC = fac.reduce((a, r) => a + costoLaboral(r.costo), 0);
     cuerpo += `<tr style="background:var(--card2)"><td colspan="7" style="font-weight:600">${mesLabel(m)}</td></tr>` + fm.map(r => {
       const c = costoLaboral(r.costo), d = r.facturado - c;
-      return `<tr><td style="white-space:nowrap">${fd(r.fISO)}</td>
+      return `<tr class="clic" onclick="verCostoShow('${r.ev.id}')" title="Ver el detalle del costo"><td style="white-space:nowrap">${fd(r.fISO)}</td>
         <td><strong>${r.ev.nombre}</strong>${!r.nFac ? ' <span class="badge bw" style="font-size:10px" title="todavía no guardaste la facturación">sin facturar</span>' : ''}${r.estimado ? ' <span class="badge bi" style="font-size:10px" title="quincena abierta: costo según presentismo × tarifario">estimado</span>' : ''}</td>
         <td style="text-align:right">${r.nFac ? fmt(r.facturado) : '—'}</td><td style="text-align:right">${fmt(r.costo)}</td><td style="text-align:right">${fmt(c)}</td>
         <td style="text-align:right;font-weight:600;color:${col(d)}">${r.nFac ? fmt(d) : '—'}</td><td style="text-align:center">${r.nFac ? pctTxt1(d, r.facturado) : '—'}</td></tr>`; }).join('')
@@ -4282,22 +4374,22 @@ async function pgRentabilidad(el, ac) {
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:14px">
       <div><h2 style="margin:0">Facturación vs Liquidación</h2>
-        <div style="color:var(--text2);font-size:12.5px">Lo facturado al Arena <strong>sin IVA</strong> contra el <strong>costo laboral</strong> (lo liquidado a la gente + ${cp}% de cargas sociales). La diferencia es antes de impuestos: el resultado neto está en <a href="#" onclick="go('informes');return false">Informes a socios</a>.</div></div>
+        <div style="color:var(--text2);font-size:12.5px">Lo facturado al Arena <strong>sin IVA</strong> contra el <strong>costo real</strong> (lo liquidado a la gente + ${cp}% de cargas sociales). La diferencia es antes de impuestos: el resultado neto está en <a href="#" onclick="go('informes');return false">Informes a socios</a>.</div></div>
       <select onchange="S_FVL.mes=this.value;render()" style="width:auto;font-size:13px;padding:6px 9px"><option value="">Todos los meses</option>${meses.map(m => `<option value="${m}" ${m === S_FVL.mes ? 'selected' : ''}>${mesLabel(m)}</option>`).join('')}</select>
     </div>
     <div class="grid4" style="margin-bottom:16px">
       ${kpi('Facturado (sin IVA)', fmt(R.fact), `${R.shows.n} shows${R.mesa.meses ? ' + mesa de entrada' : ''}`)}
-      ${kpi('Liquidado (neto)', fmt(R.neto), 'lo pagado a la gente')}
-      ${kpi('Costo laboral', fmt(R.costo), `neto + ${cp}% de cargas sociales`)}
+      ${kpi('Pagado (neto)', fmt(R.neto), 'lo pagado a la gente')}
+      <div class="metric clk-k" onclick="verDesgloseCosto()" title="Ver de qué se compone"><div class="metric-l">Costo real <i class="ti ti-info-circle"></i></div><div class="metric-v" style="font-size:18px">${fmt(R.costo)}</div><div class="metric-s">pagado + ${cp}% de cargas sociales · <u>ver detalle</u></div></div>
       ${kpi('Diferencia', fmt(R.dif), `${pctTxt1(R.dif, R.fact)} de lo facturado`, col(R.dif))}
     </div>
     ${tablaAreasFvl(S_FVL.mes || null)}
     <div class="card" style="padding:0;overflow:auto"><div style="padding:12px 14px 4px;font-weight:600"><i class="ti ti-building-arena"></i> Shows <span style="font-weight:400;color:var(--text2);font-size:12px">· cada show completo, orientadores + sus cargas, como se le factura al Arena</span></div>
-      <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th style="text-align:right">Facturado</th><th style="text-align:right">Liquidado (neto)</th><th style="text-align:right">Costo laboral</th><th style="text-align:right">Diferencia</th><th style="text-align:center">%</th></tr></thead>
+      <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th style="text-align:right">Facturado</th><th style="text-align:right" title="Lo que se le transfiere a la gente">Pagado (neto)</th><th style="text-align:right" title="Pagado + cargas sociales: lo que le cuesta a SBS">Costo real <i class="ti ti-info-circle"></i></th><th style="text-align:right">Diferencia</th><th style="text-align:center">%</th></tr></thead>
       <tbody>${cuerpo || `<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:16px">No hay shows del Arena en el período.</td></tr>`}</tbody>
       <tfoot><tr style="background:var(--card2);font-weight:700"><td colspan="2">Total shows</td><td style="text-align:right">${fmt(R.shows.fact)}</td><td style="text-align:right">${fmt(R.shows.neto)}</td><td style="text-align:right">${fmt(R.shows.costo)}</td><td style="text-align:right;color:${col(R.shows.fact - R.shows.costo)}">${fmt(R.shows.fact - R.shows.costo)}</td><td style="text-align:center">${pctTxt1(R.shows.fact - R.shows.costo, R.shows.fact)}</td></tr></tfoot></table>
       ${sinFac.length ? `<div style="padding:8px 14px;font-size:12px;color:#b45309">${sinFac.length} show${sinFac.length > 1 ? 's' : ''} sin facturación guardada: no ${sinFac.length > 1 ? 'entran' : 'entra'} en los totales hasta que se facture${sinFac.length > 1 ? 'n' : ''}.</div>` : ''}
-      <div style="padding:0 14px 10px;font-size:11.5px;color:var(--text2)">Liquidado: orientadores, supervisores, coordinador, back-ups y cargas de ese día. "Estimado": la quincena sigue abierta y el costo sale del presentismo × tarifario; al cerrarla pasa a usar lo liquidado.</div></div>
+      <div style="padding:0 14px 10px;font-size:11.5px;color:var(--text2)">Tocá un show para ver su costo en detalle. Pagado: orientadores, supervisores, coordinador, back-ups y cargas de ese día. "Estimado": la quincena sigue abierta y el costo sale del presentismo × tarifario; al cerrarla pasa a usar lo liquidado.</div></div>
     ${htmlFvlMesa(S_FVL.mes)}
     ${htmlFvlCargas(S_FVL.mes)}`;
 }
@@ -4558,9 +4650,9 @@ window.guardarShowArena = async function(evId) {
 // ══════════════════════════════════════════════
 // CRITERIO ÚNICO de la app (todas las pantallas usan esto):
 //  · Facturado: sin IVA. El IVA solo aparece en Facturación.
-//  · Liquidado (neto): lo que se le paga a la gente.
-//  · Costo laboral: liquidado + cargas sociales de la estructura de costos.
-//  · Diferencia: facturado − costo laboral (antes de impuestos). El resultado neto está solo en Informes a socios.
+//  · Pagado (neto): lo que se le paga a la gente.
+//  · Costo real: liquidado + cargas sociales de la estructura de costos.
+//  · Diferencia: facturado − costo real (antes de impuestos). El resultado neto está solo en Informes a socios.
 // ══════════════════════════════════════════════
 const pctCargasSoc = () => (getEstructura().cargas || []).reduce((a, c) => a + (+c.pct || 0), 0);
 const costoLaboral = neto => Math.round((neto || 0) * (1 + pctCargasSoc() / 100));
@@ -4573,7 +4665,7 @@ function fvlResumen(periodo) {   // periodo 'AAAA-MM', o null para todo desde el
   meses.forEach(m => { const d = servData('mesa', m), n = d.personas.length, t = getTarifaMes(m)?.filas?.['MESA DE ENTRADA'] || {}, L = liqsServ('arena-mesa', m);
     const neto = L.length ? L.reduce((a, l) => a + (l.total || 0), 0) : (t.sueldo || 0) * n;
     mF += (t.venta || 0) * n; mN += neto; mC += costoLaboral(neto); });
-  // el costo laboral se redondea show por show (y mes por mes) y después se suma: así todas las tablas cierran igual
+  // el costo real se redondea show por show (y mes por mes) y después se suma: así todas las tablas cierran igual
   const sC = shows.reduce((a, r) => a + costoLaboral(r.costo), 0);
   const fact = sF + mF, neto = sN + mN, costo = sC + mC;
   return { fact, neto, costo, dif: fact - costo, shows: { n: shows.length, fact: sF, neto: sN, costo: sC }, mesa: { meses: meses.length, fact: mF, neto: mN, costo: mC } };
@@ -4591,12 +4683,12 @@ function fvlPorArea(periodo) {
     fila('cargas', 'Cargas / stagehands', cF, cN, cC),
     fila('mesa', 'Mesa de entrada', R.mesa.fact, R.mesa.neto, R.mesa.costo),
   ];
-  // redondeo: el costo laboral total es el de cada área sumado (así el total cierra exacto)
+  // redondeo: el costo real total es el de cada área sumado (así el total cierra exacto)
   const tot = areas.reduce((a, x) => ({ fact: a.fact + x.fact, neto: a.neto + x.neto, costo: a.costo + x.costo }), { fact: 0, neto: 0, costo: 0 });
   tot.dif = tot.fact - tot.costo;
   return { areas, tot, nShows: shows.length };
 }
-// Liquidado (neto) del mes en las otras áreas (sin facturación en la plataforma)
+// Pagado (neto) del mes en las otras áreas (sin facturación en la plataforma)
 function liquidadoOtrasAreas(periodo) {
   const liqs = APP.liquidaciones || [];
   const mesDe = p => { const m = String(p || '').match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}` : ''; };
@@ -4644,7 +4736,7 @@ function htmlFvlCargas(filtro) {
       <tr style="font-weight:600"><td colspan="4" style="text-align:right;color:var(--text2)">Subtotal ${mesLabel(m).toLowerCase()}</td><td style="text-align:right">${fmt(mF)}</td><td></td><td style="text-align:right">${fmt(mC)}</td><td style="text-align:right;color:${col(mF - mC)}">${fmt(mF - mC)}</td></tr>`;
   });
   return `<div class="card" style="padding:0;overflow:auto;margin-top:16px"><div style="padding:12px 14px 4px;font-weight:600"><i class="ti ti-truck"></i> Detalle de cargas / stagehands <span style="font-weight:400;color:var(--text2);font-size:12px">· ya incluidas en los shows de arriba</span></div>
-    <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th style="text-align:center" title="Cargas del pedido del Arena">Pedidos</th><th style="text-align:center">Presentes</th><th style="text-align:right">Facturado</th><th style="text-align:right">Liquidado (neto)</th><th style="text-align:right" title="Neto + cargas sociales (${cp}%)">Costo laboral</th><th style="text-align:right">Diferencia</th></tr></thead>
+    <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th style="text-align:center" title="Cargas del pedido del Arena">Pedidos</th><th style="text-align:center">Presentes</th><th style="text-align:right">Facturado</th><th style="text-align:right">Pagado (neto)</th><th style="text-align:right" title="Neto + cargas sociales (${cp}%)">Costo real</th><th style="text-align:right">Diferencia</th></tr></thead>
     <tbody>${cuerpo}</tbody><tfoot><tr style="font-weight:700;background:var(--card2)"><td colspan="4">Total</td><td style="text-align:right">${fmt(tF)}</td><td></td><td style="text-align:right">${fmt(tC)}</td><td style="text-align:right;color:${col(tF - tC)}">${fmt(tF - tC)}</td></tr></tfoot></table>
     ${avisos.length ? `<div style="padding:8px 14px;font-size:12.5px;color:#b45309">${avisos.join('<br>')}</div>` : ''}
     <div style="padding:0 14px 10px;font-size:11.5px;color:var(--text2)">Facturado: las cargas del pedido de cada show. Liquidado: los cargas presentes ese día × sueldo neto de CARGAS del tarifario del mes. En naranja, los días en que los presentes no coinciden con lo pedido.</div></div>`;
@@ -4665,7 +4757,7 @@ function htmlFvlMesa(filtro) {
       <td style="text-align:right">${fmt(neto)}</td><td style="text-align:right">${fmt(costo)}</td><td style="text-align:right;font-weight:600;color:${col(dif)}">${fmt(dif)}</td><td>${est}</td></tr>`;
   }).join('');
   return `<div class="card" style="padding:0;overflow:auto;margin-top:16px"><div style="padding:12px 14px 4px;font-weight:600"><i class="ti ti-id-badge"></i> Mesa de entrada <span style="font-weight:400;color:var(--text2);font-size:12px">· mes por mes</span></div>
-    <table class="tbl"><thead><tr><th>Mes</th><th style="text-align:center">Días trabajados</th><th style="text-align:right">Facturado</th><th style="text-align:right">Liquidado (neto)</th><th style="text-align:right" title="Neto + cargas sociales (${cp}%)">Costo laboral</th><th style="text-align:right">Diferencia</th><th>Estado</th></tr></thead>
+    <table class="tbl"><thead><tr><th>Mes</th><th style="text-align:center">Días trabajados</th><th style="text-align:right">Facturado</th><th style="text-align:right">Pagado (neto)</th><th style="text-align:right" title="Neto + cargas sociales (${cp}%)">Costo real</th><th style="text-align:right">Diferencia</th><th>Estado</th></tr></thead>
     <tbody>${filas}</tbody>${meses.length > 1 ? `<tfoot><tr style="font-weight:700;background:var(--card2)"><td colspan="2">Total</td><td style="text-align:right">${fmt(tF)}</td><td></td><td style="text-align:right">${fmt(tC)}</td><td style="text-align:right;color:${col(tF - tC)}">${fmt(tF - tC)}</td><td></td></tr></tfoot>` : ''}</table>
     <div style="padding:6px 14px 10px;font-size:11.5px;color:var(--text2)">Mensualizada: se factura la venta mensual y se liquida el sueldo mensual neto del tarifario, completos.</div></div>`;
 }
@@ -5390,8 +5482,8 @@ window.verDiaCargas = function(f) {
     </div>
     <div class="dia-box">
       ${fila('Facturado al Arena (cargas)', tieneFact ? fmt(fact) : '—')}
-      ${fila(`Liquidado (neto) · ${pres.length} × ${fmt(sueldo)}`, fmt(liq))}
-      ${fila('Costo laboral (con cargas sociales)', fmt(costo))}
+      ${fila(`Pagado (neto) · ${pres.length} × ${fmt(sueldo)}`, fmt(liq))}
+      ${fila('Costo real (con cargas sociales)', fmt(costo))}
       ${tieneFact ? fila('Diferencia', `<span style="color:${fact - costo >= 0 ? '#1a7a3e' : '#b45309'}">${fmt(fact - costo)}</span>`, true) : ''}
     </div>
     <div style="font-size:11.5px;color:var(--text2);margin-top:6px">${w ? `${w.label} (${w.rango}) · ${estSem}` : ''}</div>
@@ -5812,7 +5904,7 @@ async function pgInformes(el, ac) {
   const { data: pubsAll, error: ePub } = await sb.from('informes').select('id,token,tipo,periodo,titulo,updated_at').order('periodo', { ascending: false });
   const pubs = (pubsAll || []).filter(x => x.tipo === 'mes' || x.tipo === 'anio');
   const cab = `<div style="margin-bottom:12px"><h2 style="margin:0">Informes a socios</h2>
-      <div style="color:var(--text2);font-size:12.5px">Lo que ves abajo es exactamente el informe que reciben los socios. Elegí el período, ajustá la estructura de costos si hace falta y publicá.</div></div>`;
+      <div style="color:var(--text2);font-size:12.5px">Lo que ves abajo es exactamente el informe que reciben los socios. Elegí el mes o el año y publicalo.</div></div>`;
   if (!APP.infPeriodo) {
     el.innerHTML = cab + `<div class="empty-state"><i class="ti ti-presentation-analytics"></i><p>Todavía no hay shows facturados desde el ${fd(RENT_DESDE)}. Guardá facturaciones en "Facturación Movistar Arena" para armar el primer informe.</p></div>`;
     return;
@@ -5847,13 +5939,12 @@ async function pgInformes(el, ac) {
     </div>`;
 
   el.innerHTML = cab + `
+    <div class="inf-tabs">
+      ${[...meses].sort().map(m => `<button class="inf-tab ${APP.infTipo === 'mes' && APP.infPeriodo === m ? 'on' : ''}" onclick="APP.infTipo='mes';APP.infPeriodo='${m}';render()">${mesLabel(m)}${pubs.some(x => x.tipo === 'mes' && x.periodo === m) ? ' <i class="ti ti-world" title="Publicado"></i>' : ''}</button>`).join('')}
+      ${[...anios].sort().map(y => `<button class="inf-tab anual ${APP.infTipo === 'anio' && APP.infPeriodo === y ? 'on' : ''}" onclick="APP.infTipo='anio';APP.infPeriodo='${y}';render()">Anual ${y}${pubs.some(x => x.tipo === 'anio' && x.periodo === y) ? ' <i class="ti ti-world" title="Publicado"></i>' : ''}</button>`).join('')}
+    </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-      <button class="btn ${APP.infTipo === 'mes' ? 'btn-primary' : ''}" onclick="APP.infTipo='mes';APP.infPeriodo='';render()">Mensual</button>
-      <button class="btn ${APP.infTipo === 'anio' ? 'btn-primary' : ''}" onclick="APP.infTipo='anio';APP.infPeriodo='';render()">Anual</button>
-      <select onchange="APP.infPeriodo=this.value;render()" style="font-size:12.5px;padding:6px 9px;width:auto">
-        ${opciones.map(o => `<option value="${o}" ${o === APP.infPeriodo ? 'selected' : ''}>${APP.infTipo === 'mes' ? mesLabel(o) : o}</option>`).join('')}
-      </select>
-      ${yaPub ? `<span class="badge bs" title="Actualizado el ${new Date(yaPub.updated_at).toLocaleDateString('es-AR')}">Publicado</span>` : '<span class="badge bw">Sin publicar</span>'}
+      ${yaPub ? `<span class="badge bs" title="Actualizado el ${new Date(yaPub.updated_at).toLocaleDateString('es-AR')}">Publicado · ${new Date(yaPub.updated_at).toLocaleDateString('es-AR')}</span>` : '<span class="badge bw">Sin publicar</span>'}
       <div style="flex:1"></div>
       <button class="btn" onclick="previewInforme()" title="Abrir el informe en una pestaña nueva"><i class="ti ti-external-link"></i> Abrir en pestaña</button>
       <button class="btn btn-success" onclick="publicarInforme()"><i class="ti ti-world-upload"></i> ${yaPub ? 'Actualizar publicado' : 'Publicar informe'}</button>
@@ -5861,8 +5952,7 @@ async function pgInformes(el, ac) {
     <div class="card" style="padding:0;overflow:hidden;margin-bottom:14px">
       <iframe id="inf-frame" src="informe.html?preview=1&embed=1&t=${Date.now()}" allow="fullscreen" style="width:100%;height:78vh;min-height:560px;border:0;display:block;background:#f4f5f4" title="Informe a socios"></iframe>
     </div>
-    <div class="grid2" style="align-items:start">
-      <div class="card">${editorHTML}</div>
+    <div>
       <div class="card">
         <div style="font-size:13px;font-weight:600;margin-bottom:10px">Informes publicados</div>
         ${ePub ? `<div class="alert alert-warn" style="margin:0"><i class="ti ti-database-off"></i> Falta crear la tabla <strong>informes</strong> en Supabase para publicar.</div>`
