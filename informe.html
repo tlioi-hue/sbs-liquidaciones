@@ -319,6 +319,16 @@ table.rank td small { display: block; }
 table.extra-t td:first-child, table.extra-t th:first-child { text-align: left; }
 table.extra-t td small { display: block; }
 table.extra-t tfoot td { font-weight: 700; }
+
+.ext-calc { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+.ext-calc > div { background: #f6f7f6; border-radius: 10px; padding: 11px 13px; }
+.ext-calc span { display: block; font-size: 12px; color: var(--muted); } .ext-calc b { display: block; font-size: 18px; margin: 2px 0; }
+.ext-calc b.pos { color: var(--c-neto); } .ext-calc small { display: block; font-size: 11.5px; color: var(--muted); }
+.ext-calc > div.fin { background: #fdf1ea; } .ext-calc > div.fin b { color: #b45309; }
+.ext-det { margin-top: 14px; } .ext-det summary { cursor: pointer; font-weight: 600; font-size: 13px; margin-bottom: 8px; }
+table.extra-t.det2 td small { display: block; }
+@media (max-width: 700px) { .ext-calc { grid-template-columns: 1fr; } }
+@media print { .ext-det { display: block; } }
 </style>
 </head>
 <body>
@@ -428,19 +438,37 @@ const bkCosto = s => Math.round((s.backups?.monto || 0) * (1 + cpSoc() / 100));
 // Costo extra no facturado: back-ups (personal por encima del pedido) y coordinación a cargo de SBS.
 // Ya está dentro de los egresos de cada show; acá se muestra aparte: pagado neto + cargas sociales = costo real.
 function extraNoFacturado(shows, T) {
-  const cp = cpSoc(), real = n => Math.round(n * (1 + cp / 100));
-  const bkN = shows.reduce((a, x) => a + (x.backups?.cant || 0), 0), bkShows = shows.filter(x => x.backups?.cant).length, bkNeto = shows.reduce((a, x) => a + (x.backups?.monto || 0), 0);
+  const E = S.d.estructura || {}, cargasL = (E.cargas || []).filter(x => (x.nombre || '').trim() && +x.pct);
+  const pctTot = cargasL.reduce((a, x) => a + (+x.pct || 0), 0), pIIGG = +(T.iigg?.pct ?? E.iigg ?? 0);
+  const real = n => Math.round(n * (1 + pctTot / 100));
+  const bkN = shows.reduce((a, x) => a + (x.backups?.cant || 0), 0), bkNeto = shows.reduce((a, x) => a + (x.backups?.monto || 0), 0);
   const coN = shows.reduce((a, x) => a + (x.coordinador?.cant || 0), 0), coNeto = shows.reduce((a, x) => a + (x.coordinador?.monto || 0), 0);
   if (!bkNeto && !coNeto) return '';
+  const lineas = neto => cargasL.map(x => Math.round(neto * x.pct / 100));
   const tN = bkNeto + coNeto, tR = real(bkNeto) + real(coNeto), res = shows.reduce((a, x) => a + (x.neto || 0), 0);
-  const fila = (n, d, neto) => `<tr><td>${n}<small>${d}</small></td><td>${money(neto)}</td><td>${money(real(neto) - neto)}</td><td class="res neg">${money(real(neto))}</td></tr>`;
-  return `<div class="subh" style="margin-top:22px">Costo extra no facturado</div>
-    <p class="desc" style="margin-top:-4px">Personal que se paga pero no se le cobra al Arena. Ya está incluido en los egresos de cada show; acá se muestra aparte para ver cuánto cuesta.</p>
-    <div class="tw"><table class="extra-t"><thead><tr><th>Concepto</th><th>Pagado (neto)</th><th>+ ${nf1(cp).replace(',0', '')}% cargas sociales</th><th>Costo real</th></tr></thead><tbody>
-      ${bkNeto ? fila('Back-ups', `${bkN} persona${bkN !== 1 ? 's' : ''} por encima del pedido, en ${bkShows} de ${shows.length} shows`, bkNeto) : ''}
-      ${coNeto ? fila('Coordinación', `${coN} jornada${coN !== 1 ? 's' : ''} a cargo de SBS`, coNeto) : ''}
-    </tbody><tfoot><tr><td>Total extra</td><td>${money(tN)}</td><td>${money(tR - tN)}</td><td class="res neg">${money(tR)}</td></tr></tfoot></table></div>
-    <p class="desc" style="margin-top:6px">Este costo extra equivale al <b>${p1(tR, res)}</b> del resultado neto de los shows (${money(res)}).</p>`;
+  const ahorro = T.ebit > 0 ? Math.round(tR * pIIGG / 100) : 0, impacto = tR - ahorro;
+  const fila = (n, d, cant, neto, cls = '') => { const ls = lineas(neto), r = real(neto);
+    return `<tr class="${cls}"><td>${n}${d ? `<small>${d}</small>` : ''}</td><td>${cant}</td><td>${money(neto)}</td>${ls.map(v => `<td>${money(v)}</td>`).join('')}<td class="res neg">${money(r)}</td></tr>`; };
+  const conExtra = shows.filter(x => x.backups?.cant || x.coordinador?.cant).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+  return `<div class="subh" style="margin-top:22px">Costo extra no facturado: back-ups y coordinación</div>
+    <p class="desc" style="margin-top:-4px">Personal que SBS paga pero no le cobra al Arena: los <b>back-ups</b> (personas convocadas por encima de lo que pidió el Arena) y la <b>coordinación</b> (un coordinador por show, a cargo de SBS). Ya está incluido en los egresos de cada show; acá se separa para ver cuánto cuesta.</p>
+    <div class="tw"><table class="extra-t"><thead><tr><th>Concepto</th><th>Cantidad</th><th>Pagado (neto)</th>${cargasL.map(x => `<th>${esc(x.nombre)} (${nf1(x.pct).replace(',0', '')}%)</th>`).join('')}<th>Costo real</th></tr></thead><tbody>
+      ${bkNeto ? fila('Back-ups', `en ${shows.filter(x => x.backups?.cant).length} de ${shows.length} shows`, `${bkN} persona${bkN !== 1 ? 's' : ''}`, bkNeto) : ''}
+      ${coNeto ? fila('Coordinación', `uno por show`, `${coN} jornada${coN !== 1 ? 's' : ''}`, coNeto) : ''}
+    </tbody><tfoot>${fila('Total costo extra', '', '', tN)}</tfoot></table></div>
+    <div class="ext-calc">
+      <div><span>Costo real del extra</span><b>${money(tR)}</b><small>pagado ${money(tN)} + ${cargasL.map(x => x.nombre.toLowerCase()).join(' + ')} ${money(tR - tN)}</small></div>
+      ${ahorro ? `<div><span>Menos Ganancias que se deja de pagar (${nf1(pIIGG).replace(',0', '')}%)</span><b class="pos">− ${money(ahorro)}</b><small>el costo extra baja la ganancia sobre la que se paga el impuesto</small></div>` : ''}
+      <div class="fin"><span>Impacto en el resultado neto</span><b>${money(impacto)}</b><small>${p1(impacto, res + impacto)} del resultado que habrían dejado los shows sin este costo</small></div>
+    </div>
+    <p class="desc" style="margin-top:8px"><b>Qué costos incluye:</b> lo pagado a la gente más ${cargasL.length > 1 ? 'todas las cargas sobre sueldos de la estructura de costos' : 'las cargas sobre sueldos de la estructura de costos'} (${cargasL.map(x => `${x.nombre.toLowerCase()} ${nf1(x.pct).replace(',0', '')}%`).join(', ')}). Los impuestos sobre ventas (${(E.impuestos || []).filter(x => (x.nombre || '').trim()).map(x => x.nombre).join(', ') || '—'}) no aplican, porque este personal no se factura.</p>
+    <details class="ext-det" open><summary>Detalle show por show</summary>
+      <div class="tw"><table class="extra-t det2"><thead><tr><th>Show</th><th>Back-ups</th><th>Costo real back-ups</th><th>Coordinación</th><th>Costo real coordinación</th><th>Total extra</th></tr></thead><tbody>
+        ${conExtra.map(x => { const b = real(x.backups?.monto || 0), c = real(x.coordinador?.monto || 0);
+          return `<tr><td>${esc(x.nombre)}<small>${fecha(x.fecha)}</small></td><td>${x.backups?.cant || '—'}</td><td>${x.backups?.cant ? money(b) : '—'}</td><td>${x.coordinador?.cant || '—'}</td><td>${x.coordinador?.cant ? money(c) : '—'}</td><td class="res neg">${money(b + c)}</td></tr>`; }).join('')}
+      </tbody><tfoot><tr><td>Total</td><td>${bkN}</td><td>${money(real(bkNeto))}</td><td>${coN}</td><td>${money(real(coNeto))}</td><td class="res neg">${money(tR)}</td></tr></tfoot></table></div>
+      <p class="desc" style="margin-top:6px">Por show, el costo real se calcula igual: pagado neto + ${pctTot}% de cargas. Las sumas pueden diferir en algún peso por redondeo.</p>
+    </details>`;
 }
 // Totales solo de shows: para promedios por show y comparaciones entre shows
 function totShowsVista() {
@@ -564,6 +592,7 @@ function dibujar() {
     { k: 'neto', t: 'Resultado neto', v: s => s.neto },
     ...(pct ? [] : [{ k: 'margen', t: 'Margen', v: s => s.ventas ? s.neto / s.ventas : 0 }]),
     { k: 'backups', t: 'Back-ups', v: s => s.backups?.cant || 0 },
+    { k: 'coord', t: 'Coordinación', v: s => s.coordinador?.cant || 0 },
   ];
   if (!cols.find(c => c.k === S.orden.col)) S.orden = { col: 'neto', dir: -1 };
   const cOrd = cols.find(c => c.k === S.orden.col);
@@ -588,8 +617,8 @@ function dibujar() {
       <td class="pos"><span class="n${puestoDe[s._i] === 1 && shows.length > 1 ? ' top' : ''}">${puestoDe[s._i]}</span></td>
       <td>${esc(s.nombre)}<small>${fecha(s.fecha)}${s.estimado ? ', costo estimado' : ''}</small></td><td>${staffCel(s)}</td>
       <td>${val(s.ventas, s.ventas)}</td><td>${val(egr(s), s.ventas)}</td><td class="res ${s.neto < 0 ? 'neg' : ''}">${val(s.neto, s.ventas)}</td>
-      ${pct ? '' : `<td>${p1(s.neto, s.ventas)} ${vsProm(s)}</td>`}<td title="${s.backups?.cant ? `Pagado neto ${money(s.backups.monto || 0)} + cargas sociales = ${money(bkCosto(s))} de costo real` : ''}">${s.backups?.cant ? `${s.backups.cant}<small>${money(bkCosto(s))} costo real</small>` : '<span style="color:var(--muted)">—</span>'}</td></tr>`).join('')}</tbody>
-    <tfoot><tr><td></td><td>Total shows</td><td>${TS.staff || '—'}</td><td>${val(TS.ventas, TS.ventas)}</td><td>${val(TS.ventas - TS.neto, TS.ventas)}</td><td class="res ${TS.neto < 0 ? 'neg' : ''}">${val(TS.neto, TS.ventas)}</td>${pct ? '' : `<td>${p1(TS.neto, TS.ventas)}</td>`}<td>${bkTot ? `${bkTot}<small>${money(bkCostoTot)}</small>` : '—'}</td></tr></tfoot></table>`;
+      ${pct ? '' : `<td>${p1(s.neto, s.ventas)} ${vsProm(s)}</td>`}<td>${s.backups?.cant || '<span style="color:var(--muted)">—</span>'}</td><td>${s.coordinador?.cant || '<span style="color:var(--muted)">—</span>'}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td></td><td>Total shows</td><td>${TS.staff || '—'}</td><td>${val(TS.ventas, TS.ventas)}</td><td>${val(TS.ventas - TS.neto, TS.ventas)}</td><td class="res ${TS.neto < 0 ? 'neg' : ''}">${val(TS.neto, TS.ventas)}</td>${pct ? '' : `<td>${p1(TS.neto, TS.ventas)}</td>`}<td>${bkTot || '—'}</td><td>${shows.reduce((a, x) => a + (x.coordinador?.cant || 0), 0) || '—'}</td></tr></tfoot></table>`;
   const promedios = `<div class="proms">
       <div><span>Resultado promedio por show</span><b>${money(TS.shows ? TS.neto / TS.shows : 0)}</b></div>
       <div><span>Margen promedio</span><b>${nf1(margenProm)}%</b></div>
@@ -749,9 +778,9 @@ window.abrirShow = function(i) {
     const fac = s.facturables ?? st, bk = s.backups?.cant ?? Math.max(0, s.presentes - fac), cg = s.cargasAparte, co = s.coordinador;
     const partes = [];
     partes.push(`<b>${fac}</b> puestos de sala facturados${cg?.cant ? ` y <b>${cg.cant}</b> cargas / stagehands` : ''}`);
-    if (bk) partes.push(`<b>${bk}</b> back-up${bk > 1 ? 's' : ''} por encima de lo pedido (no se factura${bk > 1 ? 'n' : ''}): <b>${money(s.backups?.monto || 0)}</b> pagado neto, <b>${money(bkCosto(s))}</b> de costo real con cargas sociales`);
-    else if (s.presentes < fac) partes.push(`<b>${fac - s.presentes}</b> puesto${fac - s.presentes > 1 ? 's' : ''} pedido${fac - s.presentes > 1 ? 's' : ''} sin cubrir`);
-    if (co?.cant) partes.push(`coordinación a cargo de SBS: <b>${money(co.monto)}</b> pagado neto, <b>${money(Math.round(co.monto * (1 + cpSoc() / 100)))}</b> de costo real`);
+    if (bk) partes.push(`<b>${bk}</b> back-up${bk > 1 ? 's' : ''} por encima de lo pedido (no se factura${bk > 1 ? 'n' : ''})`);
+    if (co?.cant) partes.push(`<b>${co.cant}</b> coordinador${co.cant > 1 ? 'es' : ''} a cargo de SBS (no se factura)`);
+    if (bk || co?.cant) partes.push('<span style="color:var(--muted)">el costo se detalla al final de "Show por show"</span>');
     staffNota = `<div class="stf">${partes.join(' · ')}.</div>`;
   }
   // Dónde se facturó (zonas) y costo por posición

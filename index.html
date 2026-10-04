@@ -379,6 +379,12 @@ table.cal td em.fe { color: #9a6a1c; font-size: 9.5px; font-weight: 600; }
 .inf-tab { font: inherit; font-size: 13px; font-weight: 500; background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 14px; cursor: pointer; color: var(--text2); margin-bottom: -1px; }
 .inf-tab:hover { color: var(--text); } .inf-tab.on { color: var(--text); border-bottom-color: #1f2421; font-weight: 600; } .inf-tab.anual { margin-left: auto; } .inf-tab.anual ~ .inf-tab.anual { margin-left: 0; }
 .inf-tab i { font-size: 12px; color: #1a7a3e; }
+
+.sup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+.sup-grid label { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; font-size: 12.5px; font-weight: 500; }
+.sup-grid small { flex-basis: 100%; font-size: 11px; color: var(--text2); font-weight: 400; }
+.ps-row { display: flex; align-items: center; gap: 8px; padding: 6px 2px; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+.gx2 { border: 0; background: none; color: var(--text2); cursor: pointer; padding: 2px 4px; }
 </style>
 </head>
 <body>
@@ -1357,7 +1363,7 @@ window.filtrarTar = function() {
   lista.forEach(t => {
     const a = areaT(t);
     if (a !== ant) { ant = a; filas += `<tr class="p-grupo"><td colspan="${finde ? 5 : 4}"><span class="chip ${chipClaseArea(a)}">${esc2(a)}</span> <span>${lista.filter(x => areaT(x) === a).length}</span></td></tr>`; }
-    filas += `<tr><td>${esc2(t.posicion)}</td><td style="text-align:right;font-weight:600">${fmt(t.monto)}</td>${finde ? `<td style="text-align:right">${t.monto_finde ? fmt(t.monto_finde) : '<span style="color:var(--text2)">—</span>'}</td>` : ''}
+    filas += `<tr><td>${esc2(t.posicion)}</td><td style="text-align:right">${fmt(t.monto)}</td>${finde ? `<td style="text-align:right">${t.monto_finde ? fmt(t.monto_finde) : '<span style="color:var(--text2)">—</span>'}</td>` : ''}
       <td style="text-align:right;font-size:11.5px;color:var(--text2)">${t.updated_at ? new Date(t.updated_at).toLocaleDateString('es-AR') : '—'}</td>
       <td style="text-align:right;white-space:nowrap"><button class="btn btn-sm" onclick="modalTarifa('${t.id}')" title="Editar"><i class="ti ti-edit"></i></button> <button class="btn btn-sm btn-danger" onclick="delTarifa('${t.id}')" title="Borrar"><i class="ti ti-trash"></i></button></td></tr>`;
   });
@@ -4827,13 +4833,39 @@ const S_PROY = { tab: 'proy', mes: null, esc: 'base', tarMes: null, tarDraft: nu
 // Shows ya facturados, listos para usar como referencia
 function refsDisponibles() {
   const facs = APP.facturaciones || [];
-  return rentPorShow().filter(r => r.nFac).map(r => {
+  // solo shows completos: facturados y con presentes (un show sin presentes no sirve de referencia)
+  return rentPorShow().filter(r => r.nFac && r.presentes > 0).map(r => {
     const fs = facs.filter(f => f.evento_id === r.ev.id);
-    return { ev: r.ev, fISO: r.fISO, base: baseNombre(r.ev.nombre), comp: pedidoPorCat(fs), backupRatio: r.facturables ? r.backups / r.facturables : 0 };
-  });
+    const comp = pedidoPorCat(fs), sala = Object.entries(comp).filter(([c]) => c !== 'CARGAS').reduce((a, [, v]) => a + v, 0);
+    return { ev: r.ev, fISO: r.fISO, base: baseNombre(r.ev.nombre), comp, sala, backups: r.backups || 0, backupRatio: r.facturables ? r.backups / r.facturables : 0 };
+  }).filter(x => x.sala > 0);
 }
 
-function proyectarShow(ev, refs, tar, E, fijosShow, esc) {
+
+// Proyección del mes: shows agregados a mano y supuestos por show. Se guarda en tarifario_arena ('proy-AAAA-MM').
+const SUP_DEF = { cargas: 2, coord: 1 };
+function proyCfg(periodo) { const f = (APP.tarArena || []).find(x => x.periodo === 'proy-' + periodo)?.filas || {}; return { shows: f.shows || [], sup: { ...SUP_DEF, ...(f.sup || {}) } }; }
+async function guardarProyCfg(periodo, cfg) {
+  const reg = { periodo: 'proy-' + periodo, filas: cfg, updated_at: new Date().toISOString() };
+  const { error } = await sb.from('tarifario_arena').upsert(reg);
+  if (error) { toast('No se pudo guardar: ' + error.message, 'err'); return false; }
+  const i = (APP.tarArena || []).findIndex(x => x.periodo === reg.periodo); if (i >= 0) APP.tarArena[i] = reg; else APP.tarArena.push(reg);
+  return true;
+}
+function promediosHistoricos(refs) {
+  const n = refs.length || 1;
+  return { sala: Math.round(refs.reduce((a, x) => a + (x.sala || 0), 0) / n), backups: Math.round(refs.reduce((a, x) => a + (x.backups || 0), 0) / n * 10) / 10, n: refs.length };
+}
+// Shows del mes: los de Movistar Arena más los agregados en la proyección (si un agregado coincide en fecha con uno del Arena, se usa el del Arena)
+function showsProyMes(periodo) {
+  const arena = (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e).slice(0, 7) === periodo);
+  const fechasArena = new Set(arena.map(showFechaISO));
+  const agregados = proyCfg(periodo).shows.filter(x => x.fecha.slice(0, 7) === periodo && !fechasArena.has(x.fecha))
+    .map(x => ({ id: 'ps-' + x.id, nombre: x.nombre, fecha: x.fecha, area: 'Movistar Arena', fechas: [], agregado: true }));
+  return [...arena, ...agregados].sort((a, b) => showFechaISO(a).localeCompare(showFechaISO(b)));
+}
+
+function proyectarShow(ev, refs, tar, E, fijosShow, esc, sup = SUP_DEF) {
   const aj = proyAjustes()[ev.id] || {}, fISO = showFechaISO(ev);
   let usados = [], base = '';
   if (aj.ref && aj.ref !== 'auto' && aj.ref !== 'prom') {
@@ -4846,47 +4878,50 @@ function proyectarShow(ev, refs, tar, E, fijosShow, esc) {
   }
   if (!usados.length) { usados = refs; base = refs.length ? `Promedio de ${refs.length} shows` : ''; }
   if (!usados.length) return { ev, fISO, error: 'No hay shows facturados para tomar de referencia' };
-  // Composición promedio del pedido, escalada a los puestos pedidos y redondeada sin perder el total
-  const comp = {}; TAR_CATS.forEach(c => { const v = usados.reduce((a, x) => a + (x.comp[c] || 0), 0) / usados.length; if (v) comp[c] = v; });
+  // Composición promedio de la sala (sin cargas), escalada a los puestos de sala y redondeada sin perder el total
+  const comp = {}; TAR_CATS.filter(c => c !== 'CARGAS').forEach(c => { const v = usados.reduce((a, x) => a + (x.comp[c] || 0), 0) / usados.length; if (v) comp[c] = v; });
   const totRef = Object.values(comp).reduce((a, b) => a + b, 0);
-  const pedidoBase = aj.pedido ? +aj.pedido : Math.round(totRef);
-  const pedido = Math.max(0, Math.round(pedidoBase * ESCENARIOS[esc].pedido));
-  const k = totRef ? pedido / totRef : 0;
+  const num = v => v !== '' && v != null && !isNaN(+v);
+  const salaBase = num(aj.pedido) ? +aj.pedido : num(sup.puestos) ? +sup.puestos : Math.round(totRef);
+  const sala = Math.max(0, Math.round(salaBase * (ESCENARIOS[esc]?.pedido ?? 1)));
+  const k = totRef ? sala / totRef : 0;
   const ent = Object.entries(comp).map(([c, v]) => [c, Math.floor(v * k), v * k - Math.floor(v * k)]);
-  let falta = pedido - ent.reduce((a, x) => a + x[1], 0);
+  let falta = sala - ent.reduce((a, x) => a + x[1], 0);
   [...ent].sort((a, b) => b[2] - a[2]).forEach(x => { if (falta > 0) { x[1]++; falta--; } });
   const cant = Object.fromEntries(ent.filter(x => x[1] > 0).map(x => [x[0], x[1]]));
-  const cargas = cant.CARGAS || 0, facturables = pedido - cargas;
+  const cargas = num(sup.cargas) ? +sup.cargas : 2; if (cargas) cant.CARGAS = cargas;
+  const facturables = sala, pedido = sala + cargas;
   const ratio = usados.reduce((a, x) => a + x.backupRatio, 0) / usados.length;
-  const backupsBase = aj.backups != null && aj.backups !== '' ? +aj.backups : Math.round(ratio * facturables);
-  const backups = Math.max(0, Math.round(backupsBase * ESCENARIOS[esc].backups));
+  const backupsBase = num(aj.backups) ? +aj.backups : num(sup.backups) ? +sup.backups : Math.round(ratio * facturables);
+  const backups = Math.max(0, Math.round(backupsBase * (ESCENARIOS[esc]?.backups ?? 1)));
+  const coords = num(sup.coord) ? +sup.coord : 1;
   const T = c => tar.filas[c] || {};
   const lineas = TAR_CATS.filter(c => cant[c]).map(c => ({ cat: c, cant: cant[c], venta: T(c).venta || 0, sueldo: T(c).sueldo || 0 }));
   const faltan = lineas.filter(l => !l.venta || !l.sueldo).map(l => TAR_LBL(l.cat));
   if (!T('ORIENTADOR').sueldo && backups) faltan.push('Orientador (back-ups)');
-  if (!T('COORDINADOR ON SITE').sueldo) faltan.push('Coordinador on site');
+  if (coords && !T('COORDINADOR ON SITE').sueldo) faltan.push('Coordinador on site');
   const ingresos = lineas.reduce((a, l) => a + l.cant * l.venta, 0);
   const costoPedido = lineas.reduce((a, l) => a + l.cant * l.sueldo, 0);
   const costoBackups = backups * (T('ORIENTADOR').sueldo || 0);
-  const costoCoord = T('COORDINADOR ON SITE').sueldo || 0;   // uno por show, a cargo de SBS
+  const costoCoord = coords * (T('COORDINADOR ON SITE').sueldo || 0);   // a cargo de SBS, no se factura
   const personal = costoPedido + costoBackups + costoCoord;
   const pl = calcPL(ingresos, personal, fijosShow, E);
   const iigg = Math.round(Math.max(0, pl.ebit) * (+E.iigg || 0) / 100);
   const neto = pl.ebit - iigg;
-  return { ev, fISO, proyectado: true, base, usados: usados.map(x => x.ev.id), pedido, pedidoBase, facturables, cargas, backups, lineas,
+  return { ev, fISO, proyectado: true, agregado: !!ev.agregado, base, usados: usados.map(x => x.ev.id), pedido, pedidoBase: salaBase, sala, facturables, cargas, coords, backups, lineas,
            ingresos, costoPedido, costoBackups, costoCoord, personal, cargasSoc: pl.totCargas, impuestos: pl.totImp, fijos: pl.fijos, iigg, neto, egresos: ingresos - neto, faltan };
 }
 
 function proyMes(periodo, esc) {
   const tar = getTarifaMes(periodo), E = getEstructura();
-  const evs = (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e).slice(0, 7) === periodo).sort((a, b) => showFechaISO(a).localeCompare(showFechaISO(b)));
+  const evs = showsProyMes(periodo), sup = proyCfg(periodo).sup;
   const inf = buildInforme('mes', periodo), realPorId = {}; (inf.shows || []).forEach(x => { realPorId[x.evId] = x; });
   const refs = refsDisponibles(), fijosShow = (+E.fijosMes || 0) / (evs.length || 1);
   const filas = evs.map(ev => {
     const r = realPorId[ev.id];
     if (r) return { ev, fISO: r.fecha, real: true, estimado: r.estimado, pedido: r.staff, backups: r.backups?.cant || 0, ingresos: r.ventas, egresos: r.ventas - r.neto, neto: r.neto };
     if (!tar) return { ev, fISO: showFechaISO(ev), error: 'Falta el tarifario de este mes' };
-    return proyectarShow(ev, refs, tar, E, fijosShow, esc);
+    return proyectarShow(ev, refs, tar, E, fijosShow, esc, sup);
   });
   // Servicios mensuales (mesa de entrada): se conocen de antemano por el tarifario
   serviciosMes(periodo, { proyeccion: true }).forEach(sv => {
@@ -4901,10 +4936,11 @@ function proyMes(periodo, esc) {
 const mesActual = () => { const h = new Date(); return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}`; };
 // Proyecciones: solo meses futuros. El mes en curso aparece solo si tiene una proyección guardada (para comparar con lo real).
 function mesesProyectables() {
-  const hoy = new Date(), act = mesActual(), set = new Set();
+  // El mes en curso (con lo real ya facturado + lo proyectado) y los próximos
+  const hoy = new Date(), act = mesActual(), set = new Set([act]);
   (APP.eventos || []).filter(e => e.area === 'Movistar Arena').forEach(e => { const m = showFechaISO(e).slice(0, 7); if (m && m > act) set.add(m); });
+  (APP.tarArena || []).filter(x => /^proy-\d{4}-\d{2}$/.test(x.periodo)).forEach(x => { const m = x.periodo.slice(5); if (m >= act) set.add(m); });
   for (let i = 1; i <= 3; i++) { const d = new Date(hoy.getFullYear(), hoy.getMonth() + i, 1); set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`); }
-  if ((APP.proyGuardadas || []).includes(act)) set.add(act);
   return [...set].sort();
 }
 // Tarifario: también meses pasados y el actual (se usan para el costo de cargas y mesa de entrada ya trabajados)
@@ -4920,7 +4956,7 @@ async function pgProyecciones(el, ac) {
   const { data: gs } = await sb.from('informes').select('periodo').eq('tipo', 'proy');
   APP.proyGuardadas = (gs || []).map(x => x.periodo);
   const meses = mesesProyectables();
-  if (!S_PROY.mes || !meses.includes(S_PROY.mes)) S_PROY.mes = meses.find(m => (APP.eventos || []).some(e => e.area === 'Movistar Arena' && showFechaISO(e).slice(0, 7) === m && !(APP.facturaciones || []).some(f => f.evento_id === e.id))) || meses[0];
+  if (!S_PROY.mes || !meses.includes(S_PROY.mes)) S_PROY.mes = mesActual();   // abre en el mes en curso
   const tabs = `<div style="display:flex;gap:6px;margin-bottom:14px">
       <button class="btn ${S_PROY.tab === 'proy' ? 'btn-primary' : ''}" onclick="S_PROY.tab='proy';render()"><i class="ti ti-crystal-ball"></i> Proyección</button>
       <button class="btn ${S_PROY.tab === 'tar' ? 'btn-primary' : ''}" onclick="S_PROY.tab='tar';render()"><i class="ti ti-table"></i> Tarifario mensual</button></div>`;
@@ -4932,6 +4968,86 @@ async function pgProyecciones(el, ac) {
   }
   el.innerHTML = cab + tabs + (S_PROY.tab === 'tar' ? htmlTarifario() : await htmlProyeccion(meses));
 }
+
+
+function tarjetasProy(periodo, refs) {
+  const cfg = proyCfg(periodo), sup = cfg.sup, H = promediosHistoricos(refs);
+  const arena = (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e).slice(0, 7) === periodo).length;
+  const fechasArena = new Set((APP.eventos || []).filter(e => e.area === 'Movistar Arena').map(showFechaISO));
+  const ag = cfg.shows.filter(x => x.fecha.slice(0, 7) === periodo).sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const inp = (k, ph, w = 64) => `<input type="number" min="0" step="1" value="${sup[k] ?? ''}" placeholder="${ph}" style="width:${w}px;text-align:center" onchange="setSupProy('${periodo}','${k}',this.value)">`;
+  return `<div class="grid2" style="align-items:start;margin:12px 0">
+    <div class="card">
+      <div style="font-weight:600;margin-bottom:4px">Supuestos por show</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Se aplican a cada show proyectado. Vacío = el promedio de los ${H.n} shows ya facturados.</div>
+      <div class="sup-grid">
+        <label>Puestos de sala ${inp('puestos', H.sala)}<small>orientadores, cortatickets, supervisores, recepción (promedio: ${H.sala})</small></label>
+        <label>Cargas / stagehands ${inp('cargas', 2)}<small>se facturan en el pedido</small></label>
+        <label>Coordinadores ${inp('coord', 1)}<small>a cargo de SBS, no se factura</small></label>
+        <label>Back-ups ${inp('backups', String(H.backups).replace('.', ','))}<small>por encima del pedido, no se facturan (promedio: ${String(H.backups).replace('.', ',')})</small></label>
+      </div>
+      <div style="font-size:11.5px;color:var(--text2);margin-top:8px">Los valores salen del tarifario del mes. En cada show de la tabla podés cambiar los puestos o los back-ups solo para ese show.</div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-weight:600">Shows del mes</div>
+        <button class="btn btn-sm btn-primary" onclick="agregarShowsProy('${periodo}')"><i class="ti ti-plus"></i> Agregar shows</button></div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px">${arena} creado${arena !== 1 ? 's' : ''} en Movistar Arena${ag.length ? ` · ${ag.length} agregado${ag.length !== 1 ? 's' : ''} acá` : ''}. Si después lo creás en Movistar Arena con la misma fecha, se usa ese.</div>
+      ${ag.length ? `<div style="max-height:190px;overflow:auto">${ag.map(x => `<div class="ps-row"><span style="color:var(--text2);width:84px">${fd(x.fecha)}</span><span style="flex:1">${esc2(x.nombre)}</span>
+        ${fechasArena.has(x.fecha) ? '<span class="badge bs" style="font-size:10px">ya está en Movistar Arena</span>' : ''}
+        <button class="gx2" title="Quitar" onclick="quitarShowProy('${periodo}','${x.id}')"><i class="ti ti-x"></i></button></div>`).join('')}</div>` : ''}
+    </div></div>`;
+}
+window.setSupProy = async function(periodo, k, v) {
+  const cfg = proyCfg(periodo); cfg.sup = { ...cfg.sup }; if (v === '' || v == null) delete cfg.sup[k]; else cfg.sup[k] = +v;
+  if (k === 'cargas' && (v === '' || v == null)) cfg.sup.cargas = 2;
+  if (k === 'coord' && (v === '' || v == null)) cfg.sup.coord = 1;
+  if (await guardarProyCfg(periodo, cfg)) render();
+};
+window.quitarShowProy = async function(periodo, id) {
+  const cfg = proyCfg(periodo); cfg.shows = cfg.shows.filter(x => x.id !== id);
+  if (await guardarProyCfg(periodo, cfg)) render();
+};
+// Pegar la lista de shows: un show por renglón, "10/10 Tini" o "10/10/2026 Tini" (también con tabulaciones)
+function parsearShowsProy(texto, periodo) {
+  const y = periodo.slice(0, 4), out = [];
+  String(texto).split(/\r?\n/).forEach(l => {
+    const t = l.trim(); if (!t) return;
+    let m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?\s*[\t,;\-–·]*\s*(.+)$/);
+    let fecha, nombre;
+    if (m) { const yy = m[3] ? (m[3].length === 2 ? '20' + m[3] : m[3]) : y; fecha = `${yy}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`; nombre = m[4]; }
+    else if ((m = t.match(/^(\d{4})-(\d{2})-(\d{2})\s*[\t,;\-–·]*\s*(.+)$/))) { fecha = `${m[1]}-${m[2]}-${m[3]}`; nombre = m[4]; }
+    else { out.push({ error: t }); return; }
+    nombre = nombre.replace(/\s+/g, ' ').trim();
+    if (!nombre || isNaN(new Date(fecha + 'T12:00:00'))) { out.push({ error: t }); return; }
+    out.push({ fecha, nombre });
+  });
+  return out;
+}
+window.agregarShowsProy = function(periodo) {
+  showModal(`<div class="modal" style="max-width:560px">
+    <div class="modal-t"><i class="ti ti-calendar-plus"></i> Agregar shows · ${mesLabel(periodo).toLowerCase()}</div>
+    <div class="modal-s">Un show por renglón: fecha y nombre. Por ejemplo:<br><code>10/10 Tini</code> · <code>17/10 Airbag</code> · <code>24/10/2026 Duki</code></div>
+    <textarea id="ps-txt" rows="9" style="width:100%;margin-top:10px;font-size:13px" placeholder="10/10 Tini&#10;17/10 Airbag" oninput="previewShowsProy('${periodo}')"></textarea>
+    <div id="ps-prev" style="font-size:12.5px;margin-top:6px;color:var(--text2)"></div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="confirmarShowsProy('${periodo}')">Agregar</button></div></div>`);
+  setTimeout(() => document.getElementById('ps-txt')?.focus(), 50);
+};
+window.previewShowsProy = function(periodo) {
+  const r = parsearShowsProy(document.getElementById('ps-txt').value, periodo), ok = r.filter(x => !x.error), mal = r.filter(x => x.error), fuera = ok.filter(x => x.fecha.slice(0, 7) !== periodo);
+  document.getElementById('ps-prev').innerHTML = `${ok.length} show${ok.length !== 1 ? 's' : ''} reconocido${ok.length !== 1 ? 's' : ''}${fuera.length ? ` · <span style="color:#b45309">${fuera.length} de otro mes (se agregan en su mes)</span>` : ''}${mal.length ? ` · <span style="color:#b45309">sin reconocer: ${mal.map(x => esc2(x.error)).join(' / ')}</span>` : ''}`;
+};
+window.confirmarShowsProy = async function(periodo) {
+  const ok = parsearShowsProy(document.getElementById('ps-txt').value, periodo).filter(x => !x.error);
+  if (!ok.length) { toast('No se reconoció ningún show', 'err'); return; }
+  const porMes = {}; ok.forEach(x => { (porMes[x.fecha.slice(0, 7)] = porMes[x.fecha.slice(0, 7)] || []).push(x); });
+  loading(true);
+  for (const [m, lista] of Object.entries(porMes)) {
+    const cfg = proyCfg(m), ya = new Set(cfg.shows.map(x => x.fecha + '|' + normTxt(x.nombre)));
+    lista.forEach(x => { const k = x.fecha + '|' + normTxt(x.nombre); if (!ya.has(k)) { cfg.shows.push({ id: uid(), fecha: x.fecha, nombre: x.nombre }); ya.add(k); } });
+    if (!(await guardarProyCfg(m, cfg))) { loading(false); return; }
+  }
+  loading(false); closeModal(); toast(`${ok.length} show${ok.length !== 1 ? 's' : ''} agregado${ok.length !== 1 ? 's' : ''}`, 'ok'); render();
+};
 
 async function htmlProyeccion(meses) {
   const P = proyMes(S_PROY.mes, 'base');
@@ -4980,6 +5096,7 @@ async function htmlProyeccion(meses) {
     </div>
     ${tarTxt}
     ${S_PROY.guardada ? `<div class="nota-proy"><i class="ti ti-history"></i> Proyección guardada el ${new Date(guard.updated_at).toLocaleDateString('es-AR')}: a medida que los shows se facturan, se compara lo real contra lo proyectado.</div>` : ''}
+    ${tarjetasProy(S_PROY.mes, refs)}
     <div class="grid4" style="margin:12px 0">
       ${kpi('Shows del mes', P.filas.filter(f => !f.servicio).length, `${P.reales} real${P.reales !== 1 ? 'es' : ''} · ${P.proyectados} proyectado${P.proyectados !== 1 ? 's' : ''}${P.filas.some(f => f.servicio) ? ' · + mesa de entrada' : ''}`)}
       ${kpi('Ingresos (sin IVA)', fmt(T.ingresos), enCurso ? 'real + proyectado' : 'proyectado')}
@@ -4987,9 +5104,9 @@ async function htmlProyeccion(meses) {
       ${kpi('Resultado neto', fmt(T.neto), `margen ${String(mg(T.neto, T.ingresos)).replace('.', ',')}%`, col(T.neto))}
     </div>
     <div class="card" style="padding:0;overflow:auto">
-      <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th>Estado</th><th>Basado en</th><th style="text-align:center" title="Puestos que se le facturan al Arena (incluye cargas). Vacío = el de la referencia">Puestos</th><th style="text-align:center" title="Presentes por encima de lo pedido, no facturables">Back-ups</th>
+      <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th>Estado</th><th>Basado en</th><th style="text-align:center" title="Puestos de sala que se le facturan al Arena (sin cargas). Vacío = el supuesto del mes">Puestos de sala</th><th style="text-align:center" title="Presentes por encima de lo pedido, no facturables">Back-ups</th>
         <th style="text-align:right">Ingresos</th><th style="text-align:right">Egresos</th><th style="text-align:right">Resultado</th><th style="text-align:center">Margen</th></tr></thead>
-      <tbody>${filas || `<tr><td colspan="10" style="text-align:center;color:var(--text2);padding:16px">No hay shows del Arena cargados para ${mesLabel(S_PROY.mes).toLowerCase()}. Cargalos en Movistar Arena.</td></tr>`}</tbody>
+      <tbody>${filas || `<tr><td colspan="10" style="text-align:center;color:var(--text2);padding:16px">No hay shows para ${mesLabel(S_PROY.mes).toLowerCase()}. Agregalos con el botón "Agregar shows".</td></tr>`}</tbody>
       ${P.filas.length ? `<tfoot><tr style="background:var(--card2);font-weight:700"><td colspan="6">Total del mes${P.filas.some(f => f.servicio) ? ' (shows + mesa de entrada)' : ''}</td><td style="text-align:right">${fmt(T.ingresos)}</td><td style="text-align:right">${fmt(T.egresos)}</td><td style="text-align:right;color:${col(T.neto)}">${fmt(T.neto)}</td><td style="text-align:center">${String(mg(T.neto, T.ingresos)).replace('.', ',')}%</td></tr></tfoot>` : ''}
       </table>
     </div>
