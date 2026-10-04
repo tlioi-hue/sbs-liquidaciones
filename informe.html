@@ -550,6 +550,7 @@ function dibujar() {
   // Ranking de shows: posición por resultado, margen frente al promedio y back-ups
   const TS = totShowsVista(), servicios = servMesVista();
   const bkTot = shows.reduce((a, x) => a + (x.backups?.cant || 0), 0), bkShows = shows.filter(x => x.backups?.cant).length;
+  const coCostoTot = Math.round(shows.reduce((a, x) => a + (x.coordinador?.monto || 0), 0) * (1 + cpSoc() / 100));   // mismo redondeo que la tabla de costo extra
   const bkCostoTot = shows.reduce((a, x) => a + bkCosto(x), 0), costoPersShows = shows.reduce((a, x) => a + (x.personal || 0) + (x.cargas || 0), 0);
   const margenProm = TS.ventas ? TS.neto / TS.ventas * 100 : 0;
   const porPuesto = x => x.staff ? x.neto / x.staff : 0;
@@ -593,7 +594,7 @@ function dibujar() {
       <div><span>Resultado promedio por show</span><b>${money(TS.shows ? TS.neto / TS.shows : 0)}</b></div>
       <div><span>Margen promedio</span><b>${nf1(margenProm)}%</b></div>
       <div><span>Back-ups del período</span><b>${bkTot} persona${bkTot !== 1 ? 's' : ''}</b><small>en ${bkShows} de ${TS.shows} shows · por encima del pedido</small></div>
-      <div><span>Costo real de back-ups</span><b class="${bkTot ? 'neg' : ''}">${money(bkCostoTot)}</b><small>con cargas sociales · ${p1(bkCostoTot, costoPersShows)} del costo de personal · no se factura</small></div>
+      <div title="Back-ups y coordinación: se pagan y no se le facturan al Arena. Costo real = pagado + cargas sociales."><span>Costo extra no facturado</span><b class="${bkCostoTot + coCostoTot ? 'neg' : ''}">${money(bkCostoTot + coCostoTot)}</b><small>back-ups ${money(bkCostoTot)} + coordinación ${money(coCostoTot)} · costo real</small></div>
     </div>`;
 
   const altoShows = Math.max(200, shows.length * (pct ? 44 : 70) + 70);

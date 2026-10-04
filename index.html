@@ -623,6 +623,18 @@ async function render() {
 // ══════════════════════════════════════════════
 // DATA LAYER — Supabase
 // ══════════════════════════════════════════════
+// Supabase devuelve como máximo 1.000 filas por consulta: esto trae todas, en tandas.
+// (Sin esto, las liquidaciones más viejas quedaban afuera y los meses aparecían en $0 / "sin liquidar".)
+async function traerTodo(consulta, tanda = 1000) {
+  const out = [];
+  for (let desde = 0; ; desde += tanda) {
+    const { data, error } = await consulta().range(desde, desde + tanda - 1);
+    if (error) return { data: out.length ? out : null, error };
+    out.push(...(data || []));
+    if (!data || data.length < tanda) break;
+  }
+  return { data: out, error: null };
+}
 async function fetchAll() {
   // Esperar que termine cualquier guardado de meses en curso, si no la lectura
   // podría traer datos viejos y pisar lo recién importado.
@@ -631,14 +643,14 @@ async function fetchAll() {
     _syncMesesPending = null;
   }
   const [p, t, ev, q, liq, mf, me, fa, ta, sa] = await Promise.all([
-    sb.from('personal').select('*').order('apellido'),
+    traerTodo(() => sb.from('personal').select('*').order('apellido').order('id')),
     sb.from('tarifario').select('*').order('posicion'),
-    sb.from('eventos').select('*, fechas(*, presentismo(*))').order('created_at'),
+    traerTodo(() => sb.from('eventos').select('*, fechas(*, presentismo(*))').order('created_at').order('id')),
     sb.from('quincenas').select('*').order('fecha_inicio'),
-    sb.from('liquidaciones').select('*').order('created_at', { ascending: false }),
+    traerTodo(() => sb.from('liquidaciones').select('*').order('created_at', { ascending: false }).order('id')),
     sb.from('meses_fijos').select('*').order('updated_at', { ascending: false }),
     sb.from('mapeos_externos').select('seccion_norm, posicion'),
-    sb.from('facturaciones').select('*').order('fecha', { ascending: false }),
+    traerTodo(() => sb.from('facturaciones').select('*').order('fecha', { ascending: false }).order('id')),
     sb.from('tarifario_arena').select('*'),
     sb.from('servicios_arena').select('*'),
   ]);
@@ -801,8 +813,7 @@ function stF(ev, fechaId) {
   if (!l.length) return 'o';
   const liquidados = new Set(l.map(x => x.persona_id));
   if (pres.some(p => !liquidados.has(p.persona_id))) return 'p';
-  if (l.every(x => x.estado === 'pagado')) return 'c';
-  return 'l';
+  return 'c';   // todos liquidados: la fecha queda cerrada (el pago lo gestiona administración)
 }
 
 // ══════════════════════════════════════════════
@@ -814,7 +825,7 @@ async function pgDB(el) {
   const hoy = hoyISO(), mesAct = hoy.slice(0, 7);
   const meses = []; for (let d = new Date(+RENT_DESDE.slice(0, 4), +RENT_DESDE.slice(5, 7) - 1, 1); d <= new Date(); d = new Date(d.getFullYear(), d.getMonth() + 1, 1)) meses.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
   if (!meses.includes(mesAct)) meses.push(mesAct);
-  if (!S_DB.mes || !meses.includes(S_DB.mes)) S_DB.mes = mesAct;
+  if (S_DB.mes && !meses.includes(S_DB.mes)) S_DB.mes = '';   // '' = acumulado (vista por defecto)
   const R = fvlResumen(S_DB.mes), cp = pctCargasSoc(), col = g => g >= 0 ? '#1a7a3e' : '#b45309';
   // ── Pendientes (lo que hay que hacer) ──
   const facs = APP.facturaciones || [];
@@ -845,7 +856,7 @@ async function pgDB(el) {
   el.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:12px">
       <div><h2 style="margin:0">Resumen</h2><div style="color:var(--text2);font-size:12.5px">Montos sin IVA. El IVA está en Facturación; el resultado neto, en Informes a socios.</div></div>
-      <select onchange="S_DB.mes=this.value;render()" style="width:auto;font-size:13px;padding:6px 9px">${meses.map(m => `<option value="${m}" ${m === S_DB.mes ? 'selected' : ''}>${mesLabel(m)}</option>`).join('')}</select>
+      <select onchange="S_DB.mes=this.value;render()" style="width:auto;font-size:13px;padding:6px 9px"><option value="" ${!S_DB.mes ? 'selected' : ''}>Acumulado</option>${meses.map(m => `<option value="${m}" ${m === S_DB.mes ? 'selected' : ''}>${mesLabel(m)}</option>`).join('')}</select>
     </div>
     ${tablaAreasDB(S_DB.mes)}
     <div class="grid2" style="align-items:start">
@@ -855,13 +866,6 @@ async function pgDB(el) {
           : '<div style="font-size:12.5px;color:#1a7a3e"><i class="ti ti-circle-check"></i> Todo al día.</div>'}
       </div>
       <div style="display:flex;flex-direction:column;gap:14px">
-        <div class="card">
-          <div style="font-weight:600">Liquidaciones sin pagar</div>
-          <div style="font-size:12px;color:var(--text2);margin:2px 0 8px">Ya liquidadas y aprobadas, pero todavía no marcadas como pagadas: es lo que falta transferir (neto).</div>
-          ${aprob.length ? Object.entries(porArea).sort((a, b) => b[1].t - a[1].t).map(([k, v]) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px">
-              <span><span class="chip ${/^cargas$|^mesa de entrada$/i.test(k) ? 'chip-arena' : chipClaseArea(k)}" style="font-size:11px">${esc2(k)}</span> <span style="color:var(--text2)">${v.n} ${v.n !== 1 ? 'liquidaciones' : 'liquidación'}</span></span><b>${fmt(v.t)}</b></div>`).join('')
-            + `<div style="display:flex;justify-content:space-between;padding-top:7px;font-size:13px"><b>Total a transferir</b><b>${fmt(totPagar)}</b></div>` : '<div style="font-size:12.5px;color:#1a7a3e"><i class="ti ti-circle-check"></i> No hay liquidaciones pendientes de pago.</div>'}
-        </div>
         <div class="card">
           <div style="font-weight:600;margin-bottom:10px">Accesos rápidos</div>
           <div class="db-acc">
@@ -879,36 +883,54 @@ async function pgDB(el) {
     </div>`;
 }
 
-function tablaAreasDB(mes) {
-  const A = fvlPorArea(mes), otras = liquidadoOtrasAreas(mes), col = g => g >= 0 ? '#1a7a3e' : '#b45309', cp = pctCargasSoc();
-  const cab = conFact => `<thead><tr><th>${conFact ? 'Servicio' : 'Lugar'}</th>${conFact ? '<th style="text-align:right">Facturado</th>' : ''}<th style="text-align:right" title="Lo que se le transfiere a la gente">Pagado (neto)</th><th style="text-align:right" title="Pagado + ${cp}% de cargas sociales: lo que le cuesta a SBS">Costo real</th>${conFact ? '<th style="text-align:right">Diferencia</th><th style="text-align:center">%</th>' : ''}</tr></thead>`;
+function tablaAreasDB(mes) {   // mes 'AAAA-MM' o '' para el acumulado
+  const per = mes || null, A = fvlPorArea(per), col = g => g >= 0 ? '#1a7a3e' : '#b45309', cp = pctCargasSoc();
+  const cuando = per ? `en ${mesLabel(per).toLowerCase()}` : 'en total';
+  const cab = (c1, conFact) => `<thead><tr><th>${c1}</th>${conFact ? '<th style="text-align:right">Facturado</th>' : ''}<th style="text-align:right" title="Lo que se le transfiere a la gente">Pagado (neto)</th><th style="text-align:right" title="Pagado + ${cp}% de cargas sociales: lo que le cuesta a SBS">Costo real</th>${conFact ? '<th style="text-align:right">Diferencia</th><th style="text-align:center">%</th>' : ''}</tr></thead>`;
   const filaA = (x, sub) => `<tr><td>${x.nombre}<div style="font-size:11px;color:var(--text2)">${sub}</div></td><td style="text-align:right">${fmt(x.fact)}</td><td style="text-align:right">${fmt(x.neto)}</td><td style="text-align:right">${fmt(x.costo)}</td>
     <td style="text-align:right;font-weight:600;color:${col(x.dif)}">${fmt(x.dif)}</td><td style="text-align:center">${pctTxt1(x.dif, x.fact)}</td></tr>`;
-  const ext = otras.find(x => x.nombre === 'Externos') || { neto: 0, costo: 0 }, fijos = otras.filter(x => x.nombre !== 'Externos');
-  const totF = fijos.reduce((a, x) => ({ neto: a.neto + x.neto, costo: a.costo + x.costo }), { neto: 0, costo: 0 });
-  const nExt = (APP.liquidaciones || []).filter(l => l.area === 'Externos' && String(l.periodo || '').includes(`/${mes.slice(5, 7)}/${mes.slice(0, 4)}`)).length;
+  // Externos: por evento
+  const mesDe = p => { const m = String(p || '').match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}` : ''; };
+  const lext = (APP.liquidaciones || []).filter(l => l.area === 'Externos' && (!per || mesDe(l.periodo) === per));
+  const porEv = {}; lext.forEach(l => { const k = l.evento_id || 'otros'; porEv[k] = porEv[k] || { neto: 0, jorn: 0, fechas: new Set() }; porEv[k].neto += l.total || 0; porEv[k].jorn += l.jornadas || 1; if (l.fecha_id) porEv[k].fechas.add(l.fecha_id); });
+  const evs = Object.entries(porEv).map(([id, v]) => { const e = (APP.eventos || []).find(x => x.id === id);
+    const fs = (e?.fechas || []).filter(f => v.fechas.has(f.id)).map(f => f.fecha).sort();
+    return { nombre: e?.nombre || 'Evento', lugar: e?.lugar || '', desde: fs[0], hasta: fs[fs.length - 1], nF: v.fechas.size, jorn: v.jorn, neto: v.neto, costo: costoLaboral(v.neto) }; })
+    .sort((a, b) => String(a.desde || '').localeCompare(String(b.desde || '')));
+  const tE = evs.reduce((a, x) => ({ neto: a.neto + x.neto, costo: a.costo + x.costo }), { neto: 0, costo: 0 });
+  // Servicios Fijos: por lugar (meses liquidados en el período)
+  const mesesF = getMesesFijos().filter(m => !per || mesYM(m) === per);
+  const fijos = (typeof LUGARES_FIJOS !== 'undefined' ? LUGARES_FIJOS : []).map(l => {
+    const L = (APP.liquidaciones || []).filter(x => x.area === 'Servicios Fijos' && x.lugar_fijo === l.id && mesesF.some(m => m.id === x.mes_id));
+    const nM = new Set(L.map(x => x.mes_id)).size, neto = L.reduce((a, x) => a + (x.total || 0), 0);
+    return { nombre: l.nombre, nM, pers: new Set(L.map(x => x.persona_id)).size, neto, costo: costoLaboral(neto) }; });
+  const tF = fijos.reduce((a, x) => ({ neto: a.neto + x.neto, costo: a.costo + x.costo }), { neto: 0, costo: 0 });
   return `
   <div class="db-legend"><span><b>Pagado (neto):</b> lo que se le transfiere a la gente.</span><span><b>Costo real:</b> lo pagado + ${cp}% de cargas sociales, lo que le cuesta a SBS.</span><span><b>Diferencia:</b> facturado − costo real, antes de impuestos.</span></div>
   <div class="card db-area" style="padding:0;overflow:auto;margin-bottom:14px">
-    <div class="db-ah"><span class="chip chip-arena">Movistar Arena</span><span>${A.nShows} show${A.nShows !== 1 ? 's' : ''} facturado${A.nShows !== 1 ? 's' : ''} en ${mesLabel(mes).toLowerCase()}</span>
-      <a href="#" onclick="S_FVL.mes='${mes}';go('rentabilidad');return false">Ver detalle →</a></div>
-    <table class="tbl">${cab(true)}<tbody>
+    <div class="db-ah"><span class="chip chip-arena">Movistar Arena</span><span>${A.nShows} show${A.nShows !== 1 ? 's' : ''} facturado${A.nShows !== 1 ? 's' : ''} ${per ? cuando : `desde el ${fd(RENT_DESDE)}`}</span>
+      <a href="#" onclick="S_FVL.mes='${mes || ''}';go('rentabilidad');return false">Ver detalle →</a></div>
+    <table class="tbl">${cab('Servicio', true)}<tbody>
       ${filaA(A.areas[0], 'shows, sin sus cargas')}${filaA(A.areas[1], 'facturadas en el pedido de cada show')}${filaA(A.areas[2], 'servicio mensual')}
     </tbody><tfoot><tr style="font-weight:700;background:var(--card2)"><td>Total Movistar Arena</td><td style="text-align:right">${fmt(A.tot.fact)}</td><td style="text-align:right">${fmt(A.tot.neto)}</td><td style="text-align:right">${fmt(A.tot.costo)}</td>
       <td style="text-align:right;color:${col(A.tot.dif)}">${fmt(A.tot.dif)}</td><td style="text-align:center">${pctTxt1(A.tot.dif, A.tot.fact)}</td></tr></tfoot></table>
   </div>
-  <div class="grid2" style="align-items:start;margin-bottom:14px">
-    <div class="card db-area" style="padding:0;overflow:auto">
-      <div class="db-ah"><span class="chip chip-ext">Externos</span><span>${nExt} ${nExt !== 1 ? 'liquidaciones' : 'liquidación'} en el mes · la facturación va por fuera de la plataforma</span><a href="#" onclick="go('externos');return false">Ver →</a></div>
-      <table class="tbl">${cab(false)}<tbody><tr><td>Eventos externos</td><td style="text-align:right">${fmt(ext.neto)}</td><td style="text-align:right">${fmt(ext.costo)}</td></tr></tbody></table>
-    </div>
-    <div class="card db-area" style="padding:0;overflow:auto">
-      <div class="db-ah"><span class="chip chip-fijos">Servicios Fijos</span><span>la facturación va por fuera de la plataforma</span><a href="#" onclick="go('fijos');return false">Ver →</a></div>
-      <table class="tbl">${cab(false)}<tbody>${fijos.map(x => `<tr><td><span class="chip ${chipClaseArea(x.nombre)}" style="font-size:11px">${x.nombre}</span></td><td style="text-align:right">${fmt(x.neto)}</td><td style="text-align:right">${fmt(x.costo)}</td></tr>`).join('')}</tbody>
-      <tfoot><tr style="font-weight:700;background:var(--card2)"><td>Total Servicios Fijos</td><td style="text-align:right">${fmt(totF.neto)}</td><td style="text-align:right">${fmt(totF.costo)}</td></tr></tfoot></table>
-    </div>
+  <div class="card db-area" style="padding:0;overflow:auto;margin-bottom:14px">
+    <div class="db-ah"><span class="chip chip-ext">Externos</span><span>${evs.length} evento${evs.length !== 1 ? 's' : ''} liquidado${evs.length !== 1 ? 's' : ''} ${cuando} · la facturación va por fuera de la plataforma</span><a href="#" onclick="go('externos');return false">Ver →</a></div>
+    <table class="tbl"><thead><tr><th>Evento</th><th>Fechas</th><th style="text-align:center">Jornadas</th><th style="text-align:right" title="Lo que se le transfiere a la gente">Pagado (neto)</th><th style="text-align:right" title="Pagado + ${cp}% de cargas sociales">Costo real</th></tr></thead>
+    <tbody>${evs.length ? evs.map(x => `<tr><td>${esc2(x.nombre)}${x.lugar ? `<div style="font-size:11px;color:var(--text2)">${esc2(x.lugar)}</div>` : ''}</td>
+      <td style="font-size:12px">${x.desde ? (x.desde === x.hasta ? fd(x.desde) : `${fd(x.desde).slice(0, 5)} a ${fd(x.hasta)}`) : '—'}<div style="font-size:11px;color:var(--text2)">${x.nF} fecha${x.nF !== 1 ? 's' : ''}</div></td>
+      <td style="text-align:center">${x.jorn}</td><td style="text-align:right">${fmt(x.neto)}</td><td style="text-align:right">${fmt(x.costo)}</td></tr>`).join('')
+      : `<tr><td colspan="5" style="color:var(--text2);text-align:center;padding:12px">Sin liquidaciones de externos ${cuando}.</td></tr>`}</tbody>
+    ${evs.length ? `<tfoot><tr style="font-weight:700;background:var(--card2)"><td colspan="3">Total Externos</td><td style="text-align:right">${fmt(tE.neto)}</td><td style="text-align:right">${fmt(tE.costo)}</td></tr></tfoot>` : ''}</table>
   </div>
-  <div class="db-total">Total pagado en ${mesLabel(mes).toLowerCase()}, todas las áreas: <b>${fmt(A.tot.neto + ext.neto + totF.neto)}</b> neto · <b>${fmt(A.tot.costo + ext.costo + totF.costo)}</b> de costo real</div>`;
+  <div class="card db-area" style="padding:0;overflow:auto;margin-bottom:14px">
+    <div class="db-ah"><span class="chip chip-fijos">Servicios Fijos</span><span>${mesesF.length} mes${mesesF.length !== 1 ? 'es' : ''} ${per ? '' : 'en total '}· la facturación va por fuera de la plataforma</span><a href="#" onclick="go('fijos');return false">Ver →</a></div>
+    <table class="tbl"><thead><tr><th>Lugar</th><th style="text-align:center">${per ? 'Personas' : 'Meses liquidados'}</th><th style="text-align:right" title="Lo que se le transfiere a la gente">Pagado (neto)</th><th style="text-align:right" title="Pagado + ${cp}% de cargas sociales">Costo real</th></tr></thead>
+    <tbody>${fijos.map(x => `<tr><td><span class="chip ${chipClaseArea(x.nombre)}" style="font-size:11px">${x.nombre}</span></td><td style="text-align:center">${per ? (x.pers || '—') : (x.nM || '—')}</td><td style="text-align:right">${fmt(x.neto)}</td><td style="text-align:right">${fmt(x.costo)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr style="font-weight:700;background:var(--card2)"><td colspan="2">Total Servicios Fijos</td><td style="text-align:right">${fmt(tF.neto)}</td><td style="text-align:right">${fmt(tF.costo)}</td></tr></tfoot></table>
+  </div>
+  <div class="db-total">Total pagado ${cuando}, todas las áreas: <b>${fmt(A.tot.neto + tE.neto + tF.neto)}</b> neto · <b>${fmt(A.tot.costo + tE.costo + tF.costo)}</b> de costo real</div>`;
 }
 window.dbTab = function() {};   // (se mantiene por compatibilidad: el dashboard ya no tiene pestañas)
 
@@ -1050,7 +1072,7 @@ function renderTablaP(lista) {
     if (agrupar && a !== areaAnt) { areaAnt = a; filas += `<tr class="p-grupo"><td colspan="7"><span class="chip ${chipClaseArea(a)}">${esc2(a)}</span> <span>${lista.filter(x => areaPersona(x) === a).length}</span></td></tr>`; }
     filas += `<tr id="prow-${p.id}" class="${p.activo === false ? 'p-inact' : ''}">
     <td><input type="checkbox" class="chk chk-p" data-id="${p.id}" ${selPersonal.has(p.id) ? 'checked' : ''} onchange="toggleSelPersona('${p.id}',this.checked)"></td>
-    <td><strong>${esc2(p.apellido)}, ${esc2(p.nombre)}</strong>${!agrupar ? '' : ''}</td>
+    <td>${esc2(p.apellido)}, ${esc2(p.nombre)}</td>
     <td style="font-family:monospace;font-size:11.5px">${p.cuil || '<span class="badge bw" style="font-size:10px">sin CUIL</span>'}</td>
     <td>${esc2(p.posicion || '—')}</td>
     <td style="font-family:monospace;font-size:11.5px">${p.cbu ? p.cbu.slice(0, 6) + '···' + p.cbu.slice(-4) : '<span class="badge bw" style="font-size:10px">sin CBU</span>'}</td>
@@ -1335,7 +1357,7 @@ window.filtrarTar = function() {
   lista.forEach(t => {
     const a = areaT(t);
     if (a !== ant) { ant = a; filas += `<tr class="p-grupo"><td colspan="${finde ? 5 : 4}"><span class="chip ${chipClaseArea(a)}">${esc2(a)}</span> <span>${lista.filter(x => areaT(x) === a).length}</span></td></tr>`; }
-    filas += `<tr><td><strong>${esc2(t.posicion)}</strong></td><td style="text-align:right;font-weight:600">${fmt(t.monto)}</td>${finde ? `<td style="text-align:right">${t.monto_finde ? fmt(t.monto_finde) : '<span style="color:var(--text2)">—</span>'}</td>` : ''}
+    filas += `<tr><td>${esc2(t.posicion)}</td><td style="text-align:right;font-weight:600">${fmt(t.monto)}</td>${finde ? `<td style="text-align:right">${t.monto_finde ? fmt(t.monto_finde) : '<span style="color:var(--text2)">—</span>'}</td>` : ''}
       <td style="text-align:right;font-size:11.5px;color:var(--text2)">${t.updated_at ? new Date(t.updated_at).toLocaleDateString('es-AR') : '—'}</td>
       <td style="text-align:right;white-space:nowrap"><button class="btn btn-sm" onclick="modalTarifa('${t.id}')" title="Editar"><i class="ti ti-edit"></i></button> <button class="btn btn-sm btn-danger" onclick="delTarifa('${t.id}')" title="Borrar"><i class="ti ti-trash"></i></button></td></tr>`;
   });
@@ -1456,9 +1478,11 @@ window.toggleFinalizadosExt = function() {
 
 // Un evento se considera finalizado cuando tiene liquidaciones y todas están pagadas.
 // A partir de ahí queda bloqueado: no se agregan fechas ni se editan importes.
+// Evento finalizado: todas sus fechas con presentes están liquidadas
 function eventoPagado(ev) {
   const liqs = APP.liquidaciones.filter(l => l.evento_id === ev.id);
-  return liqs.length > 0 && liqs.every(l => l.estado === 'pagado');
+  const conPres = (ev.fechas || []).filter(f => (f.presentismo || []).length);
+  return liqs.length > 0 && conPres.length > 0 && conPres.every(f => stF(ev, f.id) === 'c');
 }
 
 function renderEvExt(ev, isRRHH) {
@@ -1494,27 +1518,24 @@ function renderEvExt(ev, isRRHH) {
             return `<div class="fecha-row">
               <div style="flex:1">
                 <span style="font-weight:500">${fd(f.fecha)}</span>
-                ${f.nombre ? `<span style="color:var(--text2);font-size:11px"> · ${f.nombre}</span>` : ''}
               </div>
               <span class="pill">${pres.length} pres.</span>
               <span class="pill">${fmt(fl.reduce((s,l)=>s+(l.total||0),0))}</span>
               <span class="fb ${st==='o'?'fb-o':st==='p'?'fb-p':'fb-c'}">${
-                st==='o'?'sin liquidar':st==='p'?'falta liquidar':st==='l'?'liquidada':'pagada'}</span>
+                st==='o'?'sin liquidar':st==='p'?'falta liquidar':'liquidada'}</span>
               <div style="display:flex;gap:5px;flex-shrink:0">
                 ${pres.length ? `<button class="btn btn-sm" onclick="verFechaExt('${ev.id}','${f.id}')" title="Ver / editar detalle"><i class="ti ti-eye"></i></button>` : ''}
                 ${isRRHH ? `<button class="btn btn-sm" onclick="importarFechaCtx('${ev.id}','${f.id}','ext')" title="Subir planilla"><i class="ti ti-file-upload"></i></button>` : ''}
                 ${isRRHH && st !== 'c' ? `<button class="btn btn-sm" onclick="modalAgregarPersonaExt('${ev.id}','${f.id}')" title="Agregar persona a mano"><i class="ti ti-user-plus"></i></button>` : ''}
                 ${isRRHH && pres.length && (st === 'o' || st === 'p') ? `<button class="btn btn-sm btn-success" onclick="liquidarFechaExt('${ev.id}','${f.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
-                ${isRRHH && st === 'l' ? `<button class="btn btn-sm btn-success" onclick="marcarPagadasFechaExt('${ev.id}','${f.id}')" title="Marcar todas como pagadas y cerrar la fecha"><i class="ti ti-cash"></i> Pagada</button>` : ''}
                 ${fl.length ? `<button class="btn btn-sm" onclick="exportLiqsFecha('${ev.id}','${f.id}')"><i class="ti ti-file-spreadsheet"></i> Excel</button>` : ''}
               </div>
             </div>`;
           }).join('')}
     </div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
-      ${isRRHH && !pagado ? `<button class="btn btn-sm" onclick="agregarFechaExt('${ev.id}')"><i class="ti ti-calendar-plus"></i> Agregar fecha</button>` : ''}
+      ${isRRHH ? `<button class="btn btn-sm" onclick="agregarFechaExt('${ev.id}')"><i class="ti ti-calendar-plus"></i> Agregar fecha</button>` : ''}
       ${liqs.length ? `<button class="btn btn-sm" onclick="verLiqsEv('${ev.id}')"><i class="ti ti-list"></i> Liquidaciones (${liqs.length})</button>` : ''}
-      ${isRRHH && liqs.some(l => l.estado !== 'pagado') ? `<button class="btn btn-sm btn-success" onclick="marcarPagadasEventoExt('${ev.id}')"><i class="ti ti-cash"></i> Marcar todo pagado</button>` : ''}
       ${liqs.length ? `<button class="btn btn-sm" onclick="exportLiqsEvento('${ev.id}')"><i class="ti ti-file-spreadsheet"></i> Exportar todo</button>` : ''}
     </div>
   </div>`;
@@ -3812,12 +3833,22 @@ async function syncMesesFijos(meses) {
   }
 }
 
+// Año-mes (AAAA-MM) de un mes de Servicios Fijos: de la primera fecha del período ("01/06/2026 — 30/06/2026") o del nombre ("Junio 2026")
+const MESES_NOMBRE = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+function mesYM(mes) {
+  const m = String(mes?.periodo || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}`;
+  const t = normTxt(mes?.nombre || ''), y = (t.match(/(20\d{2})/) || [])[1];
+  const i = MESES_NOMBRE.findIndex(n => n === 'septiembre' ? /sept|setiem/.test(t) : t.includes(n));
+  return y && i >= 0 ? `${y}-${String(i + 1).padStart(2, '0')}` : '';
+}
+const mesesFijosOrdenados = () => [...getMesesFijos()].sort((a, b) => (mesYM(a) || '9999').localeCompare(mesYM(b) || '9999') || String(a.nombre).localeCompare(String(b.nombre)));
 async function pgFijos(el, ac) {
   await fetchAll();
   const isRRHH = APP.rol === 'rrhh';
   const liqFijos = APP.liquidaciones.filter(l => l.area === 'Servicios Fijos');
   const totalLiq = liqFijos.reduce((s,l) => s+(l.total||0), 0);
-  const meses = getMesesFijos();
+  const meses = mesesFijosOrdenados();   // del más viejo al más nuevo
 
   if (isRRHH) ac.innerHTML = `<button class="btn btn-primary" onclick="modalNuevoMesFijo()"><i class="ti ti-plus"></i> Nuevo mes</button>`;
 
@@ -3828,7 +3859,7 @@ async function pgFijos(el, ac) {
   el.innerHTML = `
     <div class="grid4" style="margin-bottom:18px">
       ${LUGARES_FIJOS.map(l => `<div class="metric"><div class="metric-l">${l.nombre}</div><div class="metric-v" style="font-size:17px">${fmt(APP.liquidaciones.filter(x=>x.area==='Servicios Fijos'&&x.lugar_fijo===l.id).reduce((s,x)=>s+(x.total||0),0))}</div><div class="metric-s">Total liquidado</div></div>`).join('')}
-      <div class="metric"><div class="metric-l">Total general</div><div class="metric-v" style="font-size:17px">${fmt(totalLiq)}</div><div class="metric-s">${meses.length} mes${meses.length!==1?'es':''} · ${APP.personal.filter(p=>p.area==='Servicios Fijos').length} personas</div></div>
+      <div class="metric"><div class="metric-l">Total general</div><div class="metric-v" style="font-size:17px">${fmt(totalLiq)}</div><div class="metric-s">${meses.length} mes${meses.length!==1?'es':''} · ${APP.personal.filter(p=>p.area==='Servicios Fijos').length} ${(APP.personal.filter(p=>p.area==='Servicios Fijos').length) === 1 ? 'persona' : 'personas'}</div></div>
     </div>
     ${cerradosCount ? `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
       <button class="btn btn-sm" onclick="toggleCerradosFijos()">
@@ -4693,7 +4724,7 @@ function liquidadoOtrasAreas(periodo) {
   const liqs = APP.liquidaciones || [];
   const mesDe = p => { const m = String(p || '').match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}` : ''; };
   const ext = liqs.filter(l => l.area === 'Externos' && mesDe(l.periodo) === periodo).reduce((a, l) => a + (l.total || 0), 0);
-  const mesesF = getMesesFijos().filter(m => m.periodo === periodo).map(m => m.id);
+  const mesesF = getMesesFijos().filter(m => !periodo || mesYM(m) === periodo).map(m => m.id);
   const out = [{ nombre: 'Externos', neto: ext }];
   (typeof LUGARES_FIJOS !== 'undefined' ? LUGARES_FIJOS : []).forEach(l => out.push({ nombre: l.nombre,
     neto: liqs.filter(x => x.area === 'Servicios Fijos' && x.lugar_fijo === l.id && mesesF.includes(x.mes_id)).reduce((a, x) => a + (x.total || 0), 0) }));
@@ -4752,7 +4783,7 @@ function htmlFvlMesa(filtro) {
     const liqs = liqsServ('arena-mesa', m), liq = liqs.length > 0, pag = liq && liqs.every(l => l.estado === 'pagado');
     const fact = (t.venta || 0) * n, neto = liq ? liqs.reduce((a, l) => a + (l.total || 0), 0) : (t.sueldo || 0) * n;
     const costo = Math.round(neto * (1 + cp / 100)), dif = fact - costo; tF += fact; tC += costo;
-    const est = esHistorico(m) ? '<span class="badge bs" style="font-size:10px">Fuera de la plataforma</span>' : pag ? '<span class="badge bs" style="font-size:10px">Pagada</span>' : liq ? '<span class="badge bi" style="font-size:10px">Liquidada</span>' : '<span class="badge bw" style="font-size:10px">Sin liquidar</span>';
+    const est = esHistorico(m) ? '<span class="badge bs" style="font-size:10px">Fuera de la plataforma</span>' : liq ? '<span class="badge bs" style="font-size:10px">Liquidada</span>' : '<span class="badge bw" style="font-size:10px">Sin liquidar</span>';
     return `<tr><td><strong>${mesLabel(m)}</strong></td><td style="text-align:center">${d.personas.map(pid => (d.pres[pid] || []).length).join(' / ')}</td><td style="text-align:right">${fmt(fact)}</td>
       <td style="text-align:right">${fmt(neto)}</td><td style="text-align:right">${fmt(costo)}</td><td style="text-align:right;font-weight:600;color:${col(dif)}">${fmt(dif)}</td><td>${est}</td></tr>`;
   }).join('');
@@ -5279,13 +5310,13 @@ function htmlCargas() {
       <tbody>${filas}</tbody><tfoot><tr><td class="gn gh">Presentes</td>${pie}<td class="gt">${jornadas}</td></tr></tfoot></table></div>`;
   const tarjetas = sem.filter(w => jornW(w) || semLiq(w.n).length).map(w => {
     const L = semLiq(w.n), pag = L.length && L.every(l => l.estado === 'pagado');
-    const est = hist ? ['Fuera de la plataforma', 'bs'] : !L.length ? ['Sin liquidar', 'bw'] : pag ? ['Pagada', 'bs'] : ['Liquidada', 'bi'];
+    const est = hist ? ['Fuera de la plataforma', 'bs'] : !L.length ? ['Sin liquidar', 'bw'] : ['Liquidada', 'bs'];
     return `<div class="sem-card">
       <div class="sc-h"><b>${w.label}</b><span>${w.rango}</span></div>
       <div class="sc-v">${fmt(totalW(w))}</div><div class="sc-s">${jornW(w)} jornada${jornW(w) !== 1 ? 's' : ''}</div>
       <div class="sc-f"><span class="badge ${est[1]}">${est[0]}</span>
         ${!hist && !L.length ? `<button class="btn btn-sm btn-primary" onclick="liquidarSemanaCargas(${w.n})">Liquidar</button>` : ''}
-        ${!hist && L.length && !pag ? `<button class="btn btn-sm" onclick="pagarServ('arena-cargas',${w.n})" title="Marcar pagada"><i class="ti ti-check"></i></button><button class="btn btn-sm" onclick="deshacerServ('arena-cargas',${w.n})" title="Deshacer"><i class="ti ti-arrow-back-up"></i></button>` : ''}
+        ${!hist && L.length && !pag ? `<button class="btn btn-sm" onclick="deshacerServ('arena-cargas',${w.n})" title="Deshacer la liquidación"><i class="ti ti-arrow-back-up"></i></button>` : ''}
         <button class="btn btn-sm" onclick="excelCargas(${w.n})" title="Excel de la semana"><i class="ti ti-file-spreadsheet"></i></button></div></div>`; }).join('');
   return `${!sueldo ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Falta el sueldo de CARGAS en el tarifario de ${mesLabel(periodo).toLowerCase()}.</div>` : ''}
     ${kpis}${hist ? '' : panelShowsCargas(periodo)}${grilla}
@@ -5300,9 +5331,9 @@ function htmlMesa() {
   const venta = (t.venta || 0) * nP, sueldo = liq ? liqs.reduce((a, l) => a + (l.total || 0), 0) : (t.sueldo || 0) * nP;
   const dias = d.personas.map(pid => (d.pres[pid] || []).length);
   if (!d.personas.length) return grillaVacia('mesa', periodo);
-  const estado = hist ? ['Fuera de la plataforma', 'ok'] : pag ? ['Pagada', 'ok'] : liq ? ['Liquidada', ''] : ['Sin liquidar', 'warn'];
+  const estado = hist ? ['Fuera de la plataforma', 'ok'] : liq ? ['Liquidada', 'ok'] : ['Sin liquidar', 'warn'];
   const acciones = hist ? 'con la planilla' : !liq ? `<button class="btn btn-sm btn-primary" style="margin-top:4px" onclick="liquidarMesa()">Liquidar el mes</button>`
-    : !pag ? `<button class="btn btn-sm" style="margin-top:4px" onclick="pagarServ('arena-mesa',0)">Marcar pagada</button> <button class="btn btn-sm" style="margin-top:4px" onclick="deshacerServ('arena-mesa',0)" title="Deshacer"><i class="ti ti-arrow-back-up"></i></button>` : '';
+    : !pag ? `<button class="btn btn-sm" style="margin-top:4px" onclick="deshacerServ('arena-mesa',0)" title="Deshacer la liquidación"><i class="ti ti-arrow-back-up"></i> Deshacer</button>` : '';
   const kpis = `<div class="sv-kpis">
     ${svKpi('Días trabajados', `${dias.join(' / ') || '0'} <span style="font-size:13px;font-weight:500;color:var(--text2)">de ${habilesDe(periodo).length} hábiles</span>`, `${feriadosDe(periodo).size ? `${[...feriadosDe(periodo)].filter(f => { const w = dowDe(f); return w >= 1 && w <= 5; }).length} feriado${[...feriadosDe(periodo)].length !== 1 ? 's' : ''} en día de semana · ` : ''}se paga y factura el mensual completo`)}
     ${svKpi('Facturación al Arena', fmt(venta), `con IVA ${fmt(Math.round(venta * 121) / 100)}`)}
