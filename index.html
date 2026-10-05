@@ -640,9 +640,12 @@ async function render() {
 // ── Íconos ⓘ: al tocarlos se abre la explicación (antes solo aparecía al dejar el mouse encima) ──
 document.addEventListener('click', e => {
   const ic = e.target.closest('i.ti-info-circle[title], i.ti-info-circle[data-info]');
+  const abierto = window._infoIc && document.querySelector('.info-pop');
   document.querySelectorAll('.info-pop').forEach(p => p.remove());
-  if (!ic || ic.closest('.clk-k')) return;   // el indicador de costo real tiene su propio detalle
+  if (!ic || ic.closest('.clk-k')) { window._infoIc = null; return; }   // el indicador de costo real tiene su propio detalle
   e.stopPropagation(); e.preventDefault();
+  if (abierto && window._infoIc === ic) { window._infoIc = null; return; }   // tocar el mismo ícono otra vez lo cierra
+  window._infoIc = ic;
   const txt = ic.getAttribute('data-info') || ic.getAttribute('title');
   if (!ic.getAttribute('data-info')) { ic.setAttribute('data-info', txt); ic.removeAttribute('title'); }   // evita que se superpongan el recuadro y el globo del navegador
   const pop = document.createElement('div'); pop.className = 'info-pop'; pop.textContent = txt;
