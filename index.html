@@ -389,6 +389,9 @@ table.cal td em.fe { color: #9a6a1c; font-size: 9.5px; font-weight: 600; }
 .mbar { display: flex; align-items: center; gap: 8px; } .mbar > div { flex: 1; height: 7px; background: #eceeed; border-radius: 4px; overflow: hidden; min-width: 50px; }
 .mbar span { display: block; height: 100%; border-radius: 4px; } .mbar b { font-size: 12px; font-weight: 600; min-width: 42px; text-align: right; }
 .fvl-det summary::-webkit-details-marker { margin-right: 4px; }
+
+i.ti-info-circle[title], i.ti-info-circle[data-info] { cursor: pointer; }
+.info-pop { position: absolute; z-index: 9999; background: #1f2421; color: #fff; font-size: 12.5px; line-height: 1.45; font-weight: 400; padding: 10px 12px; border-radius: 9px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
 </style>
 </head>
 <body>
@@ -633,6 +636,25 @@ async function render() {
 // ══════════════════════════════════════════════
 // DATA LAYER — Supabase
 // ══════════════════════════════════════════════
+
+// ── Íconos ⓘ: al tocarlos se abre la explicación (antes solo aparecía al dejar el mouse encima) ──
+document.addEventListener('click', e => {
+  const ic = e.target.closest('i.ti-info-circle[title], i.ti-info-circle[data-info]');
+  document.querySelectorAll('.info-pop').forEach(p => p.remove());
+  if (!ic || ic.closest('.clk-k')) return;   // el indicador de costo real tiene su propio detalle
+  e.stopPropagation(); e.preventDefault();
+  const txt = ic.getAttribute('data-info') || ic.getAttribute('title');
+  if (!ic.getAttribute('data-info')) { ic.setAttribute('data-info', txt); ic.removeAttribute('title'); }   // evita que se superpongan el recuadro y el globo del navegador
+  const pop = document.createElement('div'); pop.className = 'info-pop'; pop.textContent = txt;
+  document.body.appendChild(pop);
+  const r = ic.getBoundingClientRect(), w = Math.min(320, window.innerWidth - 24);
+  pop.style.width = w + 'px';
+  pop.style.left = Math.max(12, Math.min(window.innerWidth - w - 12, r.left + r.width / 2 - w / 2)) + 'px';
+  const abajo = r.bottom + 8 + pop.offsetHeight < window.innerHeight;
+  pop.style.top = (abajo ? r.bottom + 8 : r.top - pop.offsetHeight - 8) + window.scrollY + 'px';
+}, true);
+window.addEventListener('scroll', () => document.querySelectorAll('.info-pop').forEach(p => p.remove()), true);
+
 // Supabase devuelve como máximo 1.000 filas por consulta: esto trae todas, en tandas.
 // (Sin esto, las liquidaciones más viejas quedaban afuera y los meses aparecían en $0 / "sin liquidar".)
 async function traerTodo(consulta, tanda = 1000) {
