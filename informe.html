@@ -641,10 +641,6 @@ function dibujar() {
         ${d.meses.map(x => `<button class="chip ${S.mes === x.periodo ? 'on' : ''}" aria-pressed="${S.mes === x.periodo}" onclick="filtrarMes('${x.periodo}')">${x.label.split(' ')[0]}</button>`).join('')}
       </div>` : '<div></div>'}
       <div class="tools">
-        <div class="seg" role="group" aria-label="Mostrar valores como">
-          <button class="${!pct ? 'on' : ''}" aria-pressed="${!pct}" onclick="cambiarModo('monto')">Montos</button>
-          <button class="${pct ? 'on' : ''}" aria-pressed="${pct}" onclick="cambiarModo('pct')">% de ingresos</button>
-        </div>
         <button class="btn btn-video" onclick="abrirVideo()">▶ Ver en video</button>
         <button class="btn" onclick="descargarPlanilla()" title="Detalle por show en formato para Excel">Descargar planilla</button>
         <button class="btn" onclick="window.print()">Imprimir / PDF</button>
@@ -720,7 +716,7 @@ function dibujar() {
 
 // ══ Interacciones ══
 window.filtrarMes = function(p) { S.mes = p; S.abierto = null; dibujar(); };
-window.cambiarModo = function(m) { if (S.modo === m) return; S.modo = m; dibujar(); };
+window.cambiarModo = function() {};   // el informe se muestra siempre en montos (la vista en % se sacó)
 window.ordenar = function(col) {
   S.orden = S.orden.col === col ? { col, dir: -S.orden.dir } : { col, dir: col === 'fecha' ? 1 : -1 };
   dibujar();
