@@ -392,6 +392,10 @@ table.cal td em.fe { color: #9a6a1c; font-size: 9.5px; font-weight: 600; }
 
 i.ti-info-circle[title], i.ti-info-circle[data-info] { cursor: pointer; }
 .info-pop { position: absolute; z-index: 9999; background: #1f2421; color: #fff; font-size: 12.5px; line-height: 1.45; font-weight: 400; padding: 10px 12px; border-radius: 9px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+
+.monto-in { width: 96px; text-align: right; font-size: 12.5px; padding: 3px 6px; font-weight: 500; }
+.monto-in.ed { border-color: #e5a24a; background: #fff8ee; }
+.monto-ed { font-size: 10.5px; color: #9a5a0c; font-weight: 400; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -1465,8 +1469,7 @@ async function pgExternos(el, ac) {
     (ev.fechas||[]).forEach(f => {
       const yaLiq = liqsF(ev.id, f.id).map(l => l.persona_id);
       (f.presentismo||[]).filter(p => !yaLiq.includes(p.persona_id)).forEach(p => {
-        const t = getTarifa(p.posicion, 'Externos');
-        montoALiquidar += t?.monto || 0;
+        montoALiquidar += montoExt(p) || 0;
       });
     });
   });
@@ -1800,6 +1803,11 @@ window.guardarPersonaManualExt = async function(evId, fechaId) {
   verFechaExt(evId, fechaId);
 };
 
+// Monto de una persona en una fecha de Externos: el editado a mano (si hay) o el del tarifario según su posición
+function montoExt(p) {
+  if (p && p.monto !== null && p.monto !== undefined && p.monto !== '') return +p.monto;
+  const t = getTarifa(p?.posicion, 'Externos'); return t ? t.monto : null;
+}
 window.verFechaExt = function(evId, fechaId) {
   const ev   = getEvento(evId);
   const f    = (ev?.fechas||[]).find(x => x.id === fechaId);
@@ -1807,6 +1815,7 @@ window.verFechaExt = function(evId, fechaId) {
   const liqs = liqsF(evId, fechaId);
   const cerrada = stF(ev, fechaId) === 'c';
   const puedeEditar = APP.rol === 'rrhh' && !cerrada;
+  const puedeMonto = APP.rol === 'rrhh';   // el monto se puede corregir siempre, también ya liquidado
 
   const tarifasExt = APP.tarifario.filter(t => t.area === 'Externos' || t.area === 'General');
 
@@ -1814,8 +1823,8 @@ window.verFechaExt = function(evId, fechaId) {
   const filas = pres.map(p => {
     const per = APP.personal.find(x => x.id === p.persona_id);
     const liq = liqs.find(l => l.persona_id === p.persona_id);
-    const tar = getTarifa(p.posicion, 'Externos');
-    return { p, per, liq, tar, monto: liq ? (liq.total||0) : (tar?.monto||0), sinTarifa: !liq && !tar };
+    const tar = getTarifa(p.posicion, 'Externos'), m = montoExt(p);
+    return { p, per, liq, tar, monto: liq ? (liq.total||0) : (m||0), sinTarifa: !liq && m == null };
   });
   const total = filas.reduce((s,x) => s + x.monto, 0);
   const sinTarifa = [...new Set(filas.filter(x => x.sinTarifa).map(x => x.p.posicion))];
@@ -1829,7 +1838,7 @@ window.verFechaExt = function(evId, fechaId) {
       Esas personas quedan afuera al liquidar. Cargá la posición en Tarifario (área Externos) o cambiala acá abajo.</div>
     </div>` : ''}
     ${puedeEditar && !liqs.length ? `<div class="alert alert-info" style="padding:8px 12px">
-      <i class="ti ti-edit" style="font-size:13px"></i> Podés cambiar la posición de cada persona — el monto se actualiza solo.
+      <i class="ti ti-edit" style="font-size:13px"></i> Podés cambiar la posición (el monto toma el del tarifario) o escribir otro monto a mano.
     </div>` : ''}
     <table><thead><tr>
       <th>Apellido y nombre</th><th>CUIL</th><th>Posición</th>
@@ -1845,8 +1854,7 @@ window.verFechaExt = function(evId, fechaId) {
         <td>${puedeEditar && !liq
           ? `<select style="font-size:12px;padding:3px 6px" onchange="updatePresentismo('${fechaId}','${p.persona_id}',this.value,'Externos')">${extra}${opts}</select>`
           : p.posicion}</td>
-        <td style="text-align:right;font-weight:500" id="monto-cell-${fechaId}-${p.persona_id}">${
-          st ? '<span style="color:var(--orange)">sin tarifa</span>' : fmt(liq ? liq.total : (getTarifa(p.posicion,'Externos')?.monto||0))}</td>
+        <td style="text-align:right;font-weight:500" id="monto-cell-${fechaId}-${p.persona_id}">${celdaMontoExt(evId, fechaId, p, liq, puedeMonto)}</td>
         <td>${liq
           ? `<span class="badge ${liq.estado==='pagado'?'bs':liq.estado==='aprobado'?'bi':'bw'}">${liq.estado}</span>`
           : '<span class="badge bg">sin liquidar</span>'}</td>
@@ -1869,6 +1877,39 @@ window.verFechaExt = function(evId, fechaId) {
   </div>`);
 };
 
+
+// Celda de monto en el detalle de una fecha de Externos (editable para RRHH)
+function celdaMontoExt(evId, fechaId, p, liq, editable) {
+  const tar = getTarifa(p.posicion, 'Externos'), m = liq ? (liq.total || 0) : montoExt(p);
+  const editado = liq ? (tar && liq.total !== tar.monto) : (p.monto !== null && p.monto !== undefined && p.monto !== '');
+  if (!editable) return m == null ? '<span style="color:var(--orange)">sin tarifa</span>' : fmt(m);
+  return `<input type="number" min="0" step="1" value="${m ?? ''}" placeholder="sin tarifa" class="monto-in${editado ? ' ed' : ''}"
+      title="${tar ? `Tarifario: ${fmt(tar.monto)}` : 'Sin tarifa para esta posición'}" onchange="setMontoExt('${evId}','${fechaId}','${p.persona_id}',this.value)">
+    ${editado ? `<div class="monto-ed">editado${tar ? ` · tarifario ${fmt(tar.monto)}` : ''}</div>` : ''}`;
+}
+window.setMontoExt = async function(evId, fechaId, personaId, valor) {
+  const v = valor === '' ? null : Math.round(+valor);
+  if (v !== null && (isNaN(v) || v < 0)) { toast('Monto inválido', 'err'); return; }
+  const liq = liqsF(evId, fechaId).find(l => l.persona_id === personaId);
+  loading(true);
+  if (liq) {
+    // ya liquidada: se corrige la liquidación (lo que ven los totales y el Excel)
+    if (v === null) { loading(false); toast('Una liquidación necesita un monto', 'err'); return; }
+    const { error } = await sb.from('liquidaciones').update({ total: v, valor_jornada: v }).eq('id', liq.id);
+    loading(false);
+    if (error) { toast('No se pudo guardar: ' + error.message, 'err'); return; }
+    liq.total = v; liq.valor_jornada = v;
+  } else {
+    // sin liquidar: el monto queda guardado en el presentismo y se usa al liquidar
+    const { error } = await sb.from('presentismo').update({ monto: v }).eq('fecha_id', fechaId).eq('persona_id', personaId);
+    loading(false);
+    if (error) { toast(/monto|column|schema/i.test(error.message) ? 'Falta la columna "monto" en la tabla presentismo de Supabase (te pasé el SQL).' : 'No se pudo guardar: ' + error.message, 'err'); return; }
+    getEvento(evId)?.fechas?.forEach(f => { if (f.id === fechaId) { const p = (f.presentismo || []).find(x => x.persona_id === personaId); if (p) p.monto = v; } });
+  }
+  toast(v === null ? 'Monto: vuelve al del tarifario' : 'Monto actualizado', 'ok');
+  verFechaExt(evId, fechaId);
+};
+
 window.liquidarFechaExt = async function(evId, fechaId) {
   const ev     = getEvento(evId);
   const f      = (ev?.fechas||[]).find(x => x.id === fechaId);
@@ -1880,11 +1921,11 @@ window.liquidarFechaExt = async function(evId, fechaId) {
   const rows = [], sinTarifa = [];
   sinLiq.forEach(p => {
     const per = APP.personal.find(x => x.id === p.persona_id);
-    const t   = getTarifa(p.posicion, 'Externos');
-    if (per && t) rows.push({
+    const m   = montoExt(p);
+    if (per && m != null) rows.push({
       persona_id: per.id, persona_nombre:`${per.apellido}, ${per.nombre}`,
       evento_id: evId, fecha_id: fechaId, area:'Externos', posicion: p.posicion,
-      periodo: fd(f.fecha), jornadas:1, valor_jornada:t.monto, total:t.monto, estado:'aprobado'
+      periodo: fd(f.fecha), jornadas:1, valor_jornada:m, total:m, estado:'aprobado'
     });
     else if (per) sinTarifa.push(`${per.apellido} (${p.posicion})`);
   });
@@ -2332,12 +2373,13 @@ window.verShowArena = function(evId) {
 window.updatePresentismo = async function(fechaId, personaId, nuevaPosicion, area) {
   const areaTar = area || 'Movistar Arena'; // por defecto Arena, para no cambiar su comportamiento
   await sb.from('presentismo').update({ posicion: nuevaPosicion }).eq('fecha_id', fechaId).eq('persona_id', personaId);
+  if (area === 'Externos') await sb.from('presentismo').update({ monto: null }).eq('fecha_id', fechaId).eq('persona_id', personaId);   // si no existe la columna, no pasa nada
   // Actualizar cache local
   APP.eventos.forEach(ev => {
     (ev.fechas||[]).forEach(f => {
       if (f.id === fechaId) {
         const p = (f.presentismo||[]).find(x => x.persona_id === personaId);
-        if (p) p.posicion = nuevaPosicion;
+        if (p) { p.posicion = nuevaPosicion; if (area === 'Externos') p.monto = null; }
       }
     });
   });
