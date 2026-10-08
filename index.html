@@ -404,6 +404,20 @@ table.stf-t { width: 100%; } table.stf-t td, table.stf-t th { padding: 6px 8px; 
 .ap-tabs button { font: inherit; font-size: 12.5px; background: none; border: 0; border-bottom: 2px solid transparent; padding: 6px 10px; cursor: pointer; color: var(--text2); margin-bottom: -1px; }
 .ap-tabs button.on { color: var(--text); border-bottom-color: #1f2421; font-weight: 600; }
 .ap-row { display: flex; gap: 10px; align-items: center; padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: 12.5px; cursor: pointer; } .ap-row:hover { background: var(--card2); }
+
+.shw2-box { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px; margin-bottom: 12px; }
+.shw2-h { display: flex; align-items: baseline; gap: 10px; font-size: 12.5px; margin-bottom: 7px; } .shw2-h span { color: var(--text2); font-size: 12px; }
+.shw2-t { margin-left: auto; font: inherit; font-size: 12px; background: none; border: 0; color: var(--text2); text-decoration: underline; cursor: pointer; }
+.shw2-l { display: flex; flex-wrap: wrap; gap: 5px; }
+.shw2 { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 12px; background: var(--card); border: 1px solid var(--border); border-left: 3px solid #d9dcda; border-radius: 7px; padding: 3px 9px; cursor: pointer; color: var(--text); max-width: 240px; }
+.shw2:hover { border-color: var(--text2); } .shw2 .d { color: var(--text2); font-size: 11px; } .shw2 .n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.shw2 .c { font-size: 11px; color: #1a7a3e; display: inline-flex; align-items: center; gap: 1px; }
+.shw2.pendiente { border-left-color: #e5a24a; background: #fffaf2; } .shw2.distinto { border-left-color: #b45309; } .shw2.distinto .c { color: #b45309; }
+.shw2.completo, .shw2.cargado { border-left-color: #2d8a4e; }
+
+.sb-grupo { display: flex; align-items: center; gap: 9px; padding: 7px 12px 3px; font-size: 13px; color: var(--text); font-weight: 500; }
+.sb-grupo i { font-size: 16px; width: 18px; flex-shrink: 0; color: var(--text2); }
+.sb-item.sb-sub { padding-left: 30px; font-size: 12.5px; } .sb-item.sb-sub i { font-size: 14px; }
 </style>
 </head>
 <body>
@@ -454,9 +468,10 @@ table.stf-t { width: 100%; } table.stf-t td, table.stf-t th { padding: 6px 8px; 
       <div class="sb-item" onclick="go('cbu')"       id="n-cbu"><i class="ti ti-credit-card"></i> Importar CBU</div>
         <div class="sb-sec">Liquidaciones</div>
         <div class="sb-item" onclick="go('externos')"  id="n-externos"><i class="ti ti-world"></i> Externos</div>
-        <div class="sb-item" onclick="go('arena')"     id="n-arena"><i class="ti ti-building"></i> Movistar Arena</div>
-        <div class="sb-item" onclick="go('cargas')" id="n-cargas"><i class="ti ti-truck"></i> Cargas</div>
-        <div class="sb-item" onclick="go('mesa')" id="n-mesa"><i class="ti ti-id-badge"></i> Mesa de entrada</div>
+        <div class="sb-grupo"><i class="ti ti-building"></i> Movistar Arena</div>
+        <div class="sb-item sb-sub" onclick="go('arena')"  id="n-arena"><i class="ti ti-users"></i> Orientadores</div>
+        <div class="sb-item sb-sub" onclick="go('cargas')" id="n-cargas"><i class="ti ti-truck"></i> Cargas</div>
+        <div class="sb-item sb-sub" onclick="go('mesa')"   id="n-mesa"><i class="ti ti-id-badge"></i> Mesa de entrada</div>
         <div class="sb-item" onclick="go('fijos')"     id="n-fijos"><i class="ti ti-calendar-repeat"></i> Servicios Fijos</div>
         <div class="sb-sec">Facturación</div>
         <div class="sb-item" onclick="go('facturacion')" id="n-facturacion"><i class="ti ti-file-invoice"></i> Facturación Movistar Arena</div>
@@ -620,7 +635,7 @@ function loading(show) {
   } else { if (ov) ov.style.display = 'none'; }
 }
 
-const TITLES = { db:'Dashboard', personal:'Personal', tarifario:'Tarifario', importar:'Importar planilla', cbu:'Importar CBU', externos:'Externos', arena:'Movistar Arena', fijos:'Servicios Fijos', facturacion:'Facturación Movistar Arena', rentabilidad:'Facturación vs Liquidación', informes:'Informes a socios', proyecciones:'Proyecciones', servicios:'Cargas · Movistar Arena', cargas:'Cargas · Movistar Arena', mesa:'Mesa de entrada · Movistar Arena' };
+const TITLES = { db:'Dashboard', personal:'Personal', tarifario:'Tarifario', importar:'Importar planilla', cbu:'Importar CBU', externos:'Externos', arena:'Movistar Arena · Orientadores', fijos:'Servicios Fijos', facturacion:'Facturación Movistar Arena', rentabilidad:'Facturación vs Liquidación', informes:'Informes a socios', proyecciones:'Proyecciones', servicios:'Movistar Arena · Cargas', cargas:'Movistar Arena · Cargas', mesa:'Movistar Arena · Mesa de entrada' };
 
 async function go(page) {
   APP.page = page;
@@ -5597,7 +5612,7 @@ async function pgServicios(el, ac) {
   const periodo = S_SERV.mes, hist = esHistorico(periodo), d = servData(tipo, periodo);
   if (APP.servArenaError) { el.innerHTML = `<div class="alert alert-warn"><i class="ti ti-database-off"></i> Falta crear la tabla <strong>servicios_arena</strong> en Supabase.</div>`; return; }
   const cab = `<div class="sv-head">
-      <div><h2>${tipo === 'cargas' ? 'Cargas / stagehands' : 'Mesa de entrada'}</h2>
+      <div><h2>Movistar Arena · ${tipo === 'cargas' ? 'Cargas / stagehands' : 'Mesa de entrada'}</h2>
         <div class="sv-sub">${tipo === 'cargas' ? 'Presentismo y liquidación semanal' : 'Presentismo, facturación y liquidación mensual'} · <a href="#" onclick="go('rentabilidad');return false">ver facturación vs liquidación</a></div></div>
       <div class="sv-acc">
         <select onchange="S_SERV.mes=this.value;render()">${meses.map(m => `<option value="${m}" ${m === periodo ? 'selected' : ''}>${mesLabel(m)}</option>`).join('')}</select>
@@ -5824,12 +5839,17 @@ function showsCargasMes(periodo) {
 }
 function panelShowsCargas(periodo) {
   const lista = showsCargasMes(periodo);
-  if (!lista.length) return `<div class="card sv-card" style="padding:12px 14px;font-size:12.5px;color:var(--text2)"><i class="ti ti-info-circle"></i> Todavía no hay shows de ${mesLabel(periodo).toLowerCase()} en Movistar Arena. Cuando los crees, aparecen acá para cargar los presentes.</div>`;
-  const pend = lista.filter(x => x.estado === 'pendiente').length;
-  return `<div class="sv-sec">Shows de ${mesLabel(periodo).toLowerCase()} <span style="font-weight:400;color:var(--text2)">· ${pend ? `${pend} pendiente${pend > 1 ? 's' : ''} de cargar` : 'todos cargados'}</span></div>
-    <div class="shw-grid">${lista.map(x => `<button class="shw ${x.estado}" onclick="cargarDia('${x.f}')" title="Cargar los presentes de este show">
-      <span class="shw-f">${DIA_LARGO[dowDe(x.f)].slice(0, 3)} ${+x.f.slice(8)}/${+x.f.slice(5, 7)}</span><b>${esc2(x.e.nombre)}</b>
-      <span class="shw-s">${x.estado === 'pendiente' ? 'Pendiente' : x.estado === 'completo' ? `<i class="ti ti-check"></i> ${x.pres} de ${x.ped}` : x.estado === 'distinto' ? `${x.pres} de ${x.ped} pedidos` : `${x.pres} presentes`}${x.ped == null && x.estado === 'pendiente' ? ' · sin pedido' : x.ped != null && x.estado === 'pendiente' ? ` · pidió ${x.ped}` : ''}</span></button>`).join('')}</div>`;
+  if (!lista.length) return `<div class="card sv-card" style="padding:10px 14px;font-size:12.5px;color:var(--text2)"><i class="ti ti-info-circle"></i> Todavía no hay shows de ${mesLabel(periodo).toLowerCase()} en Movistar Arena. Cuando los crees, aparecen acá para cargar los presentes.</div>`;
+  const pend = lista.filter(x => x.estado === 'pendiente'), dist = lista.filter(x => x.estado === 'distinto'), ok = lista.filter(x => x.estado !== 'pendiente' && x.estado !== 'distinto');
+  const abierto = S_SERV.verCargados === periodo;
+  const chip = x => `<button class="shw2 ${x.estado}" onclick="cargarDia('${x.f}')" title="${esc2(x.e.nombre)} · ${x.estado === 'pendiente' ? `pendiente${x.ped != null ? ` · el Arena pidió ${x.ped}` : ' · sin pedido'}` : `${x.pres} presente${x.pres !== 1 ? 's' : ''}${x.ped != null ? ` de ${x.ped} pedidos` : ''}`} · tocá para cargar">
+      <span class="d">${+x.f.slice(8)}/${+x.f.slice(5, 7)}</span><span class="n">${esc2(x.e.nombre)}</span>${x.estado === 'pendiente' ? '' : `<span class="c">${x.estado === 'distinto' ? `${x.pres}/${x.ped}` : `<i class="ti ti-check"></i>${x.pres}`}</span>`}</button>`;
+  return `<div class="shw2-box">
+    <div class="shw2-h"><b>Shows de ${mesLabel(periodo).toLowerCase()}</b>
+      <span>${pend.length ? `${pend.length} pendiente${pend.length > 1 ? 's' : ''}` : 'todos cargados'}${dist.length ? ` · ${dist.length} distinto${dist.length > 1 ? 's' : ''} al pedido` : ''} · ${ok.length} cargado${ok.length !== 1 ? 's' : ''}</span>
+      ${ok.length ? `<button class="shw2-t" onclick="S_SERV.verCargados=${abierto ? 'null' : `'${periodo}'`};render()">${abierto ? 'ocultar cargados' : `ver los ${ok.length} cargados`}</button>` : ''}</div>
+    <div class="shw2-l">${[...pend, ...dist].map(chip).join('')}${abierto ? ok.map(chip).join('') : ''}${!pend.length && !dist.length && !abierto ? '<span style="font-size:12px;color:#1a7a3e"><i class="ti ti-circle-check"></i> Todos los shows del mes tienen sus presentes.</span>' : ''}</div>
+  </div>`;
 }
 window.elegirShowCargas = function() {
   const periodo = S_SERV.mes, lista = showsCargasMes(periodo);
