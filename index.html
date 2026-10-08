@@ -4426,8 +4426,12 @@ function cargasPresentismo(periodo) {
 const RE_POS_SERV = { CARGAS: /\bcarga|stagehand/, 'MESA DE ENTRADA': /mesa de entrada/ };
 function tarifaPosServ(cat) { return (APP.tarifario || []).find(t => t.area === 'Movistar Arena' && RE_POS_SERV[cat].test(normTxt(t.posicion))) || null; }
 function valorServ(cat, periodo, campo) {
-  const mes = (APP.tarArena || []).find(x => x.periodo === periodo)?.filas?.[cat];   // cargado a mano para ese mes (no estimado)
-  if (mes && +mes[campo]) return { v: +mes[campo], origen: 'mes' };
+  // El tarifario mensual (el de Proyecciones) solo vale para los meses liquidados fuera de la plataforma (septiembre, con los
+  // valores de las planillas). Desde que se liquida en la plataforma, aunque Proyecciones tenga un mes guardado, no se usa acá.
+  if (esHistorico(periodo)) {
+    const mes = (APP.tarArena || []).find(x => x.periodo === periodo)?.filas?.[cat];
+    if (mes && +mes[campo]) return { v: +mes[campo], origen: 'mes' };
+  }
   if (campo === 'sueldo') { const t = tarifaPosServ(cat); return t ? { v: +t.monto, origen: 'tarifario' } : { v: 0, origen: null }; }
   if (cat === 'MESA DE ENTRADA') {
     const propio = servData('mesa', periodo).venta; if (+propio) return { v: +propio, origen: 'manual' };
@@ -4440,7 +4444,7 @@ const sueldoCargas = periodo => valorServ('CARGAS', periodo, 'sueldo').v;
 const valoresMesa = periodo => ({ venta: valorServ('MESA DE ENTRADA', periodo, 'venta').v, sueldo: valorServ('MESA DE ENTRADA', periodo, 'sueldo').v });
 function origenValor(cat, periodo, campo) {
   const r = valorServ(cat, periodo, campo);
-  if (r.origen === 'mes') return 'valor cargado para el mes';
+  if (r.origen === 'mes') return 'valor de las planillas del mes';
   if (r.origen === 'tarifario') return `Tarifario · <a href="#" onclick="go('tarifario');return false">cambiar</a>`;
   if (r.origen === 'manual') return `cargado acá · <a href="#" onclick="editarVentaMesa();return false">cambiar</a>`;
   if (r.origen === 'anterior') return `el de ${mesLabel(r.desde).toLowerCase()} · <a href="#" onclick="editarVentaMesa();return false">cambiar</a>`;
