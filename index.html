@@ -396,6 +396,14 @@ i.ti-info-circle[title], i.ti-info-circle[data-info] { cursor: pointer; }
 .monto-in { width: 96px; text-align: right; font-size: 12.5px; padding: 3px 6px; font-weight: 500; }
 .monto-in.ed { border-color: #e5a24a; background: #fff8ee; }
 .monto-ed { font-size: 10.5px; color: #9a5a0c; font-weight: 400; margin-top: 2px; }
+
+.stf-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: var(--card2); border-radius: 9px; padding: 8px 10px; margin: 10px 0; }
+.stf-bar input { font-size: 12.5px; padding: 5px 8px; } .stf-sep { flex: 1; }
+table.stf-t { width: 100%; } table.stf-t td, table.stf-t th { padding: 6px 8px; font-size: 12.5px; }
+.ap-tabs { display: flex; gap: 4px; margin-top: 10px; border-bottom: 1px solid var(--border); }
+.ap-tabs button { font: inherit; font-size: 12.5px; background: none; border: 0; border-bottom: 2px solid transparent; padding: 6px 10px; cursor: pointer; color: var(--text2); margin-bottom: -1px; }
+.ap-tabs button.on { color: var(--text); border-bottom-color: #1f2421; font-weight: 600; }
+.ap-row { display: flex; gap: 10px; align-items: center; padding: 7px 10px; border-bottom: 1px solid var(--border); font-size: 12.5px; cursor: pointer; } .ap-row:hover { background: var(--card2); }
 </style>
 </head>
 <body>
@@ -1561,9 +1569,9 @@ function renderEvExt(ev, isRRHH) {
               <span class="fb ${st==='o'?'fb-o':st==='p'?'fb-p':'fb-c'}">${
                 st==='o'?'sin liquidar':st==='p'?'falta liquidar':'liquidada'}</span>
               <div style="display:flex;gap:5px;flex-shrink:0">
-                ${pres.length ? `<button class="btn btn-sm" onclick="verFechaExt('${ev.id}','${f.id}')" title="Ver / editar detalle"><i class="ti ti-eye"></i></button>` : ''}
+                <button class="btn btn-sm" onclick="S_STAFF.sel=new Set();verFechaExt('${ev.id}','${f.id}')" title="Armar staff: posición y valor"><i class="ti ti-users"></i></button>
                 ${isRRHH ? `<button class="btn btn-sm" onclick="importarFechaCtx('${ev.id}','${f.id}','ext')" title="Subir planilla"><i class="ti ti-file-upload"></i></button>` : ''}
-                ${isRRHH && st !== 'c' ? `<button class="btn btn-sm" onclick="modalAgregarPersonaExt('${ev.id}','${f.id}')" title="Agregar persona a mano"><i class="ti ti-user-plus"></i></button>` : ''}
+                ${isRRHH ? `<button class="btn btn-sm" onclick="window._apx=null;agregarPresentesExt('${ev.id}','${f.id}')" title="Agregar personas"><i class="ti ti-user-plus"></i></button>` : ''}
                 ${isRRHH && pres.length && (st === 'o' || st === 'p') ? `<button class="btn btn-sm btn-success" onclick="liquidarFechaExt('${ev.id}','${f.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
                 ${fl.length ? `<button class="btn btn-sm" onclick="exportLiqsFecha('${ev.id}','${f.id}')"><i class="ti ti-file-spreadsheet"></i> Excel</button>` : ''}
               </div>
@@ -1573,7 +1581,7 @@ function renderEvExt(ev, isRRHH) {
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       ${isRRHH ? `<button class="btn btn-sm" onclick="agregarFechaExt('${ev.id}')"><i class="ti ti-calendar-plus"></i> Agregar fecha</button>` : ''}
       ${liqs.length ? `<button class="btn btn-sm" onclick="verLiqsEv('${ev.id}')"><i class="ti ti-list"></i> Liquidaciones (${liqs.length})</button>` : ''}
-      ${liqs.length ? `<button class="btn btn-sm" onclick="exportLiqsEvento('${ev.id}')"><i class="ti ti-file-spreadsheet"></i> Exportar todo</button>` : ''}
+      ${fechas.some(f => (f.presentismo || []).length) ? `<button class="btn btn-sm btn-primary" onclick="verConsolidadoExt('${ev.id}')"><i class="ti ti-users-group"></i> Consolidado</button>` : ''}
     </div>
   </div>`;
 }
@@ -1808,74 +1816,6 @@ function montoExt(p) {
   if (p && p.monto !== null && p.monto !== undefined && p.monto !== '') return +p.monto;
   const t = getTarifa(p?.posicion, 'Externos'); return t ? t.monto : null;
 }
-window.verFechaExt = function(evId, fechaId) {
-  const ev   = getEvento(evId);
-  const f    = (ev?.fechas||[]).find(x => x.id === fechaId);
-  const pres = f?.presentismo || [];
-  const liqs = liqsF(evId, fechaId);
-  const cerrada = stF(ev, fechaId) === 'c';
-  const puedeEditar = APP.rol === 'rrhh' && !cerrada;
-  const puedeMonto = APP.rol === 'rrhh';   // el monto se puede corregir siempre, también ya liquidado
-
-  const tarifasExt = APP.tarifario.filter(t => t.area === 'Externos' || t.area === 'General');
-
-  // Monto de cada persona: si ya se liquidó vale lo guardado; si no, lo que dice el tarifario
-  const filas = pres.map(p => {
-    const per = APP.personal.find(x => x.id === p.persona_id);
-    const liq = liqs.find(l => l.persona_id === p.persona_id);
-    const tar = getTarifa(p.posicion, 'Externos'), m = montoExt(p);
-    return { p, per, liq, tar, monto: liq ? (liq.total||0) : (m||0), sinTarifa: !liq && m == null };
-  });
-  const total = filas.reduce((s,x) => s + x.monto, 0);
-  const sinTarifa = [...new Set(filas.filter(x => x.sinTarifa).map(x => x.p.posicion))];
-
-  showModal(`<div class="modal modal-lg">
-    <div class="modal-t">${ev.nombre} — ${fd(f.fecha)}</div>
-    <div class="modal-s">${pres.length} presentes${f.nombre?' · '+f.nombre:''} · <strong id="total-show-lbl">${fmt(total)}</strong></div>
-    ${sinTarifa.length ? `<div class="alert alert-warn" style="padding:8px 12px">
-      <i class="ti ti-alert-triangle"></i>
-      <div><strong>Sin tarifa en Externos:</strong> ${sinTarifa.join(' · ')}.
-      Esas personas quedan afuera al liquidar. Cargá la posición en Tarifario (área Externos) o cambiala acá abajo.</div>
-    </div>` : ''}
-    ${puedeEditar && !liqs.length ? `<div class="alert alert-info" style="padding:8px 12px">
-      <i class="ti ti-edit" style="font-size:13px"></i> Podés cambiar la posición (el monto toma el del tarifario) o escribir otro monto a mano.
-    </div>` : ''}
-    <table><thead><tr>
-      <th>Apellido y nombre</th><th>CUIL</th><th>Posición</th>
-      <th style="text-align:right">Monto</th><th>Estado</th>${puedeEditar?'<th style="width:34px"></th>':''}
-    </tr></thead>
-    <tbody>${filas.map(({p, per, liq, sinTarifa: st}) => {
-      const opts = tarifasExt.map(t => `<option value="${t.posicion}" ${t.posicion===p.posicion?'selected':''}>${t.posicion}</option>`).join('');
-      const enTarifario = tarifasExt.some(t => t.posicion === p.posicion);
-      const extra = !enTarifario ? `<option value="${p.posicion}" selected>${p.posicion} (sin tarifa)</option>` : '';
-      return `<tr>
-        <td><strong>${per?.apellido||'?'}, ${per?.nombre||'?'}</strong></td>
-        <td style="font-family:monospace;font-size:11px">${per?.cuil||'—'}</td>
-        <td>${puedeEditar && !liq
-          ? `<select style="font-size:12px;padding:3px 6px" onchange="updatePresentismo('${fechaId}','${p.persona_id}',this.value,'Externos')">${extra}${opts}</select>`
-          : p.posicion}</td>
-        <td style="text-align:right;font-weight:500" id="monto-cell-${fechaId}-${p.persona_id}">${celdaMontoExt(evId, fechaId, p, liq, puedeMonto)}</td>
-        <td>${liq
-          ? `<span class="badge ${liq.estado==='pagado'?'bs':liq.estado==='aprobado'?'bi':'bw'}">${liq.estado}</span>`
-          : '<span class="badge bg">sin liquidar</span>'}</td>
-        ${puedeEditar ? `<td><button class="btn btn-sm btn-danger" onclick="quitarPersonaFechaExt('${evId}','${fechaId}','${p.persona_id}')" title="Quitar de esta fecha"><i class="ti ti-trash"></i></button></td>` : ''}
-      </tr>`;
-    }).join('')}</tbody>
-    <tfoot><tr>
-      <td colspan="3" style="font-weight:600;padding:10px;border-top:2px solid var(--border)">Total</td>
-      <td style="text-align:right;font-weight:700;font-size:15px;padding:10px;border-top:2px solid var(--border)" id="total-show-footer">${fmt(total)}</td>
-      <td colspan="${puedeEditar?2:1}" style="border-top:2px solid var(--border)"></td>
-    </tr></tfoot>
-    </table>
-    <div class="modal-f">
-      <button class="btn" onclick="closeModal()">Cerrar</button>
-      ${puedeEditar ? `<button class="btn" onclick="modalAgregarPersonaExt('${evId}','${fechaId}')"><i class="ti ti-user-plus"></i> Agregar persona</button>` : ''}
-      ${puedeEditar && filas.some(x => !x.liq) ? `<button class="btn btn-success" onclick="closeModal();liquidarFechaExt('${evId}','${fechaId}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
-      ${puedeEditar && liqs.length && !filas.some(x => !x.liq) ? `<button class="btn btn-success" onclick="marcarPagadasFechaExt('${evId}','${fechaId}')"><i class="ti ti-cash"></i> Marcar pagada</button>` : ''}
-      ${liqs.length ? `<button class="btn" onclick="exportLiqsFecha('${evId}','${fechaId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>` : ''}
-    </div>
-  </div>`);
-};
 
 
 // Celda de monto en el detalle de una fecha de Externos (editable para RRHH)
@@ -1910,6 +1850,198 @@ window.setMontoExt = async function(evId, fechaId, personaId, valor) {
   verFechaExt(evId, fechaId);
 };
 
+
+// ══════════════════════════════════════════════
+// EXTERNOS · ARMAR STAFF POR FECHA: presentes del padrón, posición y valor en forma masiva, consolidado por evento
+// ══════════════════════════════════════════════
+const S_STAFF = { sel: new Set() };
+const posicionesExt = () => [...new Set((APP.tarifario || []).filter(t => t.area === 'Externos').map(t => t.posicion))].sort((a, b) => a.localeCompare(b, 'es'));
+async function asegurarPosicionExt(pos, monto) {
+  // Si la posición no está en el tarifario de Externos, se crea con el valor indicado
+  pos = String(pos || '').trim(); if (!pos || getTarifa(pos, 'Externos')) return true;
+  let v = monto;
+  if (v === null || v === undefined || v === '' || isNaN(+v)) {
+    const r = prompt(`La posición "${pos}" no está en el tarifario de Externos.\n\n¿Con qué valor por jornada la creo?`);
+    if (r === null) return false; v = +String(r).replace(/[^\d]/g, '');
+    if (!v) { toast('Valor inválido: no se creó la posición', 'err'); return false; }
+  }
+  const { data, error } = await sb.from('tarifario').insert({ posicion: pos, area: 'Externos', monto: +v }).select().single();
+  if (error) { toast('No se pudo crear la posición: ' + error.message, 'err'); return false; }
+  APP.tarifario.push(data || { id: uid(), posicion: pos, area: 'Externos', monto: +v });
+  toast(`Posición "${pos}" creada en el tarifario (${fmt(+v)})`, 'ok');
+  return true;
+}
+function presFecha(evId, fechaId) { return (getEvento(evId)?.fechas || []).find(x => x.id === fechaId); }
+
+window.verFechaExt = function(evId, fechaId) {
+  const ev = getEvento(evId), f = presFecha(evId, fechaId); if (!ev || !f) return;
+  const rrhh = APP.rol === 'rrhh', liqs = liqsF(evId, fechaId);
+  const filas = (f.presentismo || []).map(p => { const per = APP.personal.find(x => x.id === p.persona_id), liq = liqs.find(l => l.persona_id === p.persona_id);
+      return { p, per, liq, monto: liq ? (liq.total || 0) : montoExt(p) }; })
+    .sort((a, b) => String(a.per?.apellido || '').localeCompare(String(b.per?.apellido || ''), 'es'));
+  S_STAFF.sel = new Set([...S_STAFF.sel].filter(id => filas.some(x => x.p.persona_id === id && !x.liq)));
+  const total = filas.reduce((a, x) => a + (x.monto || 0), 0), sinValor = filas.filter(x => x.monto == null).length;
+  const posOpts = posicionesExt().map(x => `<option value="${esc2(x)}">`).join('');
+  showModal(`<div class="modal modal-lg">
+    <div class="modal-t">${esc2(ev.nombre)} — ${fd(f.fecha)}</div>
+    <div class="modal-s">${filas.length} presente${filas.length !== 1 ? 's' : ''} · <strong>${fmt(total)}</strong>${sinValor ? ` · <span style="color:#b45309">${sinValor} sin posición ni valor</span>` : ''}${liqs.length ? ` · ${liqs.length} liquidado${liqs.length !== 1 ? 's' : ''}` : ''}</div>
+    <datalist id="pos-ext">${posOpts}</datalist>
+    ${rrhh ? `<div class="stf-bar">
+      <button class="btn btn-sm" onclick="agregarPresentesExt('${evId}','${fechaId}')"><i class="ti ti-user-plus"></i> Agregar personas</button>
+      <span class="stf-sep"></span>
+      <span style="font-size:12px;color:var(--text2)" id="stf-n">${S_STAFF.sel.size} seleccionado${S_STAFF.sel.size !== 1 ? 's' : ''}</span>
+      <input id="stf-pos" list="pos-ext" placeholder="Posición" style="width:200px">
+      <input id="stf-monto" type="number" min="0" placeholder="Valor $" style="width:110px">
+      <button class="btn btn-sm btn-primary" onclick="aplicarMasivoExt('${evId}','${fechaId}')">Aplicar a seleccionados</button>
+    </div>` : ''}
+    <div style="max-height:56vh;overflow:auto"><table class="stf-t"><thead><tr>
+      ${rrhh ? `<th style="width:30px"><input type="checkbox" onchange="selStaffTodos('${evId}','${fechaId}',this.checked)" ${filas.some(x => !x.liq) && filas.filter(x => !x.liq).every(x => S_STAFF.sel.has(x.p.persona_id)) ? 'checked' : ''}></th>` : ''}
+      <th>Apellido y nombre</th><th>CUIL</th><th>Posición</th><th style="text-align:right">Valor</th><th>Estado</th>${rrhh ? '<th></th>' : ''}
+    </tr></thead><tbody>
+    ${filas.length ? filas.map(({ p, per, liq, monto }) => `<tr>
+      ${rrhh ? `<td>${liq ? '' : `<input type="checkbox" ${S_STAFF.sel.has(p.persona_id) ? 'checked' : ''} onchange="selStaff('${p.persona_id}',this.checked)">`}</td>` : ''}
+      <td>${per ? `${esc2(per.apellido)}, ${esc2(per.nombre)}` : '?'}</td>
+      <td style="font-family:monospace;font-size:11px">${per?.cuil || '—'}</td>
+      <td>${rrhh && !liq ? `<input list="pos-ext" value="${esc2(p.posicion || '')}" placeholder="Sin asignar" style="width:200px;font-size:12px" onchange="setPosicionExt('${evId}','${fechaId}','${p.persona_id}',this.value)">` : esc2(p.posicion || '—')}</td>
+      <td style="text-align:right" id="monto-cell-${fechaId}-${p.persona_id}">${celdaMontoExt(evId, fechaId, p, liq, rrhh)}</td>
+      <td>${liq ? '<span class="badge bs">liquidado</span>' : monto == null ? '<span class="badge bw">sin valor</span>' : '<span class="badge bg">sin liquidar</span>'}</td>
+      ${rrhh ? `<td>${liq ? '' : `<button class="btn btn-sm btn-danger" title="Quitar de esta fecha" onclick="quitarPersonaFechaExt('${evId}','${fechaId}','${p.persona_id}')"><i class="ti ti-trash"></i></button>`}</td>` : ''}
+    </tr>`).join('') : `<tr><td colspan="7" style="text-align:center;color:var(--text2);padding:18px">Todavía no hay presentes. Usá "Agregar personas".</td></tr>`}
+    </tbody><tfoot><tr><td colspan="${rrhh ? 4 : 3}" style="font-weight:600">Total</td><td style="text-align:right;font-weight:700">${fmt(total)}</td><td colspan="2"></td></tr></tfoot></table></div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      ${rrhh && filas.some(x => !x.liq && x.monto != null) ? `<button class="btn btn-success" onclick="closeModal();liquidarFechaExt('${evId}','${fechaId}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
+      ${liqs.length ? `<button class="btn" onclick="exportLiqsFecha('${evId}','${fechaId}')"><i class="ti ti-file-spreadsheet"></i> Excel</button>` : ''}
+    </div></div>`);
+};
+window.selStaff = (id, on) => { on ? S_STAFF.sel.add(id) : S_STAFF.sel.delete(id); const n = document.getElementById('stf-n'); if (n) n.textContent = `${S_STAFF.sel.size} seleccionado${S_STAFF.sel.size !== 1 ? 's' : ''}`; };
+window.selStaffTodos = (evId, fechaId, on) => {
+  const f = presFecha(evId, fechaId), liq = new Set(liqsF(evId, fechaId).map(l => l.persona_id));
+  S_STAFF.sel = on ? new Set((f?.presentismo || []).map(p => p.persona_id).filter(id => !liq.has(id))) : new Set();
+  verFechaExt(evId, fechaId);
+};
+window.aplicarMasivoExt = async function(evId, fechaId) {
+  const pos = document.getElementById('stf-pos').value.trim(), mtxt = document.getElementById('stf-monto').value, monto = mtxt === '' ? null : Math.round(+mtxt);
+  const ids = [...S_STAFF.sel];
+  if (!ids.length) { toast('Seleccioná al menos una persona', 'err'); return; }
+  if (!pos && monto === null) { toast('Escribí una posición, un valor o los dos', 'err'); return; }
+  if (pos && !(await asegurarPosicionExt(pos, monto))) return;
+  const cambio = {}; if (pos) cambio.posicion = pos; if (monto !== null) cambio.monto = monto; else if (pos) cambio.monto = null;   // sin valor: toma el del tarifario
+  loading(true);
+  let error = null;
+  for (const pid of ids) { const r = await sb.from('presentismo').update(cambio).eq('fecha_id', fechaId).eq('persona_id', pid); if (r.error) { error = r.error; break; } }
+  loading(false);
+  if (error) { toast(/monto|column|schema/i.test(error.message) ? 'Falta la columna "monto" en la tabla presentismo de Supabase (te pasé el SQL).' : 'No se pudo guardar: ' + error.message, 'err'); return; }
+  (presFecha(evId, fechaId)?.presentismo || []).forEach(p => { if (ids.includes(p.persona_id)) Object.assign(p, cambio); });
+  toast(`Aplicado a ${ids.length} persona${ids.length !== 1 ? 's' : ''}`, 'ok');
+  S_STAFF.sel = new Set(); verFechaExt(evId, fechaId);
+};
+window.setPosicionExt = async function(evId, fechaId, personaId, pos) {
+  pos = pos.trim();
+  const p = (presFecha(evId, fechaId)?.presentismo || []).find(x => x.persona_id === personaId);
+  if (pos && !(await asegurarPosicionExt(pos, p?.monto))) { verFechaExt(evId, fechaId); return; }
+  const cambio = { posicion: pos, ...(p && (p.monto === null || p.monto === undefined) ? {} : {}) };
+  const { error } = await sb.from('presentismo').update(cambio).eq('fecha_id', fechaId).eq('persona_id', personaId);
+  if (error) { toast('No se pudo guardar: ' + error.message, 'err'); return; }
+  if (p) p.posicion = pos;
+  verFechaExt(evId, fechaId);
+};
+// Agregar personas a una fecha: del padrón (con buscador y "todos") o pegando CUIL / nombres
+window.agregarPresentesExt = function(evId, fechaId) {
+  window._apx = { evId, fechaId, sel: new Set(), area: 'Externos', q: '' };
+  renderAgregarPresentes();
+};
+function renderAgregarPresentes() {
+  const A = window._apx, f = presFecha(A.evId, A.fechaId), ya = new Set((f?.presentismo || []).map(p => p.persona_id));
+  const q = normTxt(A.q), areas = [...new Set((APP.personal || []).map(areaPersona))].sort((a, b) => ordenArea(a) - ordenArea(b));
+  const lista = (APP.personal || []).filter(p => p.activo !== false && !ya.has(p.id) && (!A.area || areaPersona(p) === A.area) && (!q || normTxt(`${p.apellido} ${p.nombre} ${p.cuil || ''}`).includes(q)))
+    .sort((a, b) => String(a.apellido).localeCompare(String(b.apellido), 'es'));
+  showModal(`<div class="modal modal-lg">
+    <div class="modal-t"><i class="ti ti-user-plus"></i> Agregar personas · ${fd(f.fecha)}</div>
+    <div class="modal-s">Quedan como presentes de esta fecha. Después les asignás la posición y el valor.</div>
+    <div class="ap-tabs"><button class="on">Del padrón</button><button onclick="pegarPresentesExt()">Pegar lista</button></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0">
+      <input id="ap-q" placeholder="Buscar por nombre o CUIL" value="${esc2(A.q)}" style="max-width:230px" oninput="window._apx.q=this.value;clearTimeout(window._apxT);window._apxT=setTimeout(renderAgregarPresentes,250)">
+      <select onchange="window._apx.area=this.value;renderAgregarPresentes()" style="width:auto"><option value="">Todas las áreas</option>${areas.map(a => `<option ${a === A.area ? 'selected' : ''}>${esc2(a)}</option>`).join('')}</select>
+      <label style="font-size:12.5px;display:flex;gap:5px;align-items:center"><input type="checkbox" onchange="${lista.map(p => `'${p.id}'`).length ? `[${lista.map(p => `'${p.id}'`).join(',')}].forEach(id=>this.checked?window._apx.sel.add(id):window._apx.sel.delete(id));renderAgregarPresentes()` : ''}" ${lista.length && lista.every(p => A.sel.has(p.id)) ? 'checked' : ''}> Seleccionar los ${lista.length} de la lista</label>
+    </div>
+    <div style="max-height:46vh;overflow:auto;border:1px solid var(--border);border-radius:8px">${lista.length ? lista.map(p => `<label class="ap-row"><input type="checkbox" ${A.sel.has(p.id) ? 'checked' : ''} onchange="this.checked?window._apx.sel.add('${p.id}'):window._apx.sel.delete('${p.id}');document.getElementById('ap-n').textContent=window._apx.sel.size">
+      <span style="flex:1">${esc2(p.apellido)}, ${esc2(p.nombre)}</span><span style="font-family:monospace;font-size:11px;color:var(--text2)">${p.cuil || ''}</span></label>`).join('')
+      : '<div style="padding:14px;text-align:center;color:var(--text2);font-size:12.5px">No hay personas para agregar con este filtro.</div>'}</div>
+    <div class="modal-f"><button class="btn" onclick="verFechaExt('${A.evId}','${A.fechaId}')">Volver</button>
+      <button class="btn btn-primary" onclick="confirmarPresentesExt([...window._apx.sel])">Agregar <span id="ap-n">${A.sel.size}</span></button></div></div>`);
+}
+window.pegarPresentesExt = function() {
+  const A = window._apx, f = presFecha(A.evId, A.fechaId);
+  showModal(`<div class="modal">
+    <div class="modal-t"><i class="ti ti-clipboard"></i> Pegar lista · ${fd(f.fecha)}</div>
+    <div class="modal-s">Una persona por renglón: CUIL o apellido y nombre. Se buscan en el padrón.</div>
+    <textarea id="ap-txt" rows="9" style="width:100%;margin-top:10px;font-size:12.5px" oninput="previewPegarExt()"></textarea>
+    <div id="ap-prev" style="font-size:12.5px;color:var(--text2);margin-top:6px"></div>
+    <div class="modal-f"><button class="btn" onclick="renderAgregarPresentes()">Volver</button><button class="btn btn-primary" onclick="confirmarPresentesExt(window._apxPeg||[])">Agregar</button></div></div>`);
+};
+window.previewPegarExt = function() {
+  const lineas = document.getElementById('ap-txt').value.split(/\r?\n/).map(x => x.trim()).filter(Boolean), ok = [], mal = [];
+  lineas.forEach(l => {
+    const dig = l.replace(/\D/g, ''), n = normTxt(l).replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim();
+    let p = dig.length === 11 ? APP.personal.find(x => normCuil(x.cuil) === dig) : null;
+    if (!p && n) { const c = APP.personal.filter(x => { const a = normTxt(`${x.apellido} ${x.nombre}`), b = normTxt(`${x.nombre} ${x.apellido}`); return a === n || b === n || a.startsWith(n) || n.startsWith(a); }); if (c.length === 1) p = c[0]; }
+    p ? ok.push(p.id) : mal.push(l);
+  });
+  window._apxPeg = [...new Set(ok)];
+  document.getElementById('ap-prev').innerHTML = `${window._apxPeg.length} encontrada${window._apxPeg.length !== 1 ? 's' : ''} en el padrón${mal.length ? ` · <span style="color:#b45309">no encontradas: ${mal.map(esc2).join(' / ')}</span>` : ''}`;
+};
+window.confirmarPresentesExt = async function(ids) {
+  const A = window._apx, f = presFecha(A.evId, A.fechaId), ya = new Set((f?.presentismo || []).map(p => p.persona_id));
+  const nuevos = ids.filter(id => !ya.has(id));
+  if (!nuevos.length) { toast('No hay personas nuevas para agregar', 'err'); return; }
+  loading(true);
+  const { data, error } = await sb.from('presentismo').insert(nuevos.map(pid => ({ fecha_id: A.fechaId, persona_id: pid, posicion: '' }))).select();
+  loading(false);
+  if (error) { toast('No se pudo agregar: ' + error.message, 'err'); return; }
+  f.presentismo = [...(f.presentismo || []), ...(data || nuevos.map(pid => ({ id: uid(), fecha_id: A.fechaId, persona_id: pid, posicion: '' })))];
+  S_STAFF.sel = new Set(nuevos);   // quedan seleccionados para asignarles posición y valor de una
+  toast(`${nuevos.length} persona${nuevos.length !== 1 ? 's' : ''} agregada${nuevos.length !== 1 ? 's' : ''} como presentes`, 'ok');
+  verFechaExt(A.evId, A.fechaId);
+};
+
+// Consolidado del evento: una fila por persona, todas sus fechas sumadas
+function consolidadoExt(evId) {
+  const ev = getEvento(evId), porP = {};
+  (ev?.fechas || []).forEach(f => { const liqs = liqsF(evId, f.id);
+    (f.presentismo || []).forEach(p => { const liq = liqs.find(l => l.persona_id === p.persona_id), m = liq ? (liq.total || 0) : montoExt(p);
+      const x = porP[p.persona_id] = porP[p.persona_id] || { pid: p.persona_id, fechas: [], pos: new Set(), liq: 0, pend: 0, sinValor: 0 };
+      x.fechas.push(f.fecha); if (p.posicion) x.pos.add(p.posicion);
+      if (liq) x.liq += m; else if (m == null) x.sinValor++; else x.pend += m; }); });
+  return Object.values(porP).map(x => ({ ...x, per: APP.personal.find(y => y.id === x.pid), total: x.liq + x.pend, fechas: x.fechas.sort() }))
+    .sort((a, b) => String(a.per?.apellido || '').localeCompare(String(b.per?.apellido || ''), 'es'));
+}
+window.verConsolidadoExt = function(evId) {
+  const ev = getEvento(evId), C = consolidadoExt(evId), T = C.reduce((a, x) => ({ liq: a.liq + x.liq, pend: a.pend + x.pend, j: a.j + x.fechas.length }), { liq: 0, pend: 0, j: 0 });
+  const sv = C.reduce((a, x) => a + x.sinValor, 0);
+  showModal(`<div class="modal modal-lg">
+    <div class="modal-t"><i class="ti ti-users-group"></i> Consolidado · ${esc2(ev.nombre)}</div>
+    <div class="modal-s">${C.length} personas · ${T.j} jornadas · <strong>${fmt(T.liq + T.pend)}</strong>${T.pend ? ` (${fmt(T.pend)} todavía sin liquidar)` : ''}${sv ? ` · <span style="color:#b45309">${sv} jornada${sv !== 1 ? 's' : ''} sin valor</span>` : ''}</div>
+    <div style="max-height:58vh;overflow:auto"><table class="stf-t"><thead><tr><th>Apellido y nombre</th><th>CUIL</th><th style="text-align:center">Fechas</th><th>Posición</th><th style="text-align:right">Liquidado</th><th style="text-align:right">Sin liquidar</th><th style="text-align:right">Total</th></tr></thead>
+    <tbody>${C.map(x => `<tr><td>${x.per ? `${esc2(x.per.apellido)}, ${esc2(x.per.nombre)}` : '?'}</td><td style="font-family:monospace;font-size:11px">${x.per?.cuil || '—'}</td>
+      <td style="text-align:center" title="${x.fechas.map(fd).join(', ')}">${x.fechas.length}</td><td style="font-size:12px">${[...x.pos].map(esc2).join(' · ') || '—'}</td>
+      <td style="text-align:right">${x.liq ? fmt(x.liq) : '—'}</td><td style="text-align:right">${x.pend ? fmt(x.pend) : '—'}</td><td style="text-align:right;font-weight:600">${fmt(x.total)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr style="font-weight:700"><td colspan="2">Total</td><td style="text-align:center">${T.j}</td><td></td><td style="text-align:right">${fmt(T.liq)}</td><td style="text-align:right">${fmt(T.pend)}</td><td style="text-align:right">${fmt(T.liq + T.pend)}</td></tr></tfoot></table></div>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cerrar</button><button class="btn btn-primary" onclick="excelConsolidadoExt('${evId}')"><i class="ti ti-file-spreadsheet"></i> Excel consolidado</button></div></div>`);
+};
+window.excelConsolidadoExt = async function(evId) {
+  if (typeof ExcelJS === 'undefined') { toast('No se pudo cargar el generador de Excel. Reintentá.', 'err'); return; }
+  const ev = getEvento(evId), C = consolidadoExt(evId).filter(x => x.total);
+  if (!C.length) { toast('No hay montos para exportar', 'err'); return; }
+  const fs = C.flatMap(x => x.fechas).sort(), rango = fs[0] === fs[fs.length - 1] ? fd(fs[0]).slice(0, 5) : `${fd(fs[0]).slice(0, 5)} a ${fd(fs[fs.length - 1]).slice(0, 5)}`;
+  const wb = new ExcelJS.Workbook(), ws = xlHoja(wb, 'Liquidación', { A: 8.89, B: 17.33, C: 16.67, D: 15.89, E: 13, F: 19.67, G: 11.78, H: 9.22 });
+  xlFila(ws, XL_COLS_LIQ, { bold: true });
+  const rangoDe = fx => { const u = [...new Set(fx)].sort(); return u.length === 1 ? fd(u[0]).slice(0, 5) : u.length === 2 ? `${fd(u[0]).slice(0, 5)} y ${fd(u[1]).slice(0, 5)}` : `${fd(u[0]).slice(0, 5)} a ${fd(u[u.length - 1]).slice(0, 5)}`; };
+  C.forEach(x => xlFila(ws, [x.per?.cuil || '', nomXL(x.per), x.per?.cbu || '', ev.lugar || 'Externos', rangoDe(x.fechas), x.fechas.length, [...x.pos].join(' / '), x.total], { formatos: { 8: '"$"#,##0' } }));   // período: las fechas de cada persona
+  xlFila(ws, ['', '', '', '', '', '', '', C.reduce((a, x) => a + x.total, 0)], { formatos: { 8: '"$"#,##0' } });
+  await xlDescargar(wb, `Liquidación ${normExport(ev.nombre).replace(/[\\/:*?"<>|]/g, '-')} - consolidado.xlsx`);
+};
+
 window.liquidarFechaExt = async function(evId, fechaId) {
   const ev     = getEvento(evId);
   const f      = (ev?.fechas||[]).find(x => x.id === fechaId);
@@ -1924,7 +2056,7 @@ window.liquidarFechaExt = async function(evId, fechaId) {
     const m   = montoExt(p);
     if (per && m != null) rows.push({
       persona_id: per.id, persona_nombre:`${per.apellido}, ${per.nombre}`,
-      evento_id: evId, fecha_id: fechaId, area:'Externos', posicion: p.posicion,
+      evento_id: evId, fecha_id: fechaId, area:'Externos', posicion: p.posicion || 'Sin posición',
       periodo: fd(f.fecha), jornadas:1, valor_jornada:m, total:m, estado:'aprobado'
     });
     else if (per) sinTarifa.push(`${per.apellido} (${p.posicion})`);
@@ -4284,6 +4416,54 @@ function cargasPresentismo(periodo) {
   return (APP.tarArena || []).find(x => x.periodo === 'cargas-' + periodo)?.filas || null;
 }
 // Servicios mensuales activos de un mes, con sus montos (del tarifario, o ajustados para ese mes)
+
+// ══════════════════════════════════════════════
+// VALORES REALES de Cargas y Mesa de entrada (liquidar, facturar, informes). NUNCA usan la estimación de Proyecciones.
+//  1) Si el mes tiene valores cargados a mano en el tarifario mensual (p. ej. septiembre, de las planillas), se usan esos.
+//  2) Si no: sueldo = Tarifario (posición "Cargas" / "Mesa de entrada", área Movistar Arena);
+//     venta de mesa de entrada = la que se carga a mano en la sección Mesa de entrada (o la del último mes cargado).
+// ══════════════════════════════════════════════
+const RE_POS_SERV = { CARGAS: /\bcarga|stagehand/, 'MESA DE ENTRADA': /mesa de entrada/ };
+function tarifaPosServ(cat) { return (APP.tarifario || []).find(t => t.area === 'Movistar Arena' && RE_POS_SERV[cat].test(normTxt(t.posicion))) || null; }
+function valorServ(cat, periodo, campo) {
+  const mes = (APP.tarArena || []).find(x => x.periodo === periodo)?.filas?.[cat];   // cargado a mano para ese mes (no estimado)
+  if (mes && +mes[campo]) return { v: +mes[campo], origen: 'mes' };
+  if (campo === 'sueldo') { const t = tarifaPosServ(cat); return t ? { v: +t.monto, origen: 'tarifario' } : { v: 0, origen: null }; }
+  if (cat === 'MESA DE ENTRADA') {
+    const propio = servData('mesa', periodo).venta; if (+propio) return { v: +propio, origen: 'manual' };
+    const prev = (APP.servArena || []).filter(x => x.tipo === 'mesa' && x.periodo < periodo && +x.data?.venta).sort((a, b) => b.periodo.localeCompare(a.periodo))[0];
+    if (prev) return { v: +prev.data.venta, origen: 'anterior', desde: prev.periodo };
+  }
+  return { v: 0, origen: null };
+}
+const sueldoCargas = periodo => valorServ('CARGAS', periodo, 'sueldo').v;
+const valoresMesa = periodo => ({ venta: valorServ('MESA DE ENTRADA', periodo, 'venta').v, sueldo: valorServ('MESA DE ENTRADA', periodo, 'sueldo').v });
+function origenValor(cat, periodo, campo) {
+  const r = valorServ(cat, periodo, campo);
+  if (r.origen === 'mes') return 'valor cargado para el mes';
+  if (r.origen === 'tarifario') return `Tarifario · <a href="#" onclick="go('tarifario');return false">cambiar</a>`;
+  if (r.origen === 'manual') return `cargado acá · <a href="#" onclick="editarVentaMesa();return false">cambiar</a>`;
+  if (r.origen === 'anterior') return `el de ${mesLabel(r.desde).toLowerCase()} · <a href="#" onclick="editarVentaMesa();return false">cambiar</a>`;
+  return campo === 'sueldo'
+    ? `<span style="color:#b45309">falta en el Tarifario</span> · <a href="#" onclick="crearPosServ('${cat}');return false">cargarlo</a>`
+    : `<span style="color:#b45309">falta cargarlo</span> · <a href="#" onclick="editarVentaMesa();return false">cargar</a>`;
+}
+window.crearPosServ = async function(cat) {
+  const nombre = cat === 'CARGAS' ? 'Cargas' : 'Mesa de entrada';
+  const r = prompt(`Valor de "${nombre}" en el Tarifario (Movistar Arena)${cat === 'CARGAS' ? ', por jornada' : ', sueldo mensual neto'}:`);
+  if (r === null) return; const v = +String(r).replace(/[^\d]/g, ''); if (!v) { toast('Valor inválido', 'err'); return; }
+  const { data, error } = await sb.from('tarifario').insert({ posicion: nombre, area: 'Movistar Arena', monto: v }).select().single();
+  if (error) { toast('No se pudo guardar: ' + error.message, 'err'); return; }
+  APP.tarifario.push(data || { id: uid(), posicion: nombre, area: 'Movistar Arena', monto: v }); toast(`"${nombre}" cargado en el Tarifario`, 'ok'); render();
+};
+window.editarVentaMesa = async function() {
+  const periodo = S_SERV.mes, act = valoresMesa(periodo).venta;
+  const r = prompt(`Venta mensual de mesa de entrada al Arena, sin IVA, para ${mesLabel(periodo).toLowerCase()}:`, act || '');
+  if (r === null) return; const v = +String(r).replace(/[^\d]/g, ''); if (!v) { toast('Valor inválido', 'err'); return; }
+  const d = servData('mesa', periodo); d.venta = v;
+  if (await servGuardar('mesa', periodo, d)) { toast('Venta mensual guardada', 'ok'); render(); }
+};
+
 function serviciosMes(periodo, { proyeccion = false } = {}) {
   const tm = getTarifaMes(periodo), aj = (APP.tarArena || []).find(x => x.periodo === 'serv-' + periodo)?.filas || {};
   return SERV_MENSUALES.map(sv => {
@@ -4297,7 +4477,8 @@ function serviciosMes(periodo, { proyeccion = false } = {}) {
       personas = d?.personas?.length || 0;
       if (!personas) return null;
     }
-    const venta = (o.venta ?? t.venta) || 0, sueldo = (o.sueldo ?? t.sueldo) || 0;
+    const vr = proyeccion ? null : valoresMesa(periodo);
+    const venta = proyeccion ? ((o.venta ?? t.venta) || 0) : vr.venta, sueldo = proyeccion ? ((o.sueldo ?? t.sueldo) || 0) : vr.sueldo;
     if (!venta && !sueldo) return null;
     return { key: sv.key, nombre: sv.nombre, periodo, venta: venta * personas, sueldo: sueldo * personas, personas,
              origen: o.venta != null || o.sueldo != null ? 'ajustado' : (tm?.origen || 'cargado') };
@@ -4383,9 +4564,9 @@ function rentPorShow() {
       } else if (cargasCant) {
         const cp = cargasPresentismo(fISO.slice(0, 7)), cDia = cp?.dias?.[fISO];
         if (reales.length) { cargasCosto = reales.reduce((a, v) => a + (+v || 0), 0); cargasOrigen = 'real'; }
-        else if (cDia != null && getTarifaMes(fISO.slice(0, 7))?.filas?.CARGAS?.sueldo) { cargasCosto = cDia * getTarifaMes(fISO.slice(0, 7)).filas.CARGAS.sueldo; cargasOrigen = `presentismo (${cDia})`; }
-        else { const tm = getTarifaMes(fISO.slice(0, 7)); const sc = tm?.filas?.CARGAS?.sueldo;
-          if (sc) { cargasCosto = cargasCant * sc; cargasOrigen = tm.origen === 'cargado' ? 'estimado' : 'estimado (tarifario proyectado)'; } else cargasOrigen = 'sin tarifario'; }
+        else if (cDia != null && sueldoCargas(fISO.slice(0, 7))) { cargasCosto = cDia * sueldoCargas(fISO.slice(0, 7)); cargasOrigen = `presentismo (${cDia})`; }
+        else { const sc = sueldoCargas(fISO.slice(0, 7));
+          if (sc) { cargasCosto = cargasCant * sc; cargasOrigen = 'estimado (pedido × tarifario)'; } else cargasOrigen = 'sin tarifario'; }
         costo += cargasCosto;
         posiciones['Cargas / stagehands'] = { cant: cargasCant, monto: cargasCosto, aparte: true, origen: cargasOrigen };
       }
@@ -4559,7 +4740,7 @@ window.previewPresCargas = function() {
   if (!r || !r.jornadas) { el.textContent = 'Todavía no se reconocen las fechas y los presentes.'; return; }
   const shows = (APP.eventos || []).filter(e => e.area === 'Movistar Arena' && showFechaISO(e).slice(0, 7) === r.periodo);
   const conShow = shows.filter(e => r.dias[showFechaISO(e)]).length, sinShow = Object.keys(r.dias).filter(f => !shows.some(e => showFechaISO(e) === f));
-  const sc = getTarifaMes(r.periodo)?.filas?.CARGAS?.sueldo;
+  const sc = sueldoCargas(r.periodo);
   el.innerHTML = `<b>${mesLabel(r.periodo)}</b>: ${r.personas} personas, ${r.jornadas} jornadas${sc ? ` (${fmt(r.jornadas * sc)} neto)` : ''}. ${conShow} de ${shows.length} shows del mes con cargas presentes.${sinShow.length ? ` ${sinShow.length} día${sinShow.length > 1 ? 's' : ''} con cargas sin show cargado en la app (${sinShow.map(f => f.slice(8)).join(', ')}).` : ''}${!sc ? ' <span style="color:#b45309">Falta el sueldo de CARGAS en el tarifario de ese mes.</span>' : ''}`;
 };
 window.guardarPresCargas = async function() {
@@ -4774,7 +4955,7 @@ function fvlResumen(periodo) {   // periodo 'AAAA-MM', o null para todo desde el
   const sF = shows.reduce((a, r) => a + r.facturado, 0), sN = shows.reduce((a, r) => a + r.costo, 0);
   const meses = (APP.servArena || []).filter(x => x.tipo === 'mesa' && x.periodo >= RENT_DESDE.slice(0, 7) && (x.data?.personas || []).length && (!periodo || x.periodo === periodo)).map(x => x.periodo);
   let mF = 0, mN = 0, mC = 0;
-  meses.forEach(m => { const d = servData('mesa', m), n = d.personas.length, t = getTarifaMes(m)?.filas?.['MESA DE ENTRADA'] || {}, L = liqsServ('arena-mesa', m);
+  meses.forEach(m => { const d = servData('mesa', m), n = d.personas.length, t = valoresMesa(m), L = liqsServ('arena-mesa', m);
     const neto = L.length ? L.reduce((a, l) => a + (l.total || 0), 0) : (t.sueldo || 0) * n;
     mF += (t.venta || 0) * n; mN += neto; mC += costoLaboral(neto); });
   // el costo real se redondea show por show (y mes por mes) y después se suma: así todas las tablas cierran igual
@@ -4825,7 +5006,7 @@ function htmlFvlCargas(filtro) {
   if (!meses.length) return '';
   let tF = 0, tC = 0, cuerpo = '', avisos = [];
   meses.forEach(m => {
-    const d = servData('cargas', m), sueldo = getTarifaMes(m)?.filas?.CARGAS?.sueldo || 0, cargado = d.personas.length > 0;
+    const d = servData('cargas', m), sueldo = sueldoCargas(m), cargado = d.personas.length > 0;
     const presDia = f => d.personas.filter(pid => (d.pres[pid] || []).includes(f)).length;
     let mF = 0, mC = 0;
     const filas = shows.filter(e => showFechaISO(e).slice(0, 7) === m).map(e => {
@@ -4859,7 +5040,7 @@ function htmlFvlMesa(filtro) {
   if (!meses.length) return '';
   let tF = 0, tC = 0;
   const filas = meses.map(m => {
-    const d = servData('mesa', m), n = d.personas.length, t = getTarifaMes(m)?.filas?.['MESA DE ENTRADA'] || {};
+    const d = servData('mesa', m), n = d.personas.length, t = valoresMesa(m);
     const liqs = liqsServ('arena-mesa', m), liq = liqs.length > 0, pag = liq && liqs.every(l => l.estado === 'pagado');
     const fact = (t.venta || 0) * n, neto = liq ? liqs.reduce((a, l) => a + (l.total || 0), 0) : (t.sueldo || 0) * n;
     const costo = Math.round(neto * (1 + cp / 100)), dif = fact - costo; tF += fact; tC += costo;
@@ -5464,7 +5645,7 @@ const esc2 = t => String(t || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': 
 
 function htmlCargas() {
   const periodo = S_SERV.mes, d = servData('cargas', periodo), sem = semanasDelMes(periodo), liqs = liqsServ('arena-cargas', periodo), hist = esHistorico(periodo);
-  const sueldo = getTarifaMes(periodo)?.filas?.CARGAS?.sueldo || 0, facs = APP.facturaciones || [];
+  const sueldo = sueldoCargas(periodo), facs = APP.facturaciones || [];
   const semLiq = n => liqs.filter(l => l.detalle?.semana === n);
   const bloqueado = f => { const w = sem.find(x => x.dias.includes(f)); return hist ? false : !!(w && semLiq(w.n).length); };
   const jornW = w => d.personas.reduce((a, pid) => a + (d.pres[pid] || []).filter(f => w.dias.includes(f)).length, 0);
@@ -5478,7 +5659,7 @@ function htmlCargas() {
   const kpis = `<div class="sv-kpis">
     ${svKpi('Jornadas del mes', jornadas, `${d.personas.length} persona${d.personas.length !== 1 ? 's' : ''} · ${diasShow} días con show`)}
     ${svKpi('Liquidación del mes (neto)', fmt(total), hist ? 'liquidada con la planilla' : `${sem.filter(w => semLiq(w.n).length).length} de ${sem.filter(w => jornW(w)).length} semanas liquidadas`)}
-    ${svKpi('Sueldo neto por jornada', fmt(sueldo), origenTar(periodo))}
+    ${svKpi('Sueldo neto por jornada', sueldo ? fmt(sueldo) : '—', origenValor('CARGAS', periodo, 'sueldo'))}
     ${svKpi('Presentes vs pedido', difs ? `${difs} día${difs > 1 ? 's' : ''} distinto${difs > 1 ? 's' : ''}` : 'Coincide', difs ? 'marcados en naranja en la grilla' : 'en todos los días con show', difs ? 'warn' : 'ok')}
   </div>`;
   const dias = diasVigentes(periodo);
@@ -5508,7 +5689,7 @@ function htmlCargas() {
         ${!hist && !L.length ? `<button class="btn btn-sm btn-primary" onclick="liquidarSemanaCargas(${w.n})">Liquidar</button>` : ''}
         ${!hist && L.length && !pag ? `<button class="btn btn-sm" onclick="deshacerServ('arena-cargas',${w.n})" title="Deshacer la liquidación"><i class="ti ti-arrow-back-up"></i></button>` : ''}
         <button class="btn btn-sm" onclick="excelCargas(${w.n})" title="Excel de la semana"><i class="ti ti-file-spreadsheet"></i></button></div></div>`; }).join('');
-  return `${!sueldo ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Falta el sueldo de CARGAS en el tarifario de ${mesLabel(periodo).toLowerCase()}.</div>` : ''}
+  return `${!sueldo ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Falta el valor de "Cargas" en el Tarifario (Movistar Arena). <a href="#" onclick="crearPosServ('CARGAS');return false">Cargarlo</a></div>` : ''}
     ${kpis}${hist ? '' : panelShowsCargas(periodo)}${grilla}
     <div class="sv-sec">Liquidación por semana</div><div class="sem-grid">${tarjetas}</div>
     <details class="sv-help"><summary>¿Cómo se liquida?</summary>Igual que la planilla: por semana de lunes a domingo (la primera y la última, cortadas al mes), días trabajados × sueldo neto por jornada del tarifario.
@@ -5516,7 +5697,7 @@ function htmlCargas() {
 }
 function htmlMesa() {
   const periodo = S_SERV.mes, d = servData('mesa', periodo), liqs = liqsServ('arena-mesa', periodo), hist = esHistorico(periodo);
-  const t = getTarifaMes(periodo)?.filas?.['MESA DE ENTRADA'] || {};
+  const t = valoresMesa(periodo);
   const liq = liqs.length > 0, pag = liq && liqs.every(l => l.estado === 'pagado'), nP = d.personas.length || 1;
   const venta = (t.venta || 0) * nP, sueldo = liq ? liqs.reduce((a, l) => a + (l.total || 0), 0) : (t.sueldo || 0) * nP;
   const dias = d.personas.map(pid => (d.pres[pid] || []).length);
@@ -5526,8 +5707,8 @@ function htmlMesa() {
     : !pag ? `<button class="btn btn-sm" style="margin-top:4px" onclick="deshacerServ('arena-mesa',0)" title="Deshacer la liquidación"><i class="ti ti-arrow-back-up"></i> Deshacer</button>` : '';
   const kpis = `<div class="sv-kpis">
     ${svKpi('Días trabajados', `${dias.join(' / ') || '0'} <span style="font-size:13px;font-weight:500;color:var(--text2)">de ${habilesDe(periodo).length} hábiles</span>`, `${feriadosDe(periodo).size ? `${[...feriadosDe(periodo)].filter(f => { const w = dowDe(f); return w >= 1 && w <= 5; }).length} feriado${[...feriadosDe(periodo)].length !== 1 ? 's' : ''} en día de semana · ` : ''}se paga y factura el mensual completo`)}
-    ${svKpi('Facturación al Arena', fmt(venta), `con IVA ${fmt(Math.round(venta * 121) / 100)}`)}
-    ${svKpi('Liquidación (neto)', fmt(sueldo), origenTar(periodo))}
+    ${svKpi('Facturación al Arena', venta ? fmt(venta) : '—', venta ? `con IVA ${fmt(Math.round(venta * 121) / 100)} · ${origenValor('MESA DE ENTRADA', periodo, 'venta')}` : origenValor('MESA DE ENTRADA', periodo, 'venta'))}
+    ${svKpi('Liquidación (neto)', sueldo ? fmt(sueldo) : '—', liq ? 'liquidado' : origenValor('MESA DE ENTRADA', periodo, 'sueldo'))}
     ${svKpi('Estado del mes', estado[0], acciones, estado[1])}
   </div>`;
   const lk = hist ? false : liq, fer = feriadosDe(periodo), modoF = !!S_SERV.modoFer && !hist;
@@ -5545,7 +5726,7 @@ function htmlMesa() {
   const barraCal = hist ? '' : `<div class="cal-bar"><span>Tocá un día para marcar o quitar la P.</span>
     <button class="btn btn-sm ${modoF ? 'btn-primary' : ''}" onclick="S_SERV.modoFer=!S_SERV.modoFer;render()" title="Marcar o quitar feriados (trasladables, puentes)"><i class="ti ti-calendar-off"></i> ${modoF ? 'Terminar feriados' : 'Feriados'}</button></div>
     ${modoF ? '<div class="nota-proy" style="margin-bottom:8px"><i class="ti ti-calendar-off"></i> Modo feriados: tocá un día para marcarlo o quitarlo como feriado. Los fijos (1/1, 24/3, 2/4, 1/5, 25/5, 20/6, 9/7, 8/12, 25/12) ya vienen cargados; sumá los trasladables y puentes de cada año según el decreto.</div>' : ''}`;
-  return `${!t.venta || !t.sueldo ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Falta la venta o el sueldo mensual de mesa de entrada en el tarifario de ${mesLabel(periodo).toLowerCase()}.</div>` : ''}
+  return `${!t.sueldo ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Falta el sueldo de "Mesa de entrada" en el Tarifario (Movistar Arena). <a href="#" onclick="crearPosServ('MESA DE ENTRADA');return false">Cargarlo</a></div>` : ''}${!t.venta ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Falta la venta mensual de ${mesLabel(periodo).toLowerCase()}. <a href="#" onclick="editarVentaMesa();return false">Cargarla</a></div>` : ''}
     ${kpis}${barraCal}<div class="cal-wrap">${cal}</div>
     <details class="sv-help"><summary>¿Cómo se calcula?</summary>Mesa de entrada es mensualizada: se factura la venta mensual y se liquida el sueldo mensual neto del tarifario, completos, aunque en el mes haya trabajado menos días. El presentismo queda como respaldo. Tocá un día para marcar o quitar la P.</details>`;
 }
@@ -5684,7 +5865,7 @@ window.toggleFeriado = async function(f) {
 // Resumen de un día de cargas: qué show fue, cuántos cargas pidió el Arena, quiénes vinieron y cuánto se liquidó
 window.verDiaCargas = function(f) {
   const periodo = f.slice(0, 7), d = servData('cargas', periodo), facs = APP.facturaciones || [], hist = esHistorico(periodo);
-  const sh = showsDelDia(f), sueldo = getTarifaMes(periodo)?.filas?.CARGAS?.sueldo || 0;
+  const sh = showsDelDia(f), sueldo = sueldoCargas(periodo);
   const items = sh.flatMap(e => facs.filter(x => x.evento_id === e.id).flatMap(x => (x.detalle?.secciones || []).flatMap(s => s.items || []))).filter(i => !i.extra && catDeRecurso(i.recurso) === 'CARGAS');
   const tieneFact = sh.some(e => facs.some(x => x.evento_id === e.id));
   const ped = items.reduce((a, i) => a + (i.cant || 0), 0), fact = items.reduce((a, i) => a + (i.cant || 0) * (i.valor || 0), 0);
@@ -5827,7 +6008,7 @@ window.confirmarImportServ = async function(tipo) {
 
 window.liquidarSemanaCargas = async function(n) {
   const periodo = S_SERV.mes, w = semanasDelMes(periodo).find(x => x.n === n), d = servData('cargas', periodo);
-  const sueldo = getTarifaMes(periodo)?.filas?.CARGAS?.sueldo;
+  const sueldo = sueldoCargas(periodo);
   if (!sueldo) { toast('Falta el sueldo de CARGAS en el tarifario del mes', 'err'); return; }
   if (liqsServ('arena-cargas', periodo).some(l => l.detalle?.semana === n)) { toast('Esa semana ya está liquidada', 'err'); return; }
   const rows = d.personas.map(pid => { const p = persDe(pid), dias = (d.pres[pid] || []).filter(f => w.dias.includes(f)).length;
@@ -5843,7 +6024,7 @@ window.liquidarSemanaCargas = async function(n) {
   await fetchAll(); toast(`${w.label} liquidada`, 'ok'); render();
 };
 window.liquidarMesa = async function() {
-  const periodo = S_SERV.mes, d = servData('mesa', periodo), t = getTarifaMes(periodo)?.filas?.['MESA DE ENTRADA'] || {};
+  const periodo = S_SERV.mes, d = servData('mesa', periodo), t = valoresMesa(periodo);
   if (!t.sueldo) { toast('Falta el sueldo mensual de mesa de entrada en el tarifario', 'err'); return; }
   if (liqsServ('arena-mesa', periodo).length) { toast('El mes ya está liquidado', 'err'); return; }
   const rows = d.personas.map(pid => ({ persona_id: pid, persona_nombre: nomPers(persDe(pid)), area: 'Movistar Arena', lugar_fijo: 'arena-mesa', lugar_nombre: 'Mesa de entrada', mes_id: periodo,
@@ -5918,7 +6099,7 @@ const mesNombre = periodo => mesLabel(periodo).split(' ')[0];
 // Cargas: una hoja por semana, "Liquidación Semana N", solo quienes trabajaron esa semana, total al pie (columna H)
 window.excelCargas = async function(n) {
   if (typeof ExcelJS === 'undefined') { toast('No se pudo cargar el generador de Excel. Reintentá.', 'err'); return; }
-  const periodo = S_SERV.mes, d = servData('cargas', periodo), sueldoMes = getTarifaMes(periodo)?.filas?.CARGAS?.sueldo || 0;
+  const periodo = S_SERV.mes, d = servData('cargas', periodo), sueldoMes = sueldoCargas(periodo);
   const sem = semanasDelMes(periodo).filter(w => !n || w.n === n);
   const wb = new ExcelJS.Workbook(); let hojas = 0;
   sem.forEach(w => {
@@ -5939,7 +6120,7 @@ window.excelCargas = async function(n) {
 // Mesa de entrada: hojas "Liquidación" y "Facturación", como la planilla modelo
 window.excelMesa = async function() {
   if (typeof ExcelJS === 'undefined') { toast('No se pudo cargar el generador de Excel. Reintentá.', 'err'); return; }
-  const periodo = S_SERV.mes, d = servData('mesa', periodo), t = getTarifaMes(periodo)?.filas?.['MESA DE ENTRADA'] || {};
+  const periodo = S_SERV.mes, d = servData('mesa', periodo), t = valoresMesa(periodo);
   const liqs = liqsServ('arena-mesa', periodo);
   const pers = d.personas.map(pid => ({ p: persDe(pid), dias: (d.pres[pid] || []).length, sueldo: liqs.find(l => l.persona_id === pid)?.total ?? (t.sueldo || 0) }));
   if (!pers.length) { toast('No hay personas cargadas en el mes', 'err'); return; }
