@@ -418,6 +418,7 @@ table.stf-t { width: 100%; } table.stf-t td, table.stf-t th { padding: 6px 8px; 
 .sb-grupo { display: flex; align-items: center; gap: 9px; padding: 7px 12px 3px; font-size: 13px; color: var(--text); font-weight: 500; }
 .sb-grupo i { font-size: 16px; width: 18px; flex-shrink: 0; color: var(--text2); }
 .sb-item.sb-sub { padding-left: 30px; font-size: 12.5px; } .sb-item.sb-sub i { font-size: 14px; }
+.tar-in { width: 120px; text-align: right; } .tar-in::placeholder { color: #a9aeab; font-style: italic; } .tar-in.prop { font-weight: 600; border-color: #2d8a4e; }
 </style>
 </head>
 <body>
@@ -4506,16 +4507,34 @@ function serviciosMes(periodo, { proyeccion = false } = {}) {
 function tarConfig() { const c = (APP.tarArena || []).find(x => x.periodo === 'config'); return { aumento: 2, ...(c?.filas || {}) }; }
 const mesesEntre = (a, b) => { const [y1, m1] = a.split('-').map(Number), [y2, m2] = b.split('-').map(Number); return (y2 - y1) * 12 + (m2 - m1); };
 // Tarifa de un mes: la cargada, o la última anterior con el aumento mensual aplicado por cada mes de diferencia
-function getTarifaMes(periodo) {
-  const cargados = (APP.tarArena || []).filter(x => /^\d{4}-\d{2}$/.test(x.periodo)).sort((a, b) => a.periodo.localeCompare(b.periodo));
-  const exacto = cargados.find(x => x.periodo === periodo);
-  if (exacto) return { filas: exacto.filas || {}, origen: 'cargado', desde: periodo };
-  const previo = cargados.filter(x => x.periodo < periodo).pop();
-  if (!previo) return null;
-  const n = mesesEntre(previo.periodo, periodo), f = Math.pow(1 + (tarConfig().aumento || 0) / 100, n), filas = {};
-  Object.entries(previo.filas || {}).forEach(([c, v]) => { filas[c] = { ...v, sueldo: Math.round((v.sueldo || 0) * f), venta: Math.round((v.venta || 0) * f) }; });
-  return { filas, origen: 'estimado', desde: previo.periodo, meses: n, aumento: tarConfig().aumento };
+// Tarifario mensual (Proyecciones), casillero por casillero:
+//  · un valor es "propio" si se escribió a mano (si coincide exactamente con la estimación, se toma como estimado:
+//    así se limpian los meses que quedaron guardados con la estimación);
+//  · cada casillero usa el último valor propio, con el aumento mensual aplicado hasta el mes pedido.
+function getTarifaMes(periodo, { sinPropio = false } = {}) {
+  const a = (+tarConfig().aumento || 0) / 100;
+  const meses = (APP.tarArena || []).filter(x => /^\d{4}-\d{2}$/.test(x.periodo) && x.periodo <= periodo && !(sinPropio && x.periodo === periodo)).sort((x, y) => x.periodo.localeCompare(y.periodo));
+  const ult = {}, propiosDe = {};
+  meses.forEach(m => {
+    const pr = {};
+    Object.entries(m.filas || {}).forEach(([c, v]) => ['sueldo', 'venta'].forEach(k => {
+      const val = v?.[k]; if (val === null || val === undefined || val === '' || isNaN(+val)) return;
+      const prev = ult[c + '|' + k], est = prev ? Math.round(prev.v * Math.pow(1 + a, mesesEntre(prev.periodo, m.periodo))) : null;
+      if (prev && +val === est) return;   // igual a la estimación: no es un valor cargado
+      ult[c + '|' + k] = { v: +val, periodo: m.periodo }; (pr[c] = pr[c] || {})[k] = true;
+    }));
+    propiosDe[m.periodo] = pr;
+  });
+  const claves = Object.keys(ult); if (!claves.length) return null;
+  const filas = {}, propios = sinPropio ? {} : (propiosDe[periodo] || {});
+  let nProp = 0, desde = null, nMeses = 0;
+  claves.forEach(key => { const [c, k] = key.split('|'), x = ult[key], n = mesesEntre(x.periodo, periodo);
+    (filas[c] = filas[c] || {})[k] = n ? Math.round(x.v * Math.pow(1 + a, n)) : x.v;
+    if (propios[c]?.[k]) nProp++; else if (n && (!desde || x.periodo > desde)) { desde = x.periodo; nMeses = n; } });
+  const origen = nProp === claves.length ? 'cargado' : nProp ? 'parcial' : 'estimado';
+  return { filas, origen, propios, nPropios: nProp, desde: desde || periodo, meses: nMeses, aumento: tarConfig().aumento };
 }
+const tarMesConPropios = m => { const t = getTarifaMes(m); return !!t && t.nPropios > 0; };
 // Pedido de un show agrupado por renglón del tarifario: { CAT: cantidad }
 function pedidoPorCat(facsShow) {
   const out = {};
@@ -5333,6 +5352,7 @@ async function htmlProyeccion(meses) {
   const refs = refsDisponibles();
   const tarTxt = !P.tar ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> No hay tarifario cargado para ${mesLabel(S_PROY.mes).toLowerCase()} ni para meses anteriores. Cargalo en la pestaña <strong>Tarifario mensual</strong>.</div>`
     : P.tar.origen === 'cargado' ? `<div class="nota-proy ok"><i class="ti ti-check"></i> Tarifario de ${mesLabel(S_PROY.mes).toLowerCase()}: cargado.</div>`
+    : P.tar.origen === 'parcial' ? `<div class="nota-proy"><i class="ti ti-info-circle"></i> Tarifario de ${mesLabel(S_PROY.mes).toLowerCase()}: ${P.tar.nPropios} valor${P.tar.nPropios !== 1 ? 'es' : ''} cargado${P.tar.nPropios !== 1 ? 's' : ''}; el resto estimado desde ${mesLabel(P.tar.desde).toLowerCase()} + ${String(P.tar.aumento).replace('.', ',')}% por mes.</div>`
     : `<div class="nota-proy"><i class="ti ti-info-circle"></i> Tarifario de ${mesLabel(S_PROY.mes).toLowerCase()} estimado: ${mesLabel(P.tar.desde).toLowerCase()} + ${String(P.tar.aumento).replace('.', ',')}% por mes. Cuando tengas los valores de paritarias, cargalos en <a href="#" onclick="S_PROY.tab='tar';S_PROY.tarMes='${S_PROY.mes}';render();return false">Tarifario mensual</a>.</div>`;
   const kpi = (l, v, s, c) => `<div class="metric"><div class="metric-l">${l}</div><div class="metric-v" style="font-size:18px${c ? ';color:' + c : ''}">${v}</div><div class="metric-s">${s}</div></div>`;
   const opcRef = (ev) => { const aj = proyAjustes()[ev.id] || {};
@@ -5431,19 +5451,25 @@ window.guardarProyeccion = async function() {
 
 // ── Tarifario mensual ──
 function htmlTarifario() {
-  const cargados = (APP.tarArena || []).filter(x => /^\d{4}-\d{2}$/.test(x.periodo)).map(x => x.periodo).sort();
+  const cargados = (APP.tarArena || []).filter(x => /^\d{4}-\d{2}$/.test(x.periodo)).map(x => x.periodo).filter(tarMesConPropios).sort();
   const opciones = [...new Set([...cargados, ...mesesTarifario()])].sort();
   if (!S_PROY.tarMes || !opciones.includes(S_PROY.tarMes)) S_PROY.tarMes = opciones.find(m => !cargados.includes(m) && m >= (cargados[cargados.length - 1] || '')) || opciones[0];
-  const est = getTarifaMes(S_PROY.tarMes);
-  if (!S_PROY.tarDraft || S_PROY.tarDraft.periodo !== S_PROY.tarMes) S_PROY.tarDraft = { periodo: S_PROY.tarMes, filas: JSON.parse(JSON.stringify(est?.filas || {})), cambiado: false };
+  const est = getTarifaMes(S_PROY.tarMes), ref = getTarifaMes(S_PROY.tarMes, { sinPropio: true });   // ref: lo que se estimaría sin los valores propios del mes
+  if (!S_PROY.tarDraft || S_PROY.tarDraft.periodo !== S_PROY.tarMes) {
+    const propios = {}; Object.entries(est?.propios || {}).forEach(([c, ks]) => Object.keys(ks).forEach(k => { (propios[c] = propios[c] || {})[k] = est.filas[c][k]; }));
+    S_PROY.tarDraft = { periodo: S_PROY.tarMes, filas: propios, cambiado: false };
+  }
   const D = S_PROY.tarDraft, cfg = tarConfig(), E = getEstructura();
   const cargasPct = (E.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0);
-  const estado = cargados.includes(S_PROY.tarMes) ? '<span class="badge bs">Cargado</span>'
+  const estado = est?.origen === 'cargado' ? '<span class="badge bs">Cargado</span>'
+    : est?.origen === 'parcial' ? `<span class="badge bi">Parcial: ${est.nPropios} valor${est.nPropios !== 1 ? 'es' : ''} cargado${est.nPropios !== 1 ? 's' : ''}, el resto estimado</span>`
     : est ? `<span class="badge bi">Estimado desde ${mesLabel(est.desde).toLowerCase()} + ${String(est.aumento).replace('.', ',')}%/mes</span>` : '<span class="badge bw">Sin valores</span>';
-  const inp = (c, k) => `<input type="number" min="0" value="${D.filas[c]?.[k] ?? ''}" style="width:120px;text-align:right" onchange="editTar('${c}','${k}',this.value)">`;
+  const efectivo = (c, k) => D.filas[c]?.[k] ?? ref?.filas?.[c]?.[k] ?? null;   // lo cargado o, si no, la estimación
+  const inp = (c, k) => { const propio = D.filas[c]?.[k] != null, e = ref?.filas?.[c]?.[k];
+    return `<input type="number" min="0" value="${propio ? D.filas[c][k] : ''}" placeholder="${e != null ? e : ''}" title="${propio ? 'Valor cargado' : e != null ? `Estimado: ${fmt(e)}. Escribí el valor real para cargarlo` : ''}" class="tar-in${propio ? ' prop' : ''}" onchange="editTar('${c}','${k}',this.value)">`; };
   return `
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-      <select onchange="S_PROY.tarMes=this.value;S_PROY.tarDraft=null;render()" style="font-size:13px;padding:6px 9px;width:auto">${opciones.map(m => `<option value="${m}" ${m === S_PROY.tarMes ? 'selected' : ''}>${mesLabel(m)}${cargados.includes(m) ? ' · cargado' : ''}</option>`).join('')}</select>
+      <select onchange="S_PROY.tarMes=this.value;S_PROY.tarDraft=null;render()" style="font-size:13px;padding:6px 9px;width:auto">${opciones.map(m => `<option value="${m}" ${m === S_PROY.tarMes ? 'selected' : ''}>${mesLabel(m)}${cargados.includes(m) ? (getTarifaMes(m)?.origen === 'cargado' ? ' · cargado' : ' · parcial') : ''}</option>`).join('')}</select>
       ${estado}
       <div style="flex:1"></div>
       <button class="btn" onclick="pegarTarifario()"><i class="ti ti-clipboard"></i> Pegar desde la planilla</button>
@@ -5453,14 +5479,14 @@ function htmlTarifario() {
     ${D.cambiado ? '<div class="nota-proy"><i class="ti ti-pencil"></i> Hay cambios sin guardar.</div>' : ''}
     <div class="card" style="padding:0;overflow:auto">
       <table class="tbl"><thead><tr><th>Renglón</th><th style="text-align:right">Sueldo neto a pagar</th><th style="text-align:right">Venta x día al Arena</th><th style="text-align:right" title="Venta menos sueldo con cargas sociales (${cargasPct}%)">Diferencia por puesto</th></tr></thead>
-      <tbody>${TAR_CATS.map(c => { const v = D.filas[c] || {}, dif = (v.venta || 0) - (v.sueldo || 0) * (1 + cargasPct / 100);
+      <tbody>${TAR_CATS.map(c => { const v = { sueldo: efectivo(c, 'sueldo'), venta: efectivo(c, 'venta') }, dif = (v.venta || 0) - (v.sueldo || 0) * (1 + cargasPct / 100);
         return `<tr><td><strong>${TAR_LBL(c)}</strong>${c === 'COORDINADOR ON SITE' ? '<div style="font-size:11px;color:var(--text2)">a cargo de SBS: la venta no se usa</div>' : c === 'CARGAS' ? '<div style="font-size:11px;color:var(--text2)">se usa para el costo de los stagehands</div>' : ''}</td>
           <td style="text-align:right">${inp(c, 'sueldo')}</td><td style="text-align:right">${inp(c, 'venta')}</td>
           <td style="text-align:right;color:${v.venta && v.sueldo ? (dif >= 0 ? '#1a7a3e' : '#b45309') : 'var(--text2)'}">${v.venta && v.sueldo ? fmt(dif) : '—'}</td></tr>`; }).join('')}</tbody></table>
     </div>
     <div class="card" style="padding:0;overflow:auto;margin-top:12px">
       <table class="tbl"><thead><tr><th>Servicio mensual</th><th style="text-align:right">Sueldo mensual neto</th><th style="text-align:right">Venta mensual al Arena</th><th style="text-align:right" title="Venta menos sueldo con cargas sociales (${cargasPct}%)">Diferencia por mes</th></tr></thead>
-      <tbody>${SERV_MENSUALES.map(sv => { const v = D.filas[sv.key] || {}, dif = (v.venta || 0) - (v.sueldo || 0) * (1 + cargasPct / 100);
+      <tbody>${SERV_MENSUALES.map(sv => { const v = { sueldo: efectivo(sv.key, 'sueldo'), venta: efectivo(sv.key, 'venta') }, dif = (v.venta || 0) - (v.sueldo || 0) * (1 + cargasPct / 100);
         return `<tr><td><strong>${sv.nombre}</strong><div style="font-size:11px;color:var(--text2)">una persona mensualizada; se factura y liquida por mes</div></td>
           <td style="text-align:right">${inp(sv.key, 'sueldo')}</td><td style="text-align:right">${inp(sv.key, 'venta')}</td>
           <td style="text-align:right;color:${v.venta && v.sueldo ? (dif >= 0 ? '#1a7a3e' : '#b45309') : 'var(--text2)'}">${v.venta && v.sueldo ? fmt(dif) : '—'}</td></tr>`; }).join('')}</tbody></table>
@@ -5468,7 +5494,7 @@ function htmlTarifario() {
     <div class="card" style="margin-top:12px;padding:12px 14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <strong style="font-size:13px">Aumento mensual para los meses sin cargar:</strong>
       <input type="number" step="0.1" min="0" value="${cfg.aumento}" style="width:70px;text-align:center" onchange="guardarAumento(this.value)"> <span style="font-size:13px">%</span>
-      <span style="font-size:12px;color:var(--text2)">Se aplica sobre el último mes cargado, mes a mes, hasta que cargues los valores reales de paritarias.</span>
+      <span style="font-size:12px;color:var(--text2)">Se aplica sobre el último valor cargado de cada renglón, mes a mes. Los casilleros vacíos muestran en gris la estimación: escribí el valor real solo donde lo tengas.</span>
     </div>
     <div style="color:var(--text2);font-size:11.5px;margin-top:8px">Solo renglones del Movistar Arena (sin gastronomía). "Pegar desde la planilla": copiá en Google Sheets el bloque de un mes (Sueldo neto, Carga horaria, Venta x día, Venta x hora, Carga horaria FC), con o sin la columna de nombres, y pegalo.</div>`;
 }
@@ -5484,7 +5510,8 @@ window.guardarAumento = async function(v) {
 window.guardarTarifario = async function() {
   const D = S_PROY.tarDraft; if (!D) return;
   loading(true);
-  const { error } = await sb.from('tarifario_arena').upsert({ periodo: D.periodo, filas: D.filas, updated_at: new Date().toISOString() });
+  const filas = {}; Object.entries(D.filas || {}).forEach(([c, v]) => ['sueldo', 'venta'].forEach(k => { if (v?.[k] !== null && v?.[k] !== undefined && v[k] !== '') (filas[c] = filas[c] || {})[k] = +v[k]; }));
+  const { error } = await sb.from('tarifario_arena').upsert({ periodo: D.periodo, filas, updated_at: new Date().toISOString() });   // solo los valores escritos a mano
   loading(false);
   if (error) { toast('No se pudo guardar: ' + error.message + (/tarifario_arena|schema cache/i.test(error.message) ? ' (¿creaste la tabla tarifario_arena?)' : ''), 'err'); return; }
   await fetchAll(); S_PROY.tarDraft = null; toast(`Tarifario de ${mesLabel(D.periodo).toLowerCase()} guardado`, 'ok'); render();
