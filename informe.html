@@ -329,6 +329,19 @@ table.extra-t tfoot td { font-weight: 700; }
 table.extra-t.det2 td small { display: block; }
 @media (max-width: 700px) { .ext-calc { grid-template-columns: 1fr; } }
 @media print { .ext-det { display: block; } }
+
+.sup-p { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.sup-p > div { background: #f6f7f6; border-radius: 10px; padding: 12px 14px; } .sup-p span { display: block; font-size: 12px; color: var(--muted); }
+.sup-p b { display: block; font-size: 26px; margin: 2px 0; } .sup-p small { display: block; font-size: 11.5px; color: var(--muted); }
+table.proy-t { width: 100%; } table.proy-t th:nth-child(-n+3), table.proy-t td:nth-child(-n+3) { text-align: left; }
+table.proy-t td small { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
+table.proy-t tr.proyectado td { background: #fbfcfb; } table.proy-t tfoot td { font-weight: 700; }
+.est { font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+.est.real { background: #e3f1e8; color: #1a6b36; } .est.proyectado { background: #eef0ee; color: #555d58; border: 1px dashed #b9bfbb; }
+.pbar { height: 5px; background: #eceeed; border-radius: 3px; overflow: hidden; margin-bottom: 3px; min-width: 70px; } .pbar span { display: block; height: 100%; background: #9cc3ab; }
+tr.real .pbar span { background: var(--c-ing, #2d6a4f); }
+@media (max-width: 760px) { .sup-p { grid-template-columns: 1fr 1fr; } }
+@media print { .sup-p > div, table.proy-t tr.proyectado td { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 </style>
 </head>
 <body>
@@ -357,6 +370,7 @@ const nf1 = v => v.toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFr
 
 function render(d, esPreview) {
   if (d.v !== 2) return estado('Este informe se generó con una versión anterior. Pedile a quien lo envió que lo vuelva a publicar.');
+  if (d.tipo === 'proy') { S.d = d; S.preview = esPreview; document.title = `${d.titulo} · SBS`; return dibujarProy(); }
   d.shows.forEach((s, i) => s._i = i);
   S.d = d; S.preview = esPreview;
   document.title = `${d.titulo} · SBS`;
@@ -1010,7 +1024,7 @@ function vFondo(ctx, i) {
   if (e.marco !== false) {
     if (V.logo) { ctx.save(); vRR(ctx, 120, 990, 46, 46, 8); ctx.clip(); ctx.drawImage(V.logo, 120, 990, 46, 46); ctx.restore(); }
     ctx.fillStyle = C.muted; ctx.font = vF(400, 22); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(`Show Business Solutions · Informe de resultados, Movistar Arena · ${V.data.per}`, 184, 1013);
+    ctx.fillText(V.data.pie || `Show Business Solutions · Informe de resultados, Movistar Arena · ${V.data.per}`, 184, 1013);
     // avance por escenas
     const n = V.escenas.length;
     for (let k = 0; k < n; k++) { ctx.fillStyle = k === i ? C.ing : '#d4d8d5'; ctx.beginPath(); ctx.arc(V.W - 120 - (n - 1 - k) * 26, 1013, k === i ? 7 : 5, 0, Math.PI * 2); ctx.fill(); }
@@ -1427,8 +1441,161 @@ function escCierre(ctx, t) {
 }
 
 
+
+// ══════════════════════════════════════════════
+// PROYECCIÓN (informe de lo que se espera del mes, para los socios)
+// ══════════════════════════════════════════════
+function dibujarProy() {
+  const d = S.d, T = d.T, mg = T.ingresos ? T.neto / T.ingresos : 0, sup = d.sup || {}, tar = d.tar;
+  const kpi = (cls, l, v, sub) => `<div class="kpi ${cls}"><div class="l">${l}</div><div class="v ${T.neto < 0 && cls === 'neto' ? 'neg' : ''}">${v}</div><div class="s">${sub}</div></div>`;
+  const nShows = d.shows.length, enCurso = d.reales > 0;
+  const tarTxt = !tar ? 'sin tarifario' : tar.origen === 'cargado' ? `valores de ${esc(d.periodoLabel.toLowerCase())} ya cargados`
+    : tar.origen === 'parcial' ? `${tar.nPropios} valor${tar.nPropios !== 1 ? 'es' : ''} del mes cargado${tar.nPropios !== 1 ? 's' : ''}; el resto, ${esc(tar.desdeLabel.toLowerCase())} + ${nf1(+tar.aumento).replace(',0', '')}% por mes`
+    : `${esc(tar.desdeLabel.toLowerCase())} + ${nf1(+tar.aumento).replace(',0', '')}% por mes, hasta tener los valores de paritarias`;
+  const maxIng = Math.max(1, ...d.shows.map(x => x.ingresos));
+  const filas = d.shows.map(x => `<tr class="${x.estado}">
+      <td>${fecha(x.fecha)}</td><td><b>${esc(x.nombre)}</b><small>${x.estado === 'real' ? 'ya facturado' : esc(x.base)}</small></td>
+      <td><span class="est ${x.estado}">${x.estado === 'real' ? 'Real' : 'Proyectado'}</span></td>
+      <td>${x.puestos}${x.cargas ? `<small>+ ${x.cargas} cargas</small>` : ''}</td>
+      <td><div class="pbar"><span style="width:${x.ingresos / maxIng * 100}%"></span></div>${money(x.ingresos)}</td>
+      <td>${money(x.egresos)}</td><td class="res ${x.neto < 0 ? 'neg' : ''}">${money(x.neto)}</td><td>${p1(x.neto, x.ingresos)}</td></tr>`).join('');
+  const filasServ = d.servicios.map(x => `<tr class="serv"><td>todo el mes</td><td><b>${esc(x.nombre)}</b><small>servicio mensual</small></td><td><span class="est real">Mensual</span></td><td>—</td>
+      <td>${money(x.ingresos)}</td><td>${money(x.egresos)}</td><td class="res">${money(x.neto)}</td><td>${p1(x.neto, x.ingresos)}</td></tr>`).join('');
+  const resumen = `Para ${esc(d.periodoLabel.toLowerCase())} esperamos ingresos por <b>${money(T.ingresos)}</b> sin IVA con ${nShows} show${nShows !== 1 ? 's' : ''}${d.servicios.length ? ' más mesa de entrada' : ''}, egresos por <b>${money(T.egresos)}</b> y un <b>resultado neto de ${money(T.neto)}</b>, equivalente al ${p1(T.neto, T.ingresos)} de los ingresos.${enCurso ? ` ${d.reales} de los shows ya están facturados y figuran con sus números reales.` : ''}`;
+  $('app').innerHTML = `
+    <header class="head">
+      <img src="${LOGO}" alt="SBS">
+      <div class="emp"><b>Show Business Solutions</b><span>Proyección, Movistar Arena</span></div>
+      <div class="per"><b>${esc(d.periodoLabel)}</b><span>Proyección mensual</span></div>
+    </header>
+    <div class="subhead"><p>${resumen}</p></div>
+    <div class="toolbar" role="toolbar" aria-label="Opciones"><div></div>
+      <div class="tools">
+        <button class="btn btn-video" onclick="abrirVideo()">▶ Ver en video</button>
+        <button class="btn" onclick="window.print()">Imprimir / PDF</button>
+      </div>
+    </div>
+    <div class="aviso">Es una <b>estimación</b>: se calcula con los shows confirmados, el historial de cada banda y los supuestos de abajo. A medida que los shows se facturan, se reemplaza por los números reales.</div>
+    <section class="kpis">
+      ${kpi('ing', 'Ingresos estimados (sin IVA)', money(T.ingresos), `${nShows} show${nShows !== 1 ? 's' : ''}${d.servicios.length ? ' + mesa de entrada' : ''}${enCurso ? ` · ${d.reales} ya facturado${d.reales !== 1 ? 's' : ''}` : ''}`)}
+      ${kpi('egr', 'Egresos estimados', money(T.egresos), `${p1(T.egresos, T.ingresos)} de los ingresos`)}
+      ${kpi('neto', 'Resultado neto proyectado', money(T.neto), 'ingresos menos egresos')}
+      ${kpi('mar', 'Margen proyectado', p1(T.neto, T.ingresos), 'resultado sobre ingresos')}
+    </section>
+    <section class="panel"><h2>Supuestos por show</h2><p class="desc">Cómo se estima cada show que todavía no se facturó. Si la banda ya tocó, se usa su propio historial; si no, el promedio de los shows anteriores.</p>
+      <div class="sup-p">
+        <div><span>Puestos de sala</span><b>${sup.puestos}</b><small>${sup.puestosProm ? `promedio de ${sup.nRefs} shows` : 'fijado para el mes'}</small></div>
+        <div><span>Cargas / stagehands</span><b>${sup.cargas}</b><small>por show, se facturan</small></div>
+        <div><span>Coordinadores</span><b>${sup.coord}</b><small>a cargo de SBS, no se factura</small></div>
+        <div><span>Back-ups</span><b>${nf1(+sup.backups).replace(',0', '')}</b><small>${sup.backupsProm ? 'promedio histórico' : 'fijado para el mes'} · no se facturan</small></div>
+      </div>
+      <p class="desc" style="margin-top:12px"><b>Valores:</b> ${tarTxt}.</p>
+    </section>
+    <section class="panel"><h2>Show por show</h2><p class="desc">Los shows ya facturados figuran con sus números reales; el resto, proyectado.</p>
+      <div class="tw"><table class="proy-t"><thead><tr><th>Fecha</th><th>Show</th><th>Estado</th><th>Puestos</th><th>Ingresos</th><th>Egresos</th><th>Resultado</th><th>Margen</th></tr></thead>
+        <tbody>${filas}${filasServ}</tbody>
+        <tfoot><tr><td colspan="4">Total del mes</td><td>${money(T.ingresos)}</td><td>${money(T.egresos)}</td><td class="res ${T.neto < 0 ? 'neg' : ''}">${money(T.neto)}</td><td>${p1(T.neto, T.ingresos)}</td></tr></tfoot></table></div>
+      ${d.sinCalcular?.length ? `<p class="desc" style="margin-top:8px">No se pudieron estimar: ${d.sinCalcular.map(esc).join(', ')}.</p>` : ''}
+    </section>
+    <section class="notas">
+      <p><strong>Ingresos:</strong> lo que SBS le facturaría al Movistar Arena por el staff de cada show, sin IVA.</p>
+      <p><strong>Egresos:</strong> lo que se le pagaría al personal (incluidos back-ups y coordinación), las cargas sociales, los impuestos sobre ventas y el impuesto a las Ganancias estimado.</p>
+      <p><strong>Resultado neto:</strong> ingresos menos egresos. Es una proyección: puede cambiar con los pedidos reales del Arena, los valores de paritarias y la cantidad de personal convocado.</p>
+    </section>
+    <footer class="pie"><img src="${LOGO}" alt=""><span>Show Business Solutions. Documento confidencial para uso de los socios. Proyección generada el ${new Date(d.generado).toLocaleDateString('es-AR')}.</span></footer>
+    <div id="modal"></div>`;
+}
+
+// ── Escenas del video de la proyección ──
+function escPortadaP(ctx, t) {
+  const a = vEase(vIn(t, 0.2, 0.9)), s = 0.94 + 0.06 * a, L = 200;
+  ctx.save(); ctx.globalAlpha *= a;
+  if (V.logo) { ctx.save(); ctx.translate(V.W / 2, 330); ctx.scale(s, s); vRR(ctx, -L / 2, -L / 2, L, L, 28); ctx.clip(); ctx.drawImage(V.logo, -L / 2, -L / 2, L, L); ctx.restore(); }
+  ctx.restore();
+  const b = vEase(vIn(t, 0.9, 0.8));
+  ctx.save(); ctx.globalAlpha *= b; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 104); ctx.fillText(V.data.per, V.W / 2, 590 + (1 - b) * 24);
+  ctx.fillStyle = C.muted; ctx.font = vF(400, 40); ctx.fillText('Proyección · Movistar Arena', V.W / 2, 665 + (1 - b) * 24);
+  ctx.restore();
+  const c = vEase(vIn(t, 1.8, 0.8));
+  ctx.save(); ctx.globalAlpha *= c; ctx.textAlign = 'center'; ctx.fillStyle = C.muted; ctx.font = vF(500, 28);
+  ctx.fillText('Show Business Solutions', V.W / 2, 930); ctx.restore();
+}
+function escResumenP(ctx, t) {
+  const { T, d } = V.data, nS = d.shows.length;
+  vTitulo(ctx, t, 'Lo que esperamos del mes', `${nS} show${nS !== 1 ? 's' : ''}${d.servicios.length ? ' + mesa de entrada' : ''}${d.reales ? ` · ${d.reales} ya facturado${d.reales !== 1 ? 's' : ''}` : ''}`);
+  const p = vEase(vIn(t, 0.7, 1.8));
+  ctx.save(); ctx.globalAlpha *= vIn(t, 0.5, 0.5); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = C.muted; ctx.font = vF(500, 34); ctx.fillText('Resultado neto proyectado', V.W / 2, 360);
+  ctx.fillStyle = T.neto >= 0 ? C.neto : C.loss; ctx.font = vF(700, 150); ctx.fillText(money(T.neto * p), V.W / 2, 520);
+  ctx.fillStyle = '#1f2421'; ctx.font = vF(500, 38); ctx.fillText(`${p1(T.neto, T.ingresos)} de los ingresos`, V.W / 2, 590);
+  ctx.restore();
+  const cajas = [['Ingresos estimados', T.ingresos, C.ing], ['Egresos estimados', T.egresos, C.personal || '#888']];
+  cajas.forEach(([l, v, c], i) => { const a = vEase(vIn(t, 1.4 + i * 0.3, 0.6)); if (!a) return; const x = V.W / 2 - 520 + i * 540, y = 650;
+    ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#f4f5f4'; vRR(ctx, x, y, 500, 140, 18); ctx.fill(); ctx.fillStyle = c; ctx.fillRect(x, y, 500, 7);
+    ctx.textAlign = 'left'; ctx.fillStyle = C.muted; ctx.font = vF(500, 28); ctx.fillText(l, x + 30, y + 55); ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 48); ctx.fillText(money(v * p), x + 30, y + 112); ctx.restore(); });
+  vTexto(ctx, t, 2.6, 'Es una estimación con los shows confirmados; se reemplaza por los números reales a medida que se facturan.');
+}
+function escShowsP(ctx, t) {
+  const { lista, recorte, d } = V.data;
+  vTitulo(ctx, t, 'Show por show', recorte ? `Los ${lista.length} de mayores ingresos, de ${d.shows.length}` : 'Ingresos y resultado estimado de cada show');
+  const max = Math.max(1, ...lista.map(x => x.ingresos)), x0 = 520, w = 760, y0 = 270, h = Math.min(66, 560 / Math.max(1, lista.length));
+  lista.forEach((x, i) => { const a = vEase(vIn(t, 0.6 + i * 0.25, 0.7)); if (!a) return; const y = y0 + i * h;
+    ctx.save(); ctx.globalAlpha *= Math.min(1, a * 1.5); ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
+    ctx.fillStyle = '#1f2421'; ctx.font = vF(600, Math.min(30, h * 0.46)); ctx.fillText(x.nombre.length > 24 ? x.nombre.slice(0, 23) + '…' : x.nombre, x0 - 30, y + h * 0.38);
+    ctx.fillStyle = C.muted; ctx.font = vF(400, Math.min(22, h * 0.34)); ctx.fillText(`${fecha(x.fecha).slice(0, 5)} · ${x.estado === 'real' ? 'real' : 'proyectado'}`, x0 - 30, y + h * 0.78);
+    const bw = w * x.ingresos / max * a;
+    ctx.fillStyle = x.estado === 'real' ? C.ing : '#9cc3ab'; vRR(ctx, x0, y + h * 0.18, Math.max(4, bw), h * 0.5, 6); ctx.fill();
+    ctx.textAlign = 'left'; ctx.fillStyle = '#1f2421'; ctx.font = vF(600, Math.min(28, h * 0.42)); ctx.fillText(money(x.ingresos), x0 + bw + 16, y + h * 0.43);
+    ctx.textAlign = 'right'; ctx.fillStyle = x.neto >= 0 ? C.neto : C.loss; ctx.font = vF(600, Math.min(26, h * 0.4)); ctx.fillText(money(x.neto), V.W - 120, y + h * 0.43);
+    ctx.restore(); });
+  vLeyenda(ctx, [['Real', C.ing], ['Proyectado', '#9cc3ab']], V.W - 360, 230);
+  ctx.save(); ctx.globalAlpha *= vIn(t, 0.5, 0.5); ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillStyle = C.muted; ctx.font = vF(500, 24); ctx.fillText('Resultado', V.W - 120, 230); ctx.restore();
+}
+function escSupuestosP(ctx, t) {
+  const { d } = V.data, s = d.sup || {};
+  vTitulo(ctx, t, 'Supuestos por show', 'Cómo se estima cada show que todavía no se facturó');
+  const cajas = [['Puestos de sala', String(s.puestos), s.puestosProm ? `promedio de ${s.nRefs} shows` : 'fijado para el mes'], ['Cargas', String(s.cargas), 'por show, se facturan'],
+                 ['Coordinadores', String(s.coord), 'a cargo de SBS'], ['Back-ups', nf1(+s.backups).replace(',0', ''), 'no se facturan']];
+  cajas.forEach(([l, v, sub], i) => { const a = vEase(vIn(t, 0.6 + i * 0.3, 0.6)); if (!a) return; const x = 120 + i * 425, y = 320;
+    ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#f4f5f4'; vRR(ctx, x, y + (1 - a) * 20, 395, 300, 20); ctx.fill();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = C.muted; ctx.font = vF(500, 30); ctx.fillText(l, x + 34, y + 70);
+    ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 110); ctx.fillText(v, x + 34, y + 200); ctx.fillStyle = C.muted; ctx.font = vF(400, 24); ctx.fillText(sub, x + 34, y + 252); ctx.restore(); });
+  const tar = d.tar;
+  if (tar) vTexto(ctx, t, 2.2, tar.origen === 'cargado' ? `Valores del tarifario de ${d.periodoLabel.toLowerCase()}, ya cargados.` : `Valores: ${tar.desdeLabel.toLowerCase()} + ${nf1(+tar.aumento).replace(',0', '')}% por mes, hasta tener los de paritarias.`);
+}
+function escCierreP(ctx, t) {
+  const a = vEase(vIn(t, 0.2, 0.8)), L = 170;
+  ctx.save(); ctx.globalAlpha *= a;
+  if (V.logo) { ctx.save(); vRR(ctx, V.W / 2 - L / 2, 250, L, L, 24); ctx.clip(); ctx.drawImage(V.logo, V.W / 2 - L / 2, 250, L, L); ctx.restore(); }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 60); ctx.fillText('Show Business Solutions', V.W / 2, 530);
+  ctx.fillStyle = C.muted; ctx.font = vF(400, 34); ctx.fillText(`Proyección, Movistar Arena · ${V.data.per}`, V.W / 2, 590);
+  ctx.restore();
+  const b = vIn(t, 1.2, 0.8);
+  ctx.save(); ctx.globalAlpha *= b; ctx.textAlign = 'center'; ctx.fillStyle = C.muted; ctx.font = vF(400, 28);
+  ctx.fillText('Es una estimación: el detalle por show está en la versión escrita.', V.W / 2, 720);
+  ctx.font = vF(500, 26); ctx.fillText('Documento confidencial para uso de los socios.', V.W / 2, 770);
+  ctx.restore();
+}
+function vPrepararProy() {
+  const d = S.d, MAX = 8;
+  let lista = [...d.shows], recorte = false;
+  if (lista.length > MAX) { lista = lista.sort((a, b) => b.ingresos - a.ingresos).slice(0, MAX); recorte = true; }
+  lista.sort((a, b) => a.fecha.localeCompare(b.fecha));
+  V.data = { d, T: d.T, per: d.periodoLabel, lista, recorte, pie: `Show Business Solutions · Proyección, Movistar Arena · ${d.periodoLabel}` };
+  V.escenas = [
+    { dur: 5, draw: escPortadaP, marco: false },
+    { dur: 9, draw: escResumenP },
+    ...(lista.length ? [{ dur: 6.5 + lista.length * 0.45, draw: escShowsP }] : []),
+    { dur: 8, draw: escSupuestosP },
+    { dur: 5.5, draw: escCierreP, marco: false },
+  ];
+  V.dur = V.escenas.reduce((a, e) => a + e.dur, 0);
+}
+
 // ── Interacción con el video (solo en la página; el archivo descargado es fijo) ──
-const V_CAP = { escPortada: 'Portada', escResumen: 'Resumen', escIER: 'Ingresos y egresos', escAreas: 'Por área', escTorta: 'Egresos', escShows: 'Por show', escRanking: 'Ranking', escDestacado: 'Show destacado', escAlerta: 'Menor margen', escMeses: 'Por mes', escEERR: 'Estado de resultados', escCierre: 'Cierre' };
+const V_CAP = { escPortadaP: 'Portada', escResumenP: 'Resumen', escShowsP: 'Por show', escSupuestosP: 'Supuestos', escCierreP: 'Cierre', escPortada: 'Portada', escResumen: 'Resumen', escIER: 'Ingresos y egresos', escAreas: 'Por área', escTorta: 'Egresos', escShows: 'Por show', escRanking: 'Ranking', escDestacado: 'Show destacado', escAlerta: 'Menor margen', escMeses: 'Por mes', escEERR: 'Estado de resultados', escCierre: 'Cierre' };
 function vInicios() { let a = 0; return V.escenas.map(e => { const r = a; a += e.dur; return r; }); }
 function vCapActual() { const ini = vInicios(); let k = 0; ini.forEach((v, i) => { if (V.t >= v - 1e-6) k = i; }); return k; }
 window.vIrCap = function(i) {
@@ -1504,6 +1671,7 @@ function vConectarEventos() {
 function vSoltarTip() { const t = $('vtip'); if (t) t.style.display = 'none'; V.tipFijo = false; }
 
 function vPreparar() {
+  if (S.d.tipo === 'proy') return vPrepararProy();
   const T = totalesVista(), TS = totShowsVista(), shows = showsVisibles(), d = S.d, eg = T.ventas - T.neto;
   const per = S.mes ? d.meses.find(x => x.periodo === S.mes).label : d.periodoLabel;
   const egresos = [

@@ -5385,6 +5385,8 @@ async function htmlProyeccion(meses) {
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
       <select onchange="S_PROY.mes=this.value;render()" style="font-size:13px;padding:6px 9px;width:auto">${meses.map(m => `<option value="${m}" ${m === S_PROY.mes ? 'selected' : ''}>${mesLabel(m)}${m === mesActual() ? ' (en curso)' : ''}</option>`).join('')}</select>
       <div style="flex:1"></div>
+      <button class="btn" onclick="verInformeProy('${S_PROY.mes}')" title="El informe de la proyección, con PDF y video"><i class="ti ti-file-text"></i> Ver informe</button>
+      <button class="btn btn-primary" onclick="publicarProy('${S_PROY.mes}')" title="Publicarlo y obtener el link para los socios"><i class="ti ti-world-upload"></i> Publicar para socios</button>
       <button class="btn btn-success" onclick="guardarProyeccion()"><i class="ti ti-device-floppy"></i> ${S_PROY.guardada ? 'Actualizar proyección guardada' : 'Guardar proyección'}</button>
     </div>
     ${tarTxt}
@@ -6444,6 +6446,54 @@ window.borrarEstructura = function(grupo, i) { const E = getEstructura(); E[grup
 window.resetEstructura = function() {
   if (!confirm('¿Volver a los porcentajes de referencia (cargas 55%, IIBB 5%, SIRCREB 2,5%, Déb/Créd 2,5%, Ganancias 35%)?')) return;
   setEstructura(JSON.parse(JSON.stringify(EST_DEFAULT))); render();
+};
+
+
+// ── Informe de la proyección para los socios (se ve en informe.html, con PDF y video) ──
+function buildProyInforme(periodo) {
+  const P = proyMes(periodo, 'base'), E = getEstructura(), sup = proyCfg(periodo).sup, H = promediosHistoricos(refsDisponibles());
+  const num = v => v !== '' && v != null && !isNaN(+v);
+  const shows = P.filas.filter(f => !f.servicio && !f.error).map(f => ({
+    nombre: f.ev.nombre, fecha: f.fISO, estado: f.real ? 'real' : 'proyectado', base: f.real ? 'ya facturado' : (f.base || ''),
+    puestos: f.real ? (f.pedido || 0) : (f.sala || 0), cargas: f.real ? null : (f.cargas || 0), backups: f.backups || 0,
+    ingresos: Math.round(f.ingresos || 0), egresos: Math.round(f.egresos || 0), neto: Math.round(f.neto || 0) }));
+  const servicios = P.filas.filter(f => f.servicio).map(f => ({ nombre: f.ev.nombre, ingresos: Math.round(f.ingresos || 0), egresos: Math.round(f.egresos || 0), neto: Math.round(f.neto || 0) }));
+  return { v: 2, tipo: 'proy', periodo, titulo: `Proyección ${mesLabel(periodo)} · Movistar Arena`, periodoLabel: mesLabel(periodo), generado: new Date().toISOString(), estructura: E,
+    sup: { puestos: num(sup.puestos) ? +sup.puestos : H.sala, puestosProm: !num(sup.puestos), cargas: num(sup.cargas) ? +sup.cargas : 2, coord: num(sup.coord) ? +sup.coord : 1,
+           backups: num(sup.backups) ? +sup.backups : H.backups, backupsProm: !num(sup.backups), nRefs: H.n },
+    tar: P.tar ? { origen: P.tar.origen, desde: P.tar.desde, desdeLabel: mesLabel(P.tar.desde), aumento: P.tar.aumento, nPropios: P.tar.nPropios || 0 } : null,
+    shows, servicios, sinCalcular: P.filas.filter(f => f.error).map(f => f.ev.nombre),
+    T: { ingresos: Math.round(P.T.ingresos), egresos: Math.round(P.T.egresos), neto: Math.round(P.T.neto) }, reales: P.reales, proyectados: P.proyectados };
+}
+window.verInformeProy = function(periodo) {
+  const inf = buildProyInforme(periodo);
+  if (!inf.shows.length && !inf.servicios.length) { toast('No hay shows para proyectar en ese mes', 'err'); return; }
+  try { localStorage.setItem('sbs_informe_preview', JSON.stringify(inf)); } catch {}
+  window.open('informe.html?preview=1', '_blank');
+};
+window.publicarProy = async function(periodo) {
+  const inf = buildProyInforme(periodo);
+  if (!inf.shows.length && !inf.servicios.length) { toast('No hay shows para proyectar en ese mes', 'err'); return; }
+  if (inf.sinCalcular.length && !confirm(`${inf.sinCalcular.length} show(s) no se pudieron calcular (${inf.sinCalcular.join(', ')}). ¿Publicar igual?`)) return;
+  loading(true);
+  try {
+    const { data: ex, error: e1 } = await sb.from('informes').select('id,token').eq('tipo', 'proy').eq('periodo', periodo).maybeSingle();
+    if (e1) throw e1;
+    let token;
+    if (ex) { const { error } = await sb.from('informes').update({ titulo: inf.titulo, data: inf, updated_at: new Date().toISOString() }).eq('id', ex.id); if (error) throw error; token = ex.token; }
+    else { const { data, error } = await sb.from('informes').insert({ tipo: 'proy', periodo, titulo: inf.titulo, data: inf }).select('token').single(); if (error) throw error; token = data.token; }
+    loading(false);
+    const url = informeUrl(token);
+    showModal(`<div class="modal" style="max-width:540px">
+      <div class="modal-t"><i class="ti ti-link"></i> ${inf.titulo}</div>
+      <div class="modal-s">${ex ? 'Proyección actualizada: el link sigue siendo el mismo.' : 'Proyección publicada.'} Este link abre el informe sin usuario; desde ahí se puede guardar en PDF, ver el video o descargarlo.</div>
+      <div style="display:flex;gap:6px;margin:12px 0"><input value="${url}" readonly style="flex:1;font-size:12px" onclick="this.select()">
+        <button class="btn btn-sm" onclick="copiarTexto('${url}','Link copiado')"><i class="ti ti-copy"></i> Copiar</button></div>
+      <div class="modal-f"><button class="btn" onclick="window.open('${url}','_blank')"><i class="ti ti-external-link"></i> Abrir</button><button class="btn btn-primary" onclick="closeModal()">Listo</button></div></div>`);
+  } catch (e) {
+    loading(false);
+    toast('No se pudo publicar: ' + e.message + (/check|tipo|violates/i.test(e.message) ? ' (la tabla informes no acepta el tipo "proy": te pasé el SQL)' : ''), 'err');
+  }
 };
 
 window.previewInforme = function() {
