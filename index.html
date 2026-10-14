@@ -419,6 +419,7 @@ table.stf-t { width: 100%; } table.stf-t td, table.stf-t th { padding: 6px 8px; 
 .sb-grupo i { font-size: 16px; width: 18px; flex-shrink: 0; color: var(--text2); }
 .sb-item.sb-sub { padding-left: 30px; font-size: 12.5px; } .sb-item.sb-sub i { font-size: 14px; }
 .tar-in { width: 120px; text-align: right; } .tar-in::placeholder { color: #a9aeab; font-style: italic; } .tar-in.prop { font-weight: 600; border-color: #2d8a4e; }
+.cx { font-size: 10.5px; color: var(--text2); white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -5135,7 +5136,7 @@ function refsDisponibles() {
 
 
 // Proyección del mes: shows agregados a mano y supuestos por show. Se guarda en tarifario_arena ('proy-AAAA-MM').
-const SUP_DEF = { cargas: 2, coord: 1 };
+const SUP_DEF = { cargas: 2, coord: 1, backups: 2 };
 function proyCfg(periodo) { const f = (APP.tarArena || []).find(x => x.periodo === 'proy-' + periodo)?.filas || {}; return { shows: f.shows || [], sup: { ...SUP_DEF, ...(f.sup || {}) } }; }
 async function guardarProyCfg(periodo, cfg) {
   const reg = { periodo: 'proy-' + periodo, filas: cfg, updated_at: new Date().toISOString() };
@@ -5211,7 +5212,7 @@ function proyMes(periodo, esc) {
   const refs = refsDisponibles(), fijosShow = (+E.fijosMes || 0) / (evs.length || 1);
   const filas = evs.map(ev => {
     const r = realPorId[ev.id];
-    if (r) return { ev, fISO: r.fecha, real: true, estimado: r.estimado, pedido: r.staff, backups: r.backups?.cant || 0, ingresos: r.ventas, egresos: r.ventas - r.neto, neto: r.neto };
+    if (r) return { ev, fISO: r.fecha, real: true, estimado: r.estimado, pedido: r.staff, backups: r.backups?.cant || 0, costoBackups: r.backups?.monto || 0, coords: r.coordinador?.cant || 0, costoCoord: r.coordinador?.monto || 0, ingresos: r.ventas, egresos: r.ventas - r.neto, neto: r.neto };
     if (!tar) return { ev, fISO: showFechaISO(ev), error: 'Falta el tarifario de este mes' };
     return proyectarShow(ev, refs, tar, E, fijosShow, esc, sup);
   });
@@ -5276,7 +5277,7 @@ function tarjetasProy(periodo, refs) {
         <label>Puestos de sala ${inp('puestos', H.sala)}<small>orientadores, cortatickets, supervisores, recepción (promedio: ${H.sala})</small></label>
         <label>Cargas / stagehands ${inp('cargas', 2)}<small>se facturan en el pedido</small></label>
         <label>Coordinadores ${inp('coord', 1)}<small>a cargo de SBS, no se factura</small></label>
-        <label>Back-ups ${inp('backups', String(H.backups).replace('.', ','))}<small>por encima del pedido, no se facturan (promedio: ${String(H.backups).replace('.', ',')})</small></label>
+        <label>Back-ups ${inp('backups', 2)}<small>por show, por encima del pedido, no se facturan (promedio histórico: ${String(H.backups).replace('.', ',')})</small></label>
       </div>
       <div style="font-size:11.5px;color:var(--text2);margin-top:8px">Los valores salen del tarifario del mes. En cada show de la tabla podés cambiar los puestos o los back-ups solo para ese show.</div>
     </div>
@@ -5293,6 +5294,7 @@ window.setSupProy = async function(periodo, k, v) {
   const cfg = proyCfg(periodo); cfg.sup = { ...cfg.sup }; if (v === '' || v == null) delete cfg.sup[k]; else cfg.sup[k] = +v;
   if (k === 'cargas' && (v === '' || v == null)) cfg.sup.cargas = 2;
   if (k === 'coord' && (v === '' || v == null)) cfg.sup.coord = 1;
+  if (k === 'backups' && (v === '' || v == null)) cfg.sup.backups = 2;
   if (await guardarProyCfg(periodo, cfg)) render();
 };
 window.quitarShowProy = async function(periodo, id) {
@@ -5363,7 +5365,7 @@ async function htmlProyeccion(meses) {
     if (f.error) return `<tr><td>${fd(f.fISO)}</td><td><strong>${f.ev.nombre}</strong></td><td colspan="9" style="color:#b45309">${f.error}</td></tr>`;
     if (f.servicio) return `<tr style="background:var(--card2)"><td style="white-space:nowrap;color:var(--text2)">todo el mes</td>
       <td><strong>${f.ev.nombre}</strong><div style="font-size:11px;color:var(--text2)">servicio mensual · tarifario ${f.origen}</div></td>
-      <td><span class="badge bi" style="font-size:10px">Mensual</span></td><td colspan="3" style="font-size:12px;color:var(--text2)">sueldo neto ${fmt(f.sueldo)}</td>
+      <td><span class="badge bi" style="font-size:10px">Mensual</span></td><td colspan="4" style="font-size:12px;color:var(--text2)">sueldo neto ${fmt(f.sueldo)}</td>
       <td style="text-align:right">${fmt(f.ingresos)}</td><td style="text-align:right">${fmt(f.egresos)}</td>
       <td style="text-align:right;font-weight:600;color:${col(f.neto)}">${fmt(f.neto)}</td><td style="text-align:center">${String(mg(f.neto, f.ingresos)).replace('.', ',')}%</td></tr>`;
     const aj = proyAjustes()[f.ev.id] || {}, g = guardPorId[f.ev.id];
@@ -5375,7 +5377,8 @@ async function htmlProyeccion(meses) {
       <td>${f.real ? '<span class="badge bs" style="font-size:10px">Real</span>' : '<span class="badge bi" style="font-size:10px">Proyectado</span>'}</td>
       <td>${f.proyectado ? opcRef(f.ev) : '<span style="color:var(--text2);font-size:12px">—</span>'}</td>
       <td style="text-align:center">${f.proyectado ? `<input type="number" min="0" value="${aj.pedido ?? ''}" placeholder="${f.pedidoBase}" style="width:62px;text-align:center" onclick="event.stopPropagation()" onchange="setProyAjuste('${f.ev.id}','pedido',this.value);render()">` : f.pedido}</td>
-      <td style="text-align:center">${f.proyectado ? `<input type="number" min="0" value="${aj.backups ?? ''}" placeholder="${f.backups}" style="width:54px;text-align:center" onclick="event.stopPropagation()" onchange="setProyAjuste('${f.ev.id}','backups',this.value);render()">` : f.backups}</td>
+      <td style="text-align:center">${f.proyectado ? `<input type="number" min="0" value="${aj.backups ?? ''}" placeholder="${f.backups}" style="width:54px;text-align:center" onclick="event.stopPropagation()" onchange="setProyAjuste('${f.ev.id}','backups',this.value);render()">` : f.backups}${f.backups ? `<div class="cx">${fmt(costoLaboral(f.costoBackups || 0))}</div>` : ''}</td>
+      <td style="text-align:center">${f.coords || '—'}${f.coords ? `<div class="cx">${fmt(costoLaboral(f.costoCoord || 0))}</div>` : ''}</td>
       <td style="text-align:right">${fmt(f.ingresos)}</td><td style="text-align:right">${fmt(f.egresos)}</td>
       <td style="text-align:right;font-weight:600;color:${col(f.neto)}">${fmt(f.neto)}${vsGuard}</td>
       <td style="text-align:center">${String(mg(f.neto, f.ingresos)).replace('.', ',')}%</td></tr>`;
@@ -5399,13 +5402,32 @@ async function htmlProyeccion(meses) {
       ${kpi('Resultado neto', fmt(T.neto), `margen ${String(mg(T.neto, T.ingresos)).replace('.', ',')}%`, col(T.neto))}
     </div>
     <div class="card" style="padding:0;overflow:auto">
-      <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th>Estado</th><th>Basado en</th><th style="text-align:center" title="Puestos de sala que se le facturan al Arena (sin cargas). Vacío = el supuesto del mes">Puestos de sala</th><th style="text-align:center" title="Presentes por encima de lo pedido, no facturables">Back-ups</th>
+      <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th>Estado</th><th>Basado en</th><th style="text-align:center" title="Puestos de sala que se le facturan al Arena (sin cargas). Vacío = el supuesto del mes">Puestos de sala</th><th style="text-align:center" title="Presentes por encima de lo pedido, no facturables">Back-ups</th><th style="text-align:center" title="Coordinador on site, a cargo de SBS: no se factura">Coordinación</th>
         <th style="text-align:right">Ingresos</th><th style="text-align:right">Egresos</th><th style="text-align:right">Resultado</th><th style="text-align:center">Margen</th></tr></thead>
-      <tbody>${filas || `<tr><td colspan="10" style="text-align:center;color:var(--text2);padding:16px">No hay shows para ${mesLabel(S_PROY.mes).toLowerCase()}. Agregalos con el botón "Agregar shows".</td></tr>`}</tbody>
-      ${P.filas.length ? `<tfoot><tr style="background:var(--card2);font-weight:700"><td colspan="6">Total del mes${P.filas.some(f => f.servicio) ? ' (shows + mesa de entrada)' : ''}</td><td style="text-align:right">${fmt(T.ingresos)}</td><td style="text-align:right">${fmt(T.egresos)}</td><td style="text-align:right;color:${col(T.neto)}">${fmt(T.neto)}</td><td style="text-align:center">${String(mg(T.neto, T.ingresos)).replace('.', ',')}%</td></tr></tfoot>` : ''}
+      <tbody>${filas || `<tr><td colspan="11" style="text-align:center;color:var(--text2);padding:16px">No hay shows para ${mesLabel(S_PROY.mes).toLowerCase()}. Agregalos con el botón "Agregar shows".</td></tr>`}</tbody>
+      ${P.filas.length ? `<tfoot><tr style="background:var(--card2);font-weight:700"><td colspan="7">Total del mes${P.filas.some(f => f.servicio) ? ' (shows + mesa de entrada)' : ''}</td><td style="text-align:right">${fmt(T.ingresos)}</td><td style="text-align:right">${fmt(T.egresos)}</td><td style="text-align:right;color:${col(T.neto)}">${fmt(T.neto)}</td><td style="text-align:center">${String(mg(T.neto, T.ingresos)).replace('.', ',')}%</td></tr></tfoot>` : ''}
       </table>
     </div>
+    ${resumenExtraProy(P)}
     <div style="color:var(--text2);font-size:11.5px;margin-top:8px">Cómo se proyecta cada show: toma la composición del pedido (orientadores, cortatickets, supervisores, recepciones, cargas) de los shows anteriores de la misma banda, o el promedio de todos si es la primera vez; la valoriza con el tarifario del mes (venta por día y sueldo neto); suma los back-ups según el promedio histórico y un coordinador a cargo de SBS; y aplica la estructura de costos de los informes (cargas sociales, impuestos y Ganancias). Tocá un show proyectado para ver el detalle del cálculo.</div>`;
+}
+
+
+// Costo extra no facturado de la proyección: back-ups y coordinación (pagado neto, cargas sociales y costo real)
+function extraProy(P) {
+  const sh = P.filas.filter(f => !f.servicio && !f.error);
+  const bk = sh.reduce((a, f) => ({ n: a.n + (f.backups || 0), neto: a.neto + (f.costoBackups || 0) }), { n: 0, neto: 0 });
+  const co = sh.reduce((a, f) => ({ n: a.n + (f.coords || 0), neto: a.neto + (f.costoCoord || 0) }), { n: 0, neto: 0 });
+  return { bk: { ...bk, real: costoLaboral(bk.neto) }, co: { ...co, real: costoLaboral(co.neto) }, shows: sh.length };
+}
+function resumenExtraProy(P) {
+  const X = extraProy(P); if (!X.bk.neto && !X.co.neto) return '';
+  const cp = pctCargasSoc(), tN = X.bk.neto + X.co.neto, tR = X.bk.real + X.co.real;
+  const f = (l, d, n, neto, real) => `<tr><td>${l}<div style="font-size:11px;color:var(--text2)">${d}</div></td><td style="text-align:center">${n}</td><td style="text-align:right">${fmt(neto)}</td><td style="text-align:right;color:var(--text2)">${fmt(real - neto)}</td><td style="text-align:right;font-weight:600">${fmt(real)}</td></tr>`;
+  return `<div class="card" style="padding:0;overflow:auto;margin-top:12px"><div style="padding:11px 14px 4px;font-weight:600">Costo extra no facturado <span style="font-weight:400;font-size:12px;color:var(--text2)">· ya incluido en los egresos de cada show</span></div>
+    <table class="tbl"><thead><tr><th>Concepto</th><th style="text-align:center">Cantidad</th><th style="text-align:right">Pagado (neto)</th><th style="text-align:right">+ ${cp}% cargas sociales</th><th style="text-align:right">Costo real</th></tr></thead>
+    <tbody>${f('Back-ups', `por encima del pedido, en ${X.shows} shows`, `${X.bk.n} persona${X.bk.n !== 1 ? 's' : ''}`, X.bk.neto, X.bk.real)}${f('Coordinación', 'a cargo de SBS', `${X.co.n} jornada${X.co.n !== 1 ? 's' : ''}`, X.co.neto, X.co.real)}</tbody>
+    <tfoot><tr style="font-weight:700;background:var(--card2)"><td colspan="2">Total extra</td><td style="text-align:right">${fmt(tN)}</td><td style="text-align:right">${fmt(tR - tN)}</td><td style="text-align:right">${fmt(tR)}</td></tr></tfoot></table></div>`;
 }
 
 window.verProyShow = function(evId) {
@@ -5417,8 +5439,8 @@ window.verProyShow = function(evId) {
     <table class="tbl" style="margin:10px 0"><thead><tr><th>Renglón</th><th style="text-align:center">Puestos</th><th style="text-align:right">Venta x día</th><th style="text-align:right">Ingreso</th><th style="text-align:right">Sueldo neto</th><th style="text-align:right">Costo</th></tr></thead><tbody>
       ${f.lineas.map(l => `<tr><td>${TAR_LBL(l.cat)}</td><td style="text-align:center">${l.cant}</td><td style="text-align:right">${fmt(l.venta)}</td><td style="text-align:right">${fmt(l.cant * l.venta)}</td><td style="text-align:right">${fmt(l.sueldo)}</td><td style="text-align:right">${fmt(l.cant * l.sueldo)}</td></tr>`).join('')}
       <tr><td>Back-ups (orientadores, no facturables)</td><td style="text-align:center">${f.backups}</td><td></td><td></td><td></td><td style="text-align:right">${fmt(f.costoBackups)}</td></tr>
-      <tr><td>Coordinador on site (a cargo de SBS)</td><td style="text-align:center">1</td><td></td><td></td><td></td><td style="text-align:right">${fmt(f.costoCoord)}</td></tr>
-    </tbody><tfoot><tr style="font-weight:700"><td>Total</td><td style="text-align:center">${f.pedido + f.backups + 1}</td><td></td><td style="text-align:right">${fmt(f.ingresos)}</td><td></td><td style="text-align:right">${fmt(f.personal)}</td></tr></tfoot></table>
+      <tr><td>Coordinador on site (a cargo de SBS)</td><td style="text-align:center">${f.coords}</td><td></td><td></td><td></td><td style="text-align:right">${fmt(f.costoCoord)}</td></tr>
+    </tbody><tfoot><tr style="font-weight:700"><td>Total</td><td style="text-align:center">${f.pedido + f.backups + f.coords}</td><td></td><td style="text-align:right">${fmt(f.ingresos)}</td><td></td><td style="text-align:right">${fmt(f.personal)}</td></tr></tfoot></table>
     <table class="tbl"><tbody>
       <tr><td>Ingresos (sin IVA)</td><td style="text-align:right">${fmt(f.ingresos)}</td></tr>
       <tr><td style="padding-left:20px;color:var(--text2)">Personal (pedido + back-ups + coordinador)</td><td style="text-align:right">−${fmt(f.personal)}</td></tr>
@@ -5432,16 +5454,11 @@ window.verProyShow = function(evId) {
 };
 
 window.guardarProyeccion = async function() {
-  const P = proyMes(S_PROY.mes, 'base');
-  if (!P.filas.filter(f => !f.servicio).length) { toast('No hay shows para proyectar en este mes', 'err'); return; }
-  const data = { v: 1, tipo: 'proy', periodo: S_PROY.mes, periodoLabel: mesLabel(S_PROY.mes), generado: new Date().toISOString(),
-    tarifario: P.tar ? { origen: P.tar.origen, desde: P.tar.desde, aumento: P.tar.aumento ?? null } : null, estructura: getEstructura(), totales: P.T,
-    servicios: P.filas.filter(f => f.servicio).map(f => ({ nombre: f.ev.nombre, ingresos: f.ingresos, egresos: f.egresos, neto: f.neto, sueldo: f.sueldo })),
-    shows: P.filas.filter(f => !f.error && !f.servicio).map(f => ({ evId: f.ev.id, nombre: f.ev.nombre, fecha: f.fISO, real: !!f.real, base: f.base || '', pedido: f.pedido, backups: f.backups,
-      ingresos: f.ingresos, egresos: f.egresos, neto: f.neto, lineas: f.lineas || null, costoBackups: f.costoBackups ?? null, costoCoord: f.costoCoord ?? null })) };
+  const data = buildProyInforme(S_PROY.mes);   // mismo formato que "Publicar para socios": guardar y publicar usan el mismo registro
+  if (!data.shows.length) { toast('No hay shows para proyectar en este mes', 'err'); return; }
   loading(true);
   try {
-    const titulo = `Proyección Movistar Arena, ${mesLabel(S_PROY.mes).toLowerCase()}`;
+    const titulo = data.titulo;
     const { data: ex, error: e1 } = await sb.from('informes').select('id').eq('tipo', 'proy').eq('periodo', S_PROY.mes).maybeSingle();
     if (e1) throw e1;
     const r = ex ? await sb.from('informes').update({ titulo, data, updated_at: new Date().toISOString() }).eq('id', ex.id)
@@ -6455,15 +6472,17 @@ function buildProyInforme(periodo) {
   const num = v => v !== '' && v != null && !isNaN(+v);
   const shows = P.filas.filter(f => !f.servicio && !f.error).map(f => ({
     nombre: f.ev.nombre, fecha: f.fISO, estado: f.real ? 'real' : 'proyectado', base: f.real ? 'ya facturado' : (f.base || ''),
-    puestos: f.real ? (f.pedido || 0) : (f.sala || 0), cargas: f.real ? null : (f.cargas || 0), backups: f.backups || 0,
+    evId: f.ev.id, puestos: f.real ? (f.pedido || 0) : (f.sala || 0), cargas: f.real ? null : (f.cargas || 0), backups: f.backups || 0, coords: f.coords || 0,
+    costoBackups: Math.round(f.costoBackups || 0), costoCoord: Math.round(f.costoCoord || 0),
     ingresos: Math.round(f.ingresos || 0), egresos: Math.round(f.egresos || 0), neto: Math.round(f.neto || 0) }));
   const servicios = P.filas.filter(f => f.servicio).map(f => ({ nombre: f.ev.nombre, ingresos: Math.round(f.ingresos || 0), egresos: Math.round(f.egresos || 0), neto: Math.round(f.neto || 0) }));
   return { v: 2, tipo: 'proy', periodo, titulo: `Proyección ${mesLabel(periodo)} · Movistar Arena`, periodoLabel: mesLabel(periodo), generado: new Date().toISOString(), estructura: E,
     sup: { puestos: num(sup.puestos) ? +sup.puestos : H.sala, puestosProm: !num(sup.puestos), cargas: num(sup.cargas) ? +sup.cargas : 2, coord: num(sup.coord) ? +sup.coord : 1,
-           backups: num(sup.backups) ? +sup.backups : H.backups, backupsProm: !num(sup.backups), nRefs: H.n },
+           backups: num(sup.backups) ? +sup.backups : 2, backupsProm: false, nRefs: H.n },
     tar: P.tar ? { origen: P.tar.origen, desde: P.tar.desde, desdeLabel: mesLabel(P.tar.desde), aumento: P.tar.aumento, nPropios: P.tar.nPropios || 0 } : null,
     shows, servicios, sinCalcular: P.filas.filter(f => f.error).map(f => f.ev.nombre),
-    T: { ingresos: Math.round(P.T.ingresos), egresos: Math.round(P.T.egresos), neto: Math.round(P.T.neto) }, reales: P.reales, proyectados: P.proyectados };
+    T: { ingresos: Math.round(P.T.ingresos), egresos: Math.round(P.T.egresos), neto: Math.round(P.T.neto) }, reales: P.reales, proyectados: P.proyectados,
+    extra: (() => { const X = extraProy(P); return { backups: X.bk, coord: X.co, pctCargas: pctCargasSoc() }; })() };
 }
 window.verInformeProy = function(periodo) {
   const inf = buildProyInforme(periodo);

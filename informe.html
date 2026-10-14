@@ -1457,9 +1457,10 @@ function dibujarProy() {
       <td>${fecha(x.fecha)}</td><td><b>${esc(x.nombre)}</b><small>${x.estado === 'real' ? 'ya facturado' : esc(x.base)}</small></td>
       <td><span class="est ${x.estado}">${x.estado === 'real' ? 'Real' : 'Proyectado'}</span></td>
       <td>${x.puestos}${x.cargas ? `<small>+ ${x.cargas} cargas</small>` : ''}</td>
+      <td>${x.backups || '—'}</td><td>${x.coords || '—'}</td>
       <td><div class="pbar"><span style="width:${x.ingresos / maxIng * 100}%"></span></div>${money(x.ingresos)}</td>
       <td>${money(x.egresos)}</td><td class="res ${x.neto < 0 ? 'neg' : ''}">${money(x.neto)}</td><td>${p1(x.neto, x.ingresos)}</td></tr>`).join('');
-  const filasServ = d.servicios.map(x => `<tr class="serv"><td>todo el mes</td><td><b>${esc(x.nombre)}</b><small>servicio mensual</small></td><td><span class="est real">Mensual</span></td><td>—</td>
+  const filasServ = d.servicios.map(x => `<tr class="serv"><td>todo el mes</td><td><b>${esc(x.nombre)}</b><small>servicio mensual</small></td><td><span class="est real">Mensual</span></td><td>—</td><td>—</td><td>—</td>
       <td>${money(x.ingresos)}</td><td>${money(x.egresos)}</td><td class="res">${money(x.neto)}</td><td>${p1(x.neto, x.ingresos)}</td></tr>`).join('');
   const resumen = `Para ${esc(d.periodoLabel.toLowerCase())} esperamos ingresos por <b>${money(T.ingresos)}</b> sin IVA con ${nShows} show${nShows !== 1 ? 's' : ''}${d.servicios.length ? ' más mesa de entrada' : ''}, egresos por <b>${money(T.egresos)}</b> y un <b>resultado neto de ${money(T.neto)}</b>, equivalente al ${p1(T.neto, T.ingresos)} de los ingresos.${enCurso ? ` ${d.reales} de los shows ya están facturados y figuran con sus números reales.` : ''}`;
   $('app').innerHTML = `
@@ -1487,16 +1488,17 @@ function dibujarProy() {
         <div><span>Puestos de sala</span><b>${sup.puestos}</b><small>${sup.puestosProm ? `promedio de ${sup.nRefs} shows` : 'fijado para el mes'}</small></div>
         <div><span>Cargas / stagehands</span><b>${sup.cargas}</b><small>por show, se facturan</small></div>
         <div><span>Coordinadores</span><b>${sup.coord}</b><small>a cargo de SBS, no se factura</small></div>
-        <div><span>Back-ups</span><b>${nf1(+sup.backups).replace(',0', '')}</b><small>${sup.backupsProm ? 'promedio histórico' : 'fijado para el mes'} · no se facturan</small></div>
+        <div><span>Back-ups</span><b>${nf1(+sup.backups).replace(',0', '')}</b><small>por show, por encima del pedido · no se facturan</small></div>
       </div>
       <p class="desc" style="margin-top:12px"><b>Valores:</b> ${tarTxt}.</p>
     </section>
     <section class="panel"><h2>Show por show</h2><p class="desc">Los shows ya facturados figuran con sus números reales; el resto, proyectado.</p>
-      <div class="tw"><table class="proy-t"><thead><tr><th>Fecha</th><th>Show</th><th>Estado</th><th>Puestos</th><th>Ingresos</th><th>Egresos</th><th>Resultado</th><th>Margen</th></tr></thead>
+      <div class="tw"><table class="proy-t"><thead><tr><th>Fecha</th><th>Show</th><th>Estado</th><th>Puestos</th><th>Back-ups</th><th>Coord.</th><th>Ingresos</th><th>Egresos</th><th>Resultado</th><th>Margen</th></tr></thead>
         <tbody>${filas}${filasServ}</tbody>
-        <tfoot><tr><td colspan="4">Total del mes</td><td>${money(T.ingresos)}</td><td>${money(T.egresos)}</td><td class="res ${T.neto < 0 ? 'neg' : ''}">${money(T.neto)}</td><td>${p1(T.neto, T.ingresos)}</td></tr></tfoot></table></div>
+        <tfoot><tr><td colspan="4">Total del mes</td><td>${d.shows.reduce((a, x) => a + (x.backups || 0), 0)}</td><td>${d.shows.reduce((a, x) => a + (x.coords || 0), 0)}</td><td>${money(T.ingresos)}</td><td>${money(T.egresos)}</td><td class="res ${T.neto < 0 ? 'neg' : ''}">${money(T.neto)}</td><td>${p1(T.neto, T.ingresos)}</td></tr></tfoot></table></div>
       ${d.sinCalcular?.length ? `<p class="desc" style="margin-top:8px">No se pudieron estimar: ${d.sinCalcular.map(esc).join(', ')}.</p>` : ''}
     </section>
+    ${extraProyHTML(d)}
     <section class="notas">
       <p><strong>Ingresos:</strong> lo que SBS le facturaría al Movistar Arena por el staff de cada show, sin IVA.</p>
       <p><strong>Egresos:</strong> lo que se le pagaría al personal (incluidos back-ups y coordinación), las cargas sociales, los impuestos sobre ventas y el impuesto a las Ganancias estimado.</p>
@@ -1506,6 +1508,19 @@ function dibujarProy() {
     <div id="modal"></div>`;
 }
 
+
+function extraProyHTML(d) {
+  const X = d.extra; if (!X || (!X.backups.neto && !X.coord.neto)) return '';
+  const cp = nf1(+X.pctCargas).replace(',0', ''), tN = X.backups.neto + X.coord.neto, tR = X.backups.real + X.coord.real;
+  const f = (n, sub, cant, neto, real) => `<tr><td>${n}<small>${sub}</small></td><td>${cant}</td><td>${money(neto)}</td><td>${money(real - neto)}</td><td class="res neg">${money(real)}</td></tr>`;
+  return `<section class="panel"><h2>Costo extra no facturado: back-ups y coordinación</h2>
+    <p class="desc">Personal que SBS paga y no le cobra al Arena: los <b>back-ups</b> (personas convocadas por encima de lo que pide el Arena) y la <b>coordinación</b> (un coordinador por show, a cargo de SBS). Ya está incluido en los egresos estimados; acá se muestra aparte.</p>
+    <div class="tw"><table class="extra-t"><thead><tr><th>Concepto</th><th>Cantidad</th><th>Pagado (neto)</th><th>+ ${cp}% cargas sociales</th><th>Costo real</th></tr></thead><tbody>
+      ${f('Back-ups', `${d.sup?.backups ?? ''} por show, por encima del pedido`, `${X.backups.n} persona${X.backups.n !== 1 ? 's' : ''}`, X.backups.neto, X.backups.real)}
+      ${f('Coordinación', 'a cargo de SBS', `${X.coord.n} jornada${X.coord.n !== 1 ? 's' : ''}`, X.coord.neto, X.coord.real)}
+    </tbody><tfoot><tr><td>Total extra</td><td></td><td>${money(tN)}</td><td>${money(tR - tN)}</td><td class="res neg">${money(tR)}</td></tr></tfoot></table></div>
+    <p class="desc" style="margin-top:6px">Equivale al <b>${p1(tR, d.T.ingresos)}</b> de los ingresos estimados del mes.</p></section>`;
+}
 // ── Escenas del video de la proyección ──
 function escPortadaP(ctx, t) {
   const a = vEase(vIn(t, 0.2, 0.9)), s = 0.94 + 0.06 * a, L = 200;
@@ -1556,13 +1571,17 @@ function escSupuestosP(ctx, t) {
   const { d } = V.data, s = d.sup || {};
   vTitulo(ctx, t, 'Supuestos por show', 'Cómo se estima cada show que todavía no se facturó');
   const cajas = [['Puestos de sala', String(s.puestos), s.puestosProm ? `promedio de ${s.nRefs} shows` : 'fijado para el mes'], ['Cargas', String(s.cargas), 'por show, se facturan'],
-                 ['Coordinadores', String(s.coord), 'a cargo de SBS'], ['Back-ups', nf1(+s.backups).replace(',0', ''), 'no se facturan']];
+                 ['Coordinadores', String(s.coord), 'a cargo de SBS'], ['Back-ups', nf1(+s.backups).replace(',0', ''), 'por show, no se facturan']];
   cajas.forEach(([l, v, sub], i) => { const a = vEase(vIn(t, 0.6 + i * 0.3, 0.6)); if (!a) return; const x = 120 + i * 425, y = 320;
     ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#f4f5f4'; vRR(ctx, x, y + (1 - a) * 20, 395, 300, 20); ctx.fill();
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = C.muted; ctx.font = vF(500, 30); ctx.fillText(l, x + 34, y + 70);
     ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 110); ctx.fillText(v, x + 34, y + 200); ctx.fillStyle = C.muted; ctx.font = vF(400, 24); ctx.fillText(sub, x + 34, y + 252); ctx.restore(); });
-  const tar = d.tar;
-  if (tar) vTexto(ctx, t, 2.2, tar.origen === 'cargado' ? `Valores del tarifario de ${d.periodoLabel.toLowerCase()}, ya cargados.` : `Valores: ${tar.desdeLabel.toLowerCase()} + ${nf1(+tar.aumento).replace(',0', '')}% por mes, hasta tener los de paritarias.`);
+  const tar = d.tar, X = d.extra;
+  if (X && (X.backups.neto || X.coord.neto)) { const a = vEase(vIn(t, 1.8, 0.6)); if (a) { ctx.save(); ctx.globalAlpha *= a; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = C.muted; ctx.font = vF(500, 28); ctx.fillText('Costo extra no facturado (back-ups y coordinación)', 120, 720);
+    ctx.fillStyle = C.loss; ctx.font = vF(700, 54); ctx.fillText(money(X.backups.real + X.coord.real), 120, 790);
+    ctx.fillStyle = C.muted; ctx.font = vF(400, 24); ctx.fillText(`costo real · ${X.backups.n} back-ups y ${X.coord.n} jornadas de coordinación en el mes`, 120, 830); ctx.restore(); } }
+  if (tar) vTexto(ctx, t, 2.6, tar.origen === 'cargado' ? `Valores del tarifario de ${d.periodoLabel.toLowerCase()}, ya cargados.` : `Valores: ${tar.desdeLabel.toLowerCase()} + ${nf1(+tar.aumento).replace(',0', '')}% por mes, hasta tener los de paritarias.`);
 }
 function escCierreP(ctx, t) {
   const a = vEase(vIn(t, 0.2, 0.8)), L = 170;
