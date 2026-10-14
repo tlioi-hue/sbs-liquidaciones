@@ -420,6 +420,24 @@ table.stf-t { width: 100%; } table.stf-t td, table.stf-t th { padding: 6px 8px; 
 .sb-item.sb-sub { padding-left: 30px; font-size: 12.5px; } .sb-item.sb-sub i { font-size: 14px; }
 .tar-in { width: 120px; text-align: right; } .tar-in::placeholder { color: #a9aeab; font-style: italic; } .tar-in.prop { font-weight: 600; border-color: #2d8a4e; }
 .cx { font-size: 10.5px; color: var(--text2); white-space: nowrap; }
+
+.kbig-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; }
+.kbig { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.kbig span { display: block; font-size: 12px; color: var(--text2); } .kbig b { display: block; font-size: 26px; font-weight: 700; margin: 4px 0 2px; letter-spacing: -.5px; } .kbig small { font-size: 11.5px; color: var(--text2); }
+.gcard { padding: 14px 16px; margin-bottom: 0; } .gt { font-weight: 600; font-size: 13.5px; margin-bottom: 12px; display: flex; align-items: baseline; gap: 8px; } .gt a { margin-left: auto; font-size: 12px; font-weight: 400; }
+.gb-row { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; } .gb-l { width: 120px; font-size: 12.5px; } .gb-l b { display: block; font-size: 12px; }
+.gb-bars { flex: 1; display: flex; flex-direction: column; gap: 3px; } .gb-bar { display: flex; align-items: center; gap: 6px; height: 15px; }
+.gb-bar span { display: block; height: 100%; border-radius: 3px; min-width: 2px; } .gb-bar em { font-style: normal; font-size: 11px; color: var(--text2); white-space: nowrap; }
+.g-ley { display: flex; gap: 14px; font-size: 11.5px; color: var(--text2); margin-top: 4px; } .g-ley i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.gd { display: flex; align-items: center; gap: 16px; position: relative; } .gd-c { position: absolute; left: 0; width: 150px; text-align: center; } .gd-c b { display: block; font-size: 15px; } .gd-c span { font-size: 11px; color: var(--text2); }
+.gd-l { flex: 1; display: flex; flex-direction: column; gap: 6px; } .gd-l div { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.gd-l i { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; } .gd-l span { flex: 1; } .gd-l em { font-style: normal; color: var(--text2); font-size: 11.5px; width: 46px; text-align: right; }
+.gc { display: flex; gap: 10px; align-items: flex-end; height: 190px; padding-top: 6px; } .gc-m { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; min-width: 34px; }
+.gc-p { font-size: 11px; font-weight: 600; height: 16px; } .gc-cols { flex: 1; width: 100%; display: flex; gap: 3px; align-items: flex-end; justify-content: center; }
+.gc-cols span { width: 40%; max-width: 26px; border-radius: 3px 3px 0 0; min-height: 2px; } .gc-l { font-size: 11.5px; margin-top: 5px; text-transform: capitalize; } .gc-v { font-size: 10.5px; color: var(--text2); }
+.db-det { margin: 14px 0; } .db-det > summary { cursor: pointer; font-size: 13px; font-weight: 600; padding: 10px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; list-style: none; }
+.db-det > summary span { font-weight: 400; color: var(--text2); font-size: 12px; margin-left: 4px; } .db-det[open] > summary { margin-bottom: 12px; }
+@media (max-width: 900px) { .kbig-row { grid-template-columns: 1fr 1fr; } }
 </style>
 </head>
 <body>
@@ -922,7 +940,8 @@ async function pgDB(el) {
       <div><h2 style="margin:0">Resumen</h2><div style="color:var(--text2);font-size:12.5px">Montos sin IVA. El IVA está en Facturación; el resultado neto, en Informes a socios.</div></div>
       <select onchange="S_DB.mes=this.value;render()" style="width:auto;font-size:13px;padding:6px 9px"><option value="" ${!S_DB.mes ? 'selected' : ''}>Acumulado</option>${meses.map(m => `<option value="${m}" ${m === S_DB.mes ? 'selected' : ''}>${mesLabel(m)}</option>`).join('')}</select>
     </div>
-    ${tablaAreasDB(S_DB.mes)}
+    ${graficosDB(S_DB.mes)}
+    <details class="db-det"><summary><i class="ti ti-table"></i> Ver el detalle en números <span>por área, por evento y por lugar</span></summary>${tablaAreasDB(S_DB.mes)}</details>
     <div class="grid2" style="align-items:start">
       <div class="card">
         <div style="font-weight:600;margin-bottom:10px">Pendientes</div>
@@ -947,12 +966,8 @@ async function pgDB(el) {
     </div>`;
 }
 
-function tablaAreasDB(mes) {   // mes 'AAAA-MM' o '' para el acumulado
-  const per = mes || null, A = fvlPorArea(per), col = g => g >= 0 ? '#1a7a3e' : '#b45309', cp = pctCargasSoc();
-  const cuando = per ? `en ${mesLabel(per).toLowerCase()}` : 'en total';
-  const cab = (c1, conFact) => `<thead><tr><th>${c1}</th>${conFact ? '<th style="text-align:right">Facturado</th>' : ''}<th style="text-align:right" title="Lo que se le transfiere a la gente">Pagado (neto)</th><th style="text-align:right" title="Pagado + ${cp}% de cargas sociales: lo que le cuesta a SBS">Costo real</th>${conFact ? '<th style="text-align:right">Diferencia</th><th style="text-align:center">%</th>' : ''}</tr></thead>`;
-  const filaA = (x, sub) => `<tr><td>${x.nombre}<div style="font-size:11px;color:var(--text2)">${sub}</div></td><td style="text-align:right">${fmt(x.fact)}</td><td style="text-align:right">${fmt(x.neto)}</td><td style="text-align:right">${fmt(x.costo)}</td>
-    <td style="text-align:right;font-weight:600;color:${col(x.dif)}">${fmt(x.dif)}</td><td style="text-align:center">${pctTxt1(x.dif, x.fact)}</td></tr>`;
+function datosDB(mes) {   // Externos por evento y Servicios Fijos por lugar, del mes ('AAAA-MM') o acumulado ('')
+  const per = mes || null;
   // Externos: por evento
   const mesDe = p => { const m = String(p || '').match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}` : ''; };
   const lext = (APP.liquidaciones || []).filter(l => l.area === 'Externos' && (!per || mesDe(l.periodo) === per));
@@ -969,6 +984,70 @@ function tablaAreasDB(mes) {   // mes 'AAAA-MM' o '' para el acumulado
     const nM = new Set(L.map(x => x.mes_id)).size, neto = L.reduce((a, x) => a + (x.total || 0), 0);
     return { nombre: l.nombre, nM, pers: new Set(L.map(x => x.persona_id)).size, neto, costo: costoLaboral(neto) }; });
   const tF = fijos.reduce((a, x) => ({ neto: a.neto + x.neto, costo: a.costo + x.costo }), { neto: 0, costo: 0 });
+  return { evs, tE, fijos, tF, mesesF };
+}
+
+// ── Gráficos simples (sin librerías): barras, dona y columnas. El monto exacto aparece al pasar el mouse ──
+const $M = v => { const a = Math.abs(v || 0), sg = v < 0 ? '−' : ''; return a >= 1e6 ? `${sg}$ ${(a / 1e6).toLocaleString('es-AR', { maximumFractionDigits: 1 })} M` : a >= 1e3 ? `${sg}$ ${Math.round(a / 1e3).toLocaleString('es-AR')} mil` : `${sg}$ ${Math.round(a)}`; };
+const G_COL = { fact: '#2f3a35', costo: '#a9b8b0', dif: '#2d8a4e' };
+function gBarrasArea(filas) {   // filas: [{nombre, fact, costo, dif}]
+  const max = Math.max(1, ...filas.map(x => Math.max(x.fact, x.costo)));
+  return `<div class="gb">${filas.map(x => `<div class="gb-row">
+      <div class="gb-l">${x.nombre}<b style="color:${x.dif >= 0 ? G_COL.dif : '#b45309'}">${pctTxt1(x.dif, x.fact)}</b></div>
+      <div class="gb-bars">
+        <div class="gb-bar" title="Facturado: ${fmt(x.fact)}"><span style="width:${x.fact / max * 100}%;background:${G_COL.fact}"></span><em>${$M(x.fact)}</em></div>
+        <div class="gb-bar" title="Costo real: ${fmt(x.costo)}"><span style="width:${x.costo / max * 100}%;background:${G_COL.costo}"></span><em>${$M(x.costo)}</em></div>
+      </div></div>`).join('')}
+    <div class="g-ley"><span><i style="background:${G_COL.fact}"></i>Facturado</span><span><i style="background:${G_COL.costo}"></i>Costo real</span><span style="margin-left:auto">% = margen</span></div></div>`;
+}
+function gDona(items) {   // items: [{nombre, v, color}]
+  const tot = items.reduce((a, x) => a + x.v, 0); if (!tot) return '<div style="font-size:12.5px;color:var(--text2);padding:20px 0;text-align:center">Sin montos en el período.</div>';
+  const R = 52, C2 = 2 * Math.PI * R; let ac = 0;
+  const arcos = items.filter(x => x.v > 0).map(x => { const l = x.v / tot * C2, a = `<circle r="${R}" cx="70" cy="70" fill="none" stroke="${x.color}" stroke-width="22" stroke-dasharray="${l} ${C2 - l}" stroke-dashoffset="${-ac}"><title>${x.nombre}: ${fmt(x.v)}</title></circle>`; ac += l; return a; }).join('');
+  return `<div class="gd"><svg viewBox="0 0 140 140" width="150" height="150" style="transform:rotate(-90deg)">${arcos}</svg>
+    <div class="gd-c"><b>${$M(tot)}</b><span>pagado</span></div>
+    <div class="gd-l">${items.filter(x => x.v > 0).map(x => `<div title="${fmt(x.v)}"><i style="background:${x.color}"></i><span>${x.nombre}</span><b>${$M(x.v)}</b><em>${pctTxt1(x.v, tot)}</em></div>`).join('')}</div></div>`;
+}
+function gColumnas(meses) {   // meses: [{label, fact, costo, dif}]
+  const max = Math.max(1, ...meses.map(x => Math.max(x.fact, x.costo)));
+  return `<div class="gc">${meses.map(x => `<div class="gc-m">
+      <div class="gc-p" style="color:${x.dif >= 0 ? G_COL.dif : '#b45309'}">${x.fact ? pctTxt1(x.dif, x.fact) : ''}</div>
+      <div class="gc-cols"><span title="${x.nombre ? x.nombre + ' · ' : ''}Facturado: ${fmt(x.fact)}" style="height:${x.fact / max * 100}%;background:${G_COL.fact}"></span><span title="${x.nombre ? x.nombre + ' · ' : ''}Costo real: ${fmt(x.costo)}" style="height:${x.costo / max * 100}%;background:${G_COL.costo}"></span></div>
+      <div class="gc-l" title="${x.nombre || ''}">${x.label}</div>${meses.length <= 12 ? `<div class="gc-v">${$M(x.fact)}</div>` : ''}</div>`).join('')}</div>
+    <div class="g-ley"><span><i style="background:${G_COL.fact}"></i>Facturado</span><span><i style="background:${G_COL.costo}"></i>Costo real</span><span style="margin-left:auto">% = margen</span></div>`;
+}
+const COL_AREAS = { 'Movistar Arena': '#2f3a35', 'Externos': '#d08a3c', 'Ecoparque': '#4d9a63', 'Teatro Colón': '#8b6fc4', 'Campo de Polo': '#d0607e', 'Teatro San Martín': '#3e9aa5' };
+function graficosDB(mes) {
+  const per = mes || null, A = fvlPorArea(per), D = datosDB(mes);
+  const pag = [{ nombre: 'Movistar Arena', v: A.tot.neto, color: COL_AREAS['Movistar Arena'] }, { nombre: 'Externos', v: D.tE.neto, color: COL_AREAS.Externos },
+    ...D.fijos.map(x => ({ nombre: x.nombre, v: x.neto, color: COL_AREAS[x.nombre] || '#888' }))];
+  const pagTot = pag.reduce((a, x) => a + x.v, 0);
+  const k = (l, v, sub, c) => `<div class="kbig"><span>${l}</span><b style="${c ? 'color:' + c : ''}">${v}</b><small>${sub}</small></div>`;
+  let mesAMes = '';
+  if (!per) {
+    const ms = []; for (let m = RENT_DESDE.slice(0, 7); m <= mesActual(); m = mesSig(m)) { const x = fvlPorArea(m).tot; if (x.fact || x.costo) ms.push({ label: mesLabel(m).split(' ')[0].slice(0, 3), fact: x.fact, costo: x.costo, dif: x.dif }); }
+    if (ms.length > 1) mesAMes = `<div class="card gcard"><div class="gt">Movistar Arena, mes a mes</div>${gColumnas(ms)}</div>`;
+  }
+  return `<div class="kbig-row">
+      ${k('Facturado · Movistar Arena', $M(A.tot.fact), `${A.nShows} show${A.nShows !== 1 ? 's' : ''}${A.areas[2]?.fact ? ' + mesa de entrada' : ''} · sin IVA`)}
+      ${k('Costo real · Movistar Arena', $M(A.tot.costo), 'pagado + cargas sociales')}
+      ${k('Diferencia · Movistar Arena', $M(A.tot.dif), `${pctTxt1(A.tot.dif, A.tot.fact)} de margen, antes de impuestos`, A.tot.dif >= 0 ? '#1a7a3e' : '#b45309')}
+      ${k('Pagado · todas las áreas', $M(pagTot), 'neto transferido a la gente')}
+    </div>
+    <div class="grid2" style="align-items:stretch;margin-bottom:14px">
+      <div class="card gcard"><div class="gt">Movistar Arena por área <a href="#" onclick="S_FVL.mes='${mes || ''}';go('rentabilidad');return false">ver detalle →</a></div>${gBarrasArea(A.areas)}</div>
+      <div class="card gcard"><div class="gt">Pagado por área</div>${gDona(pag)}</div>
+    </div>
+    ${mesAMes}`;
+}
+
+function tablaAreasDB(mes) {   // mes 'AAAA-MM' o '' para el acumulado
+  const per = mes || null, A = fvlPorArea(per), col = g => g >= 0 ? '#1a7a3e' : '#b45309', cp = pctCargasSoc();
+  const cuando = per ? `en ${mesLabel(per).toLowerCase()}` : 'en total';
+  const cab = (c1, conFact) => `<thead><tr><th>${c1}</th>${conFact ? '<th style="text-align:right">Facturado</th>' : ''}<th style="text-align:right" title="Lo que se le transfiere a la gente">Pagado (neto)</th><th style="text-align:right" title="Pagado + ${cp}% de cargas sociales: lo que le cuesta a SBS">Costo real</th>${conFact ? '<th style="text-align:right">Diferencia</th><th style="text-align:center">%</th>' : ''}</tr></thead>`;
+  const filaA = (x, sub) => `<tr><td>${x.nombre}<div style="font-size:11px;color:var(--text2)">${sub}</div></td><td style="text-align:right">${fmt(x.fact)}</td><td style="text-align:right">${fmt(x.neto)}</td><td style="text-align:right">${fmt(x.costo)}</td>
+    <td style="text-align:right;font-weight:600;color:${col(x.dif)}">${fmt(x.dif)}</td><td style="text-align:center">${pctTxt1(x.dif, x.fact)}</td></tr>`;
+  const { evs, tE, fijos, tF, mesesF } = datosDB(mes);
   return `
   <div class="db-legend"><span><b>Pagado (neto):</b> lo que se le transfiere a la gente.</span><span><b>Costo real:</b> lo pagado + ${cp}% de cargas sociales, lo que le cuesta a SBS.</span><span><b>Diferencia:</b> facturado − costo real, antes de impuestos.</span></div>
   <div class="card db-area" style="padding:0;overflow:auto;margin-bottom:14px">
@@ -4680,6 +4759,16 @@ function barraMargen(dif, fact) {
   const p = dif / fact * 100, w = Math.max(0, Math.min(100, p));
   return `<div class="mbar"><div><span style="width:${w}%;background:${p >= 0 ? '#2d8a4e' : '#b45309'}"></span></div><b>${p.toFixed(1).replace('.', ',')}%</b></div>`;
 }
+
+function graficosFvl(filas) {
+  const A = fvlPorArea(S_FVL.mes || null);
+  const sh = filas.filter(r => r.nFac).map(r => { const costo = costoLaboral(r.costo || 0); return { nombre: r.ev.nombre, label: fd(r.fISO).slice(0, 5), fact: r.facturado || 0, costo, dif: (r.facturado || 0) - costo }; });
+  return `<div class="grid2" style="align-items:stretch;margin-bottom:14px">
+    <div class="card gcard"><div class="gt">Por área</div>${gBarrasArea(A.areas)}</div>
+    <div class="card gcard"><div class="gt">Show por show</div>${sh.length ? gColumnas(sh) : '<div style="font-size:12.5px;color:var(--text2);padding:20px 0;text-align:center">No hay shows facturados en el período.</div>'}</div>
+  </div>`;
+}
+
 async function pgRentabilidad(el, ac) {
   document.querySelectorAll('.sb-item').forEach(n => n.classList.remove('active'));
   document.getElementById('n-rentabilidad')?.classList.add('active');
@@ -4716,6 +4805,8 @@ async function pgRentabilidad(el, ac) {
       <div class="metric clk-k" onclick="verDesgloseCosto()" title="Ver de qué se compone"><div class="metric-l">Costo real <i class="ti ti-info-circle"></i></div><div class="metric-v" style="font-size:18px">${fmt(R.costo)}</div><div class="metric-s"><u>ver detalle</u></div></div>
       ${kpi('Diferencia', fmt(R.dif), `${pctTxt1(R.dif, R.fact)} de lo facturado`, col(R.dif))}
     </div>
+    ${graficosFvl(filas)}
+    <details class="db-det"><summary><i class="ti ti-table"></i> Ver el detalle en números <span>por área, show por show, mesa de entrada y cargas</span></summary>
     ${tablaAreasFvl(S_FVL.mes || null)}
     <div class="card" style="padding:0;overflow:auto"><div style="padding:12px 14px 4px;font-weight:600"><i class="ti ti-building-arena"></i> Shows <i class="ti ti-info-circle" style="font-weight:400;color:var(--text2)" title="Cada show completo, con sus cargas, como se le factura al Arena. Tocá un show para ver su costo en detalle."></i></div>
       <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th style="text-align:right">Facturado</th><th style="text-align:right" title="Lo que se le transfiere a la gente">Pagado (neto)</th><th style="text-align:right" title="Pagado + cargas sociales: lo que le cuesta a SBS">Costo real <i class="ti ti-info-circle"></i></th><th style="text-align:right">Diferencia</th><th style="min-width:110px">Margen</th></tr></thead>
@@ -4723,7 +4814,7 @@ async function pgRentabilidad(el, ac) {
       <tfoot><tr style="background:var(--card2);font-weight:700"><td colspan="2">Total shows</td><td style="text-align:right">${fmt(R.shows.fact)}</td><td style="text-align:right">${fmt(R.shows.neto)}</td><td style="text-align:right">${fmt(R.shows.costo)}</td><td style="text-align:right;color:${col(R.shows.fact - R.shows.costo)}">${fmt(R.shows.fact - R.shows.costo)}</td><td style="text-align:center">${pctTxt1(R.shows.fact - R.shows.costo, R.shows.fact)}</td></tr></tfoot></table>
       ${sinFac.length ? `<div style="padding:8px 14px;font-size:12px;color:#b45309">${sinFac.length} show${sinFac.length > 1 ? 's' : ''} sin facturación guardada: no ${sinFac.length > 1 ? 'entran' : 'entra'} en los totales hasta que se facture${sinFac.length > 1 ? 'n' : ''}.</div>` : ''}</div>
     ${htmlFvlMesa(S_FVL.mes)}
-    ${htmlFvlCargas(S_FVL.mes)}`;
+    ${htmlFvlCargas(S_FVL.mes)}</details>`;
 }
 
 // Costo real de los cargas de un show (sale de la otra planilla); vacío = volver a la estimación del tarifario
@@ -5226,6 +5317,7 @@ function proyMes(periodo, esc) {
   return { periodo, tar, filas, T, reales: ok.filter(f => f.real).length, proyectados: ok.filter(f => f.proyectado).length, errores: filas.filter(f => f.error).length };
 }
 
+const mesSig = m => { const [y, mm] = m.split('-').map(Number); const d = new Date(y, mm, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
 const mesActual = () => { const h = new Date(); return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}`; };
 // Proyecciones: solo meses futuros. El mes en curso aparece solo si tiene una proyección guardada (para comparar con lo real).
 function mesesProyectables() {

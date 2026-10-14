@@ -1476,6 +1476,7 @@ function dibujarProy() {
         <button class="btn" onclick="window.print()">Imprimir / PDF</button>
       </div>
     </div>
+    ${!d.extra ? `<div class="aviso">Esta proyección se generó con una versión anterior de la app y no trae el detalle de back-ups y coordinación. Volvé a generarla desde Proyecciones (con la app actualizada) para verlo.</div>` : ''}
     <div class="aviso">Es una <b>estimación</b>: se calcula con los shows confirmados, el historial de cada banda y los supuestos de abajo. A medida que los shows se facturan, se reemplaza por los números reales.</div>
     <section class="kpis">
       ${kpi('ing', 'Ingresos estimados (sin IVA)', money(T.ingresos), `${nShows} show${nShows !== 1 ? 's' : ''}${d.servicios.length ? ' + mesa de entrada' : ''}${enCurso ? ` · ${d.reales} ya facturado${d.reales !== 1 ? 's' : ''}` : ''}`)}
