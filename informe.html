@@ -342,6 +342,24 @@ table.proy-t tr.proyectado td { background: #fbfcfb; } table.proy-t tfoot td { f
 tr.real .pbar span { background: var(--c-ing, #2d6a4f); }
 @media (max-width: 760px) { .sup-p { grid-template-columns: 1fr 1fr; } }
 @media print { .sup-p > div, table.proy-t tr.proyectado td { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+
+details.det-num { margin: 16px 0; } details.det-num > summary { cursor: pointer; list-style: none; background: #fff; border: 1px solid var(--rule, #e2e5e3); border-radius: 12px; padding: 13px 18px; font-weight: 600; font-size: 14px; }
+details.det-num > summary::before { content: '▸ '; } details.det-num[open] > summary::before { content: '▾ '; } details.det-num > summary span { font-weight: 400; color: var(--muted); font-size: 12.5px; margin-left: 6px; }
+details.det-num[open] > summary { margin-bottom: 14px; }
+.ba-r { display: grid; grid-template-columns: 190px 1fr 210px; gap: 14px; align-items: center; padding: 10px 0; border-bottom: 1px solid #eef0ee; }
+.ba-n { font-weight: 600; font-size: 14px; } .ba-n small, .ba-v small { display: block; font-weight: 400; font-size: 11.5px; color: var(--muted); }
+.ba-b { height: 14px; background: #f0f2f0; border-radius: 4px; overflow: hidden; } .ba-b span { display: block; height: 100%; background: #2d6a2d; border-radius: 4px; } .ba-b span.neg { background: #b45309; }
+.ba-v { font-weight: 700; font-size: 15px; color: #2d6a2d; text-align: right; } .ba-v.neg { color: #b45309; }
+.cp { display: flex; gap: 6px; align-items: flex-end; height: 240px; overflow-x: auto; padding-bottom: 2px; }
+.cp-m { flex: 1; min-width: 44px; display: flex; flex-direction: column; align-items: center; height: 100%; }
+.cp-r { font-size: 10px; font-weight: 600; color: #2d6a2d; height: 15px; white-space: nowrap; } .cp-r.neg { color: #b45309; }
+.cp-c { flex: 1; width: 100%; display: flex; gap: 2px; align-items: flex-end; justify-content: center; }
+.cp-c span { width: 42%; max-width: 22px; border-radius: 3px 3px 0 0; min-height: 2px; } .cp-c .i.real { background: #2b2b2b; } .cp-c .i.proyectado { background: #9cc3ab; } .cp-c .e { background: #c9ccc9; }
+.cp-l { font-size: 11px; margin-top: 4px; } .cp-n { font-size: 9.5px; color: var(--muted); text-align: center; line-height: 1.15; height: 22px; overflow: hidden; }
+.cp-ley { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); margin-top: 8px; } .cp-ley i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.k-extra { grid-template-columns: 1fr !important; }
+@media (max-width: 700px) { .ba-r { grid-template-columns: 1fr; } .ba-v { text-align: left; } }
+@media print { details.det-num > summary { display: none; } .ba-b span, .cp-c span { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 </style>
 </head>
 <body>
@@ -492,6 +510,18 @@ function totShowsVista() {
 const nombreMes = per => MESES[+String(per).split('-')[1] - 1];
 
 // ══ Armado del informe ══
+
+// Barras simples (HTML) del resultado por área
+function barrasAreas(areas, T) {
+  const max = Math.max(1, ...areas.map(x => Math.abs(x.neto)));
+  return `<div class="ba">${areas.map(x => `<div class="ba-r"><div class="ba-n">${esc(x.nombre)}<small>${money(x.ventas)} de ingresos</small></div>
+      <div class="ba-b"><span class="${x.neto < 0 ? 'neg' : ''}" style="width:${Math.abs(x.neto) / max * 100}%"></span></div>
+      <div class="ba-v ${x.neto < 0 ? 'neg' : ''}">${money(x.neto)}<small>${p1(x.neto, x.ventas)} de margen · ${T.neto ? nf1(x.neto / T.neto * 100) : '0'}% del resultado</small></div></div>`).join('')}</div>`;
+}
+// Al imprimir o guardar en PDF, el detalle plegado se abre para que el documento quede completo
+window.addEventListener('beforeprint', () => document.querySelectorAll('details.det-num:not([open])').forEach(d => { d.dataset.cerrado = '1'; d.open = true; }));
+window.addEventListener('afterprint', () => document.querySelectorAll('details.det-num[data-cerrado]').forEach(d => { d.open = false; delete d.dataset.cerrado; }));
+
 function dibujar() {
   const d = S.d, T = totalesVista(), shows = showsVisibles(), E = d.estructura || {};
   const egresosTot = T.ventas - T.neto, pct = S.modo === 'pct';
@@ -667,33 +697,6 @@ function dibujar() {
       ${kpi('neto', 'Resultado neto', money(T.neto), 'ingresos menos egresos', delta(T.neto, prev?.neto))}
       ${kpi('mar', 'Margen neto', p1(T.neto, T.ventas), 'resultado sobre ingresos', prev ? delta(margen(T), margen(prev), { pp: true }) : '')}
     </section>
-    ${areas && areas.length > 1 ? `<section class="panel areasp">
-      <h2>Resultado por área</h2>
-      <p class="desc">Cuánto factura, cuánto cuesta y cuánto deja cada servicio del Arena. Los shows incluyen sus cargas en el detalle show por show; acá se separan.</p>
-      <div class="tw"><table class="area-t"><thead><tr><th>Área</th><th>Ingresos</th><th>Egresos</th><th>Resultado neto</th><th>Margen</th><th>Aporte al resultado</th></tr></thead><tbody>
-        ${areas.map(x => { const ap = T.neto ? x.neto / T.neto * 100 : 0;
-          return `<tr><td><strong>${esc(x.nombre)}</strong><small>${esc(x.detalle || '')}</small></td><td>${money(x.ventas)}</td><td>${money(x.ventas - x.neto)}</td>
-            <td class="res ${x.neto < 0 ? 'neg' : ''}">${money(x.neto)}</td><td>${p1(x.neto, x.ventas)}</td>
-            <td class="ap"><div class="apbar"><div style="width:${Math.max(0, Math.min(100, ap))}%"></div></div><span>${nf1(ap)}%</span></td></tr>`; }).join('')}
-      </tbody><tfoot><tr><td>Total del área</td><td>${money(T.ventas)}</td><td>${money(T.ventas - T.neto)}</td><td class="res">${money(T.neto)}</td><td>${p1(T.neto, T.ventas)}</td><td>100%</td></tr></tfoot></table></div>
-    </section>` : ''}
-    ${dests}
-    <section class="panel showxshow">
-      <h2>Show por show</h2>
-      <p class="desc">Qué dejó cada show. ${shows.length > 1 ? 'Ordenado por resultado; el margen muestra la diferencia contra el promedio del período, en puntos.' : ''} Tocá un show para ver su detalle completo.</p>
-      ${promedios}
-      <div class="tw">${detalle}</div>
-      ${shows.length > 1 ? `<div class="sxchart"><div class="subh">Ingresos, egresos y resultado de cada show</div>
-      <div class="chart" style="height:${altoShows}px"><canvas id="gShows" aria-label="Resultado por show" role="img"></canvas></div></div>` : ''}
-      ${extraNoFacturado(shows, T)}
-    </section>
-    ${servicios.length && !(areas && areas.length > 1) ? `<section class="panel servm">
-      <h2>Servicios mensuales</h2>
-      <p class="desc">Se facturan y liquidan por mes, no por show. Están incluidos en el resultado del área.</p>
-      <div class="tw"><table><thead><tr><th>Servicio</th><th>Ingresos</th><th>Personal</th><th>Cargas e impuestos</th><th>Resultado neto</th><th>Margen</th></tr></thead><tbody>
-        ${servicios.map(x => `<tr><td>${esc(x.nombre)}<small>${x.meses > 1 ? `${x.meses} meses` : 'mensual'}${x.estimado ? ', valores estimados' : ''}</small></td><td>${money(x.ventas)}</td><td>${money(x.personal)}</td><td>${money(x.cargas + x.impuestos + x.iigg)}</td><td class="res ${x.neto < 0 ? 'neg' : ''}">${money(x.neto)}</td><td>${p1(x.neto, x.ventas)}</td></tr>`).join('')}
-      </tbody></table></div>
-    </section>` : ''}
     <div class="grid2">
       <section class="panel">
         <h2>Ingresos, egresos y resultado</h2>
@@ -709,9 +712,43 @@ function dibujar() {
         </div>
       </section>
     </div>
+    ${areas && areas.length > 1 ? `<section class="panel"><h2>Resultado por área</h2><p class="desc">Cuánto deja cada servicio del Arena.</p>${barrasAreas(areas, T)}</section>` : ''}
+    ${dests}
+    <section class="panel showxshow">
+      <h2>Show por show</h2>
+      <p class="desc">Qué dejó cada show. El detalle de cada uno está en "Ver el detalle en números".</p>
+      ${promedios}
+      ${shows.length > 1 ? `<div class="sxchart"><div class="subh">Ingresos, egresos y resultado de cada show</div>
+      <div class="chart" style="height:${altoShows}px"><canvas id="gShows" aria-label="Resultado por show" role="img"></canvas></div></div>` : ''}
+    </section>
     ${esAnual && !S.mes ? `<section class="panel"><h2>Evolución mensual</h2><p class="desc">${pct ? 'Egresos y resultado de cada mes, como % de sus ingresos.' : 'Ingresos y egresos de cada mes, y el resultado neto.'}</p>
       <p class="hint">Tocá un mes para ver el informe solo de ese mes.</p><div class="chart"><canvas id="gMeses" aria-label="Evolución mensual" role="img"></canvas></div></section>` : ''}
+    <details class="det-num"><summary>Ver el detalle en números <span>por área, show por show, costo extra y estado de resultados</span></summary>
+    ${areas && areas.length > 1 ? `<section class="panel areasp">
+      <h2>Resultado por área</h2>
+      <p class="desc">Cuánto factura, cuánto cuesta y cuánto deja cada servicio del Arena. Los shows incluyen sus cargas en el detalle show por show; acá se separan.</p>
+      <div class="tw"><table class="area-t"><thead><tr><th>Área</th><th>Ingresos</th><th>Egresos</th><th>Resultado neto</th><th>Margen</th><th>Aporte al resultado</th></tr></thead><tbody>
+        ${areas.map(x => { const ap = T.neto ? x.neto / T.neto * 100 : 0;
+          return `<tr><td><strong>${esc(x.nombre)}</strong><small>${esc(x.detalle || '')}</small></td><td>${money(x.ventas)}</td><td>${money(x.ventas - x.neto)}</td>
+            <td class="res ${x.neto < 0 ? 'neg' : ''}">${money(x.neto)}</td><td>${p1(x.neto, x.ventas)}</td>
+            <td class="ap"><div class="apbar"><div style="width:${Math.max(0, Math.min(100, ap))}%"></div></div><span>${nf1(ap)}%</span></td></tr>`; }).join('')}
+      </tbody><tfoot><tr><td>Total del área</td><td>${money(T.ventas)}</td><td>${money(T.ventas - T.neto)}</td><td class="res">${money(T.neto)}</td><td>${p1(T.neto, T.ventas)}</td><td>100%</td></tr></tfoot></table></div>
+    </section>` : ''}
+      <section class="panel showxshow">
+        <h2>Show por show, en números</h2>
+        <p class="desc">${shows.length > 1 ? 'Ordenado por resultado; el margen muestra la diferencia contra el promedio del período, en puntos.' : ''} Tocá un show para ver su detalle completo.</p>
+        <div class="tw">${detalle}</div>
+        ${extraNoFacturado(shows, T)}
+      </section>
+    ${servicios.length && !(areas && areas.length > 1) ? `<section class="panel servm">
+      <h2>Servicios mensuales</h2>
+      <p class="desc">Se facturan y liquidan por mes, no por show. Están incluidos en el resultado del área.</p>
+      <div class="tw"><table><thead><tr><th>Servicio</th><th>Ingresos</th><th>Personal</th><th>Cargas e impuestos</th><th>Resultado neto</th><th>Margen</th></tr></thead><tbody>
+        ${servicios.map(x => `<tr><td>${esc(x.nombre)}<small>${x.meses > 1 ? `${x.meses} meses` : 'mensual'}${x.estimado ? ', valores estimados' : ''}</small></td><td>${money(x.ventas)}</td><td>${money(x.personal)}</td><td>${money(x.cargas + x.impuestos + x.iigg)}</td><td class="res ${x.neto < 0 ? 'neg' : ''}">${money(x.neto)}</td><td>${p1(x.neto, x.ventas)}</td></tr>`).join('')}
+      </tbody></table></div>
+    </section>` : ''}
     <section class="panel"><h2>Estado de resultados</h2><p class="desc">Los egresos se restan de los ingresos en orden; los renglones intermedios muestran el resultado parcial en cada etapa.</p><div class="tw">${eerr}</div></section>
+    </details>
     <section class="notas">
       <p><strong>Ingresos:</strong> lo que SBS le factura al Movistar Arena por el staff de cada show, sin IVA.</p>
       <p><strong>Egresos:</strong> lo liquidado a los colaboradores, ${T.cargas.map(c => `${esc(c.nombre.toLowerCase())} (${pctTxt(c.pct)} de la liquidación)`).join(' y ') || 'las cargas'}, los impuestos sobre ventas (${T.impuestos.map(c => `${esc(c.nombre)} ${pctTxt(c.pct)}`).join(', ')})${T.fijos ? `, los costos fijos del Arena (${money(E.fijosMes)} por mes)` : ''} y el Impuesto a las Ganancias estimado (${pctTxt(T.iigg.pct)}).</p>
@@ -1493,13 +1530,17 @@ function dibujarProy() {
       </div>
       <p class="desc" style="margin-top:12px"><b>Valores:</b> ${tarTxt}.</p>
     </section>
-    <section class="panel"><h2>Show por show</h2><p class="desc">Los shows ya facturados figuran con sus números reales; el resto, proyectado.</p>
+    <section class="panel"><h2>Show por show</h2><p class="desc">Ingresos y egresos estimados de cada show. Los ya facturados, con sus números reales.</p>${columnasProy(d)}</section>
+    ${d.extra && (d.extra.backups.neto || d.extra.coord.neto) ? `<section class="kpis k-extra"><div class="kpi egr"><div class="l">Costo extra no facturado</div><div class="v">${money(d.extra.backups.real + d.extra.coord.real)}</div><div class="s">back-ups ${money(d.extra.backups.real)} + coordinación ${money(d.extra.coord.real)} · costo real, ya incluido en los egresos</div></div></section>` : ''}
+    <details class="det-num"><summary>Ver el detalle en números <span>show por show y costo extra</span></summary>
+    <section class="panel"><h2>Show por show, en números</h2><p class="desc">Los shows ya facturados figuran con sus números reales; el resto, proyectado.</p>
       <div class="tw"><table class="proy-t"><thead><tr><th>Fecha</th><th>Show</th><th>Estado</th><th>Puestos</th><th>Back-ups</th><th>Coord.</th><th>Ingresos</th><th>Egresos</th><th>Resultado</th><th>Margen</th></tr></thead>
         <tbody>${filas}${filasServ}</tbody>
         <tfoot><tr><td colspan="4">Total del mes</td><td>${d.shows.reduce((a, x) => a + (x.backups || 0), 0)}</td><td>${d.shows.reduce((a, x) => a + (x.coords || 0), 0)}</td><td>${money(T.ingresos)}</td><td>${money(T.egresos)}</td><td class="res ${T.neto < 0 ? 'neg' : ''}">${money(T.neto)}</td><td>${p1(T.neto, T.ingresos)}</td></tr></tfoot></table></div>
       ${d.sinCalcular?.length ? `<p class="desc" style="margin-top:8px">No se pudieron estimar: ${d.sinCalcular.map(esc).join(', ')}.</p>` : ''}
     </section>
     ${extraProyHTML(d)}
+    </details>
     <section class="notas">
       <p><strong>Ingresos:</strong> lo que SBS le facturaría al Movistar Arena por el staff de cada show, sin IVA.</p>
       <p><strong>Egresos:</strong> lo que se le pagaría al personal (incluidos back-ups y coordinación), las cargas sociales, los impuestos sobre ventas y el impuesto a las Ganancias estimado.</p>
@@ -1510,6 +1551,17 @@ function dibujarProy() {
 }
 
 
+
+const moneyCorto = v => { const a = Math.abs(v || 0), sg = v < 0 ? '−' : ''; return a >= 1e6 ? `${sg}$ ${(a / 1e6).toLocaleString('es-AR', { maximumFractionDigits: 1 })} M` : a >= 1e3 ? `${sg}$ ${Math.round(a / 1e3)} mil` : `${sg}$ ${Math.round(a)}`; };
+function columnasProy(d) {
+  const sh = d.shows; if (!sh.length) return '';
+  const max = Math.max(1, ...sh.map(x => Math.max(x.ingresos, x.egresos)));
+  return `<div class="cp">${sh.map(x => `<div class="cp-m" title="${esc(x.nombre)} · ${x.estado === 'real' ? 'real' : 'proyectado'}&#10;Ingresos: ${money(x.ingresos)}&#10;Egresos: ${money(x.egresos)}&#10;Resultado: ${money(x.neto)}">
+      <div class="cp-r ${x.neto < 0 ? 'neg' : ''}">${moneyCorto(x.neto)}</div>
+      <div class="cp-c"><span class="i ${x.estado}" style="height:${x.ingresos / max * 100}%"></span><span class="e" style="height:${x.egresos / max * 100}%"></span></div>
+      <div class="cp-l">${fecha(x.fecha).slice(0, 5)}</div><div class="cp-n">${esc(x.nombre.length > 14 ? x.nombre.slice(0, 13) + '…' : x.nombre)}</div></div>`).join('')}</div>
+    <div class="cp-ley"><span><i style="background:#2b2b2b"></i>Ingresos (real)</span><span><i style="background:#9cc3ab"></i>Ingresos (proyectado)</span><span><i style="background:#c9ccc9"></i>Egresos</span><span style="margin-left:auto">arriba: resultado de cada show</span></div>`;
+}
 function extraProyHTML(d) {
   const X = d.extra; if (!X || (!X.backups.neto && !X.coord.neto)) return '';
   const cp = nf1(+X.pctCargas).replace(',0', ''), tN = X.backups.neto + X.coord.neto, tR = X.backups.real + X.coord.real;
