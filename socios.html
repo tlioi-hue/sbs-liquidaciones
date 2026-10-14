@@ -19,9 +19,12 @@
 html { scroll-behavior: smooth; }
 body { margin: 0; background: var(--bg); color: var(--txt); font-family: 'Poppins', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
 a { color: inherit; }
-.mono { font-family: var(--mono); text-transform: uppercase; letter-spacing: .08em; font-size: 10.5px; font-weight: 500; color: var(--mut); }
+.mono { font-family: var(--mono); letter-spacing: .01em; font-size: 12.5px; font-weight: 500; color: var(--mut); }
 /* encabezado */
-header { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; padding: calc(14px + env(safe-area-inset-top)) clamp(18px, 4vw, 44px) 14px; background: linear-gradient(var(--bg) 60%, transparent); }
+header { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; padding: calc(12px + env(safe-area-inset-top)) clamp(18px, 4vw, 44px) 12px; background: #fff; color: #111; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
+header .marca { color: #111; } header .marca img { width: 34px; height: 34px; }
+header .pill { background: #f1f3f5; color: #111; border-color: #e3e6ea; font-weight: 600; }
+header .pill:hover { background: #1a3a6e; color: #fff; border-color: #1a3a6e; }
 .marca { display: flex; align-items: center; gap: 10px; font-size: 16px; text-decoration: none; } .marca img { width: 30px; height: 30px; border-radius: 7px; } .marca b { font-weight: 700; }
 .pills { margin-left: auto; display: flex; gap: 8px; }
 .pill { font: inherit; font-size: 14px; font-weight: 500; color: var(--txt); background: #1b1d1d; border: 1px solid var(--line); border-radius: 999px; padding: 9px 16px; cursor: pointer; text-decoration: none; white-space: nowrap; }
@@ -55,14 +58,14 @@ h2 { font-size: clamp(28px, 4vw, 48px); letter-spacing: -.03em; margin: 0; font-
 .tj-go { margin-top: 12px; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; background: var(--txt); color: #111; border-radius: 999px; padding: 10px 16px; align-self: flex-start; }
 .vacio { color: var(--mut); font-size: 14px; padding: 18px 0; }
 footer { padding: 50px clamp(18px, 4vw, 44px) calc(90px + env(safe-area-inset-bottom)); color: var(--mut); font-size: 12px; }
-.sello { position: fixed; right: 18px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 15; background: #f3f4f3; color: #111; border-radius: 999px; padding: 8px 14px; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.sello { position: fixed; right: 18px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 15; background: #f3f4f3; color: #111; border-radius: 999px; padding: 8px 14px; font-family: var(--mono); font-size: 11px; letter-spacing: .01em; }
 /* visor del informe */
 .visor { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: none; flex-direction: column; }
 .visor.on { display: flex; }
 .visor-top { display: flex; align-items: center; gap: 12px; padding: calc(10px + env(safe-area-inset-top)) 16px 10px; border-bottom: 1px solid var(--line); }
 .visor-top b { font-size: 15px; } .visor-top .mono { margin-left: 4px; }
 .x { margin-left: auto; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); background: #1b1d1d; color: var(--txt); font-size: 20px; cursor: pointer; }
-.visor iframe { flex: 1; width: 100%; border: 0; background: #f4f5f4; }
+.visor iframe { flex: 1; width: 100%; border: 0; background: var(--bg); }
 /* intro tipo historia */
 .intro { position: fixed; inset: 0; z-index: 60; background: radial-gradient(90% 70% at 70% 30%, rgba(90,150,230,.26), transparent 60%), radial-gradient(70% 60% at 10% 90%, rgba(26,58,110,.5), transparent 60%), #070809; display: flex; flex-direction: column; padding: calc(16px + env(safe-area-inset-top)) clamp(18px, 4vw, 44px) 30px; }
 .intro .barras { display: flex; gap: 6px; } .intro .barras span { flex: 1; height: 3px; border-radius: 3px; background: rgba(255,255,255,.2); overflow: hidden; } .intro .barras span i { display: block; height: 100%; width: 0; background: #fff; }
@@ -132,7 +135,7 @@ function dibujar() {
   </div>
   ${res.length || anios.length ? `<section class="sec" id="resultados"><div class="sec-h"><h2><b>Resultados</b> de cada mes</h2><span class="mono">${res.length} mes${res.length !== 1 ? 'es' : ''} publicado${res.length !== 1 ? 's' : ''}</span></div>
     <div class="carril">${[...anios, ...res].map(tarjeta).join('')}</div></section>` : ''}
-  ${proy.length ? `<section class="sec" id="proyecciones"><div class="sec-h"><h2><b>Proyecciones</b> de lo que viene</h2><span class="mono">estimaciones con los shows confirmados</span></div>
+  ${proy.length ? `<section class="sec" id="proyecciones"><div class="sec-h"><h2><b>Proyecciones</b> de lo que viene</h2><span class="mono">Estimaciones con los shows confirmados</span></div>
     <div class="carril">${proy.map(tarjeta).join('')}</div></section>` : ''}
   <footer>Show Business Solutions · Documento confidencial para uso de los socios. Cada informe se puede ver en video y guardar en PDF.</footer>
   ${act ? `<div class="sello">Datos propios · Actualizado ${new Date(act).toLocaleDateString('es-AR')}</div>` : ''}`;
@@ -142,7 +145,7 @@ window.abrir = function(token) {
   const x = LISTA.find(y => y.token === token); if (!x) return;
   const tit = x.tipo === 'anio' ? `Año ${x.periodo}` : `${nomMes(x.periodo).mes} ${nomMes(x.periodo).anio}`;
   $('visor-t').textContent = tit; $('visor-s').textContent = x.tipo === 'proy' ? '· Proyección' : '· Resultados';
-  $('visor-f').src = `informe.html?t=${encodeURIComponent(token)}&embed=1`;
+  $('visor-f').src = `informe.html?t=${encodeURIComponent(token)}&embed=1&tema=portal`;
   $('visor').classList.add('on'); document.body.style.overflow = 'hidden';
   try { history.pushState({ i: token }, '', `${location.pathname}?k=${encodeURIComponent(CLAVE)}&i=${encodeURIComponent(token)}`); } catch {}
 };
@@ -159,7 +162,7 @@ function intro() {
   const slides = [
     `<img src="${LOGO}" alt=""><h1 style="margin:0"><b>Show Business</b><br>Solutions</h1>`,
     `<h1 style="margin:0">Portal de <b>socios</b><br><em>Movistar Arena</em></h1><p class="sub" style="margin-top:20px">Resultados de cada mes y proyecciones, en un solo lugar.</p>`,
-    ...(t ? [`<div class="mono" style="margin-bottom:12px">${esc(nomMes(ult.periodo).mes)} ${esc(nomMes(ult.periodo).anio)} · resultado neto</div><h1 style="margin:0"><em>${corto(t.neto)}</em></h1>
+    ...(t ? [`<div class="mono" style="margin-bottom:12px">${esc(nomMes(ult.periodo).mes)} ${esc(nomMes(ult.periodo).anio)} · Resultado neto</div><h1 style="margin:0"><em>${corto(t.neto)}</em></h1>
       <div class="kpis" style="margin-top:30px"><div class="kpi"><b>${corto(t.ing)}</b><span class="mono">Ingresos</span></div><div class="kpi"><b>${pct(t.neto, t.ing)}</b><span class="mono">Margen</span></div><div class="kpi"><b>${t.shows}</b><span class="mono">Shows</span></div></div>`] : []),
   ];
   const ov = document.createElement('div'); ov.className = 'intro';
