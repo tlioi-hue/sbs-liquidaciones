@@ -180,7 +180,7 @@ h1 em .w { filter: drop-shadow(0 3px 0 rgba(26,58,110,.32)); background: linear-
 .hpanel, .vidrio { container-type: inline-size; }
 .hpanel .kpi b { font-size: clamp(18px, 6.4cqi, 32px); }
 .vidrio .kpi b { font-size: clamp(18px, 5.6cqi, 40px); }
-.kpi b { overflow: hidden; text-overflow: ellipsis; }
+.kpi b { overflow: hidden; }
 @container (max-width: 560px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; row-gap: 14px !important; } .hpanel .kpi b, .vidrio .kpi b { font-size: clamp(20px, 9cqi, 32px); } }
 .pila > div { display: block; line-height: 54px; text-overflow: ellipsis; min-width: 0; }
 /* filas y destacados que se pueden tocar */
@@ -233,6 +233,13 @@ h2 { text-shadow: 0 2px 0 rgba(26,58,110,.12); }
 .tabla-x td.r { font-weight: 700; color: #2a6cc4; } .tabla-x tfoot td { font-weight: 700; border-bottom: 0; border-top: 2px solid var(--txt); }
 .scroll-x { overflow-x: auto; }
 @container (max-width: 620px) { .calc3 { grid-template-columns: 1fr; } }
+
+.mini4 > div.tot { background: #1a3a6e; border-color: #1a3a6e; } .mini4 > div.tot span, .mini4 > div.tot small { color: rgba(255,255,255,.78); } .mini4 > div.tot b { color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.25); }
+/* aviso para tocar los shows */
+.aviso-toca { display: inline-flex; align-items: center; gap: 10px; background: #3b82d6; color: #fff; font-weight: 600; font-size: 14px; border-radius: 999px; padding: 10px 18px 10px 12px; margin: -6px 0 16px; box-shadow: 0 3px 0 rgba(26,58,110,.35); }
+.aviso-toca i { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: rgba(255,255,255,.22); font-style: normal; font-size: 14px; animation: tocar 1.8s ease-in-out infinite; }
+@keyframes tocar { 0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,255,255,.55); } 50% { transform: scale(1.08); box-shadow: 0 0 0 7px rgba(255,255,255,0); } }
+@media (prefers-reduced-motion: reduce) { .aviso-toca i { animation: none; } }
 </style>
 </head>
 <body>
@@ -276,7 +283,7 @@ function tarjeta(x, i) {
     <div class="tj-box">
       <div class="r"><span class="mono">${x.tipo === 'proy' ? 'Ingresos estimados' : 'Ingresos'}</span><b>${corto(t.ing)}</b></div>
       <div class="r"><span class="mono">${x.tipo === 'proy' ? 'Resultado proyectado' : 'Resultado neto'}</span><b class="${t.neto < 0 ? 'neg' : 'pos'}">${corto(t.neto)}</b></div>
-      ${x.tipo === 'proy' ? `<div class="r"><span class="mono">Margen</span><b>${pct(t.neto, t.ing)}</b></div>` : ''}
+      <div class="r"><span class="mono">Margen</span><b>${pct(t.neto, t.ing)}</b></div>
     </div>
     <span class="tj-go">${x.tipo === 'proy' ? 'Ver proyección' : 'Ver informe'} →</span>
   </article>`;
@@ -298,8 +305,8 @@ function dibujar() {
   <header><a class="marca" href="#top"><img src="${LOGO}" alt="SBS"><span>Show Business Solutions</span></a>
     <nav class="pills">${res.length || anios.length ? '<a class="pill" href="#resultados">Resultados</a>' : ''}${proy.length ? '<a class="pill" href="#proyecciones">Proyecciones</a>' : ''}</nav></header>
   <div class="hero" id="top">
-    <h1>${palabras('¿Cómo nos fue', 0)}<br><b>${palabras('en el', .35)}</b> <em>${palabras('Movistar Arena?', .55)}</em></h1>
-    <p class="sub rv" style="--d:.7s">Resultados de cada mes y proyecciones de lo que viene: cuánto se le facturó al Arena, cuánto costó el personal y cuánto quedó para SBS.</p>
+    <h1>${palabras('¿Cómo nos va', 0)}<br><b>${palabras('en el', .35)}</b> <em>${palabras('Movistar Arena?', .55)}</em></h1>
+    <p class="sub rv" style="--d:.7s">Lo que ya pasó y lo que viene: los resultados de cada mes y las proyecciones de los próximos, con cuánto se le factura al Arena, cuánto cuesta el personal y cuánto queda para SBS.</p>
     ${tu || tp ? `<div class="hero-dos ${tu && tp ? '' : 'uno'}">
       ${tu ? `<div class="hpanel rv" style="--d:.85s"><div class="hp-h"><span class="mono">Último informe · <b>${esc(nomMes(ult.periodo).mes)} ${esc(nomMes(ult.periodo).anio)}</b></span><button class="hp-go" onclick="abrir('${esc(ult.token)}')">Ver informe →</button></div>
         <div class="kpis">
@@ -426,7 +433,7 @@ function lecturaResultados(x) {
   // 04 Show por show
   if (shows.length) {
     const rk = [...shows].sort((a, b) => b.neto - a.neto), porM = [...shows].sort((a, b) => b.neto / (b.ventas || 1) - a.neto / (a.ventas || 1));
-    h += cap(n++, 'Show por show', '<b>Ranking</b> de los shows', `<div class="vidrio">${barras(rk.map(s => ({ l: s.nombre, sub: `${fechaC(s.fecha)} · ${fmtM(s.ventas)} de ingresos`, v: s.neto, extra: pct(s.neto, s.ventas), click: `fichaShow(${shows.indexOf(s)})` })))}<p class="toca">Tocá un show para ver su detalle.</p></div>
+    h += cap(n++, 'Show por show', '<b>Ranking</b> de los shows', `<div class="aviso-toca"><i>👆</i>Tocá un show para ver su detalle</div><div class="vidrio">${barras(rk.map(s => ({ l: s.nombre, sub: `${fechaC(s.fecha)} · ${fmtM(s.ventas)} de ingresos`, v: s.neto, extra: pct(s.neto, s.ventas), click: `fichaShow(${shows.indexOf(s)})` })))}</div>
       ${shows.length > 2 ? `<div class="dests">
         <div class="vidrio clic" onclick="fichaShow(${shows.indexOf(rk[0])})"><span>Mayor resultado</span><b>${esc(rk[0].nombre)}</b><small>${fmtM(rk[0].neto)} · ${fechaC(rk[0].fecha)}</small></div>
         <div class="vidrio clic" onclick="fichaShow(${shows.indexOf(porM[0])})"><span>Mayor margen</span><b>${esc(porM[0].nombre)}</b><small>${pct(porM[0].neto, porM[0].ventas)} de sus ingresos</small></div>
@@ -454,17 +461,43 @@ function lecturaProy(x) {
       <div class="vidrio"><span>Coordinadores</span><b>${sup.coord ?? 1}</b><small>a cargo de SBS</small></div>
       <div class="vidrio"><span>Back-ups</span><b>${String(sup.backups ?? 2).replace('.', ',')}</b><small>por show, no se facturan</small></div></div>
       <p class="nota">Si la banda ya tocó, se usa su propio historial; si no, el promedio de los shows anteriores.${d.tar ? ` Valores: ${d.tar.origen === 'cargado' ? 'los del mes, ya cargados' : `${esc((d.tar.desdeLabel || '').toLowerCase())} + ${String(d.tar.aumento).replace('.', ',')}% por mes, hasta tener los de paritarias`}.` : ''}</p>`);
-  if (sh.length) h += cap(3, 'Show por show', 'Lo que dejaría <b>cada show</b>', `<div class="vidrio">${barras([...sh].sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))).map(s => ({ l: s.nombre, sub: `${fechaC(s.fecha)} · ${s.estado === 'real' ? '<span class="tagp real">Real</span>' : '<span class="tagp proy">Proyectado</span>'}`, v: s.neto, cls: s.estado === 'real' ? 'osc' : '', extra: `${fmtM(s.ingresos)} de ingresos`, click: `fichaShow(${sh.indexOf(s)})` })))}<p class="toca">Tocá un show para ver su detalle.</p></div>`);
+  if (sh.length) h += cap(3, 'Show por show', 'Lo que dejaría <b>cada show</b>', `<div class="aviso-toca"><i>👆</i>Tocá un show para ver su detalle</div><div class="vidrio">${barras([...sh].sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))).map(s => ({ l: s.nombre, sub: `${fechaC(s.fecha)} · ${s.estado === 'real' ? '<span class="tagp real">Real</span>' : '<span class="tagp proy">Proyectado</span>'}`, v: s.neto, cls: s.estado === 'real' ? 'osc' : '', extra: `${fmtM(s.ingresos)} de ingresos`, click: `fichaShow(${sh.indexOf(s)})` })))}</div>`);
   const cpP = +(X?.pctCargas ?? 55), pIIGGp = +(d.estructura?.iigg ?? 35);
   h += capExtra(4, sh.map((s, i) => ({ i, nombre: s.nombre, fecha: s.fecha, bkN: s.backups || 0, bkNeto: s.costoBackups || 0, coN: s.coords || 0, coNeto: s.costoCoord || 0 })),
     { cp: cpP, pIIGG: pIIGGp, resultado: sh.reduce((a, s) => a + (s.neto || 0), 0), proy: true });
   return h;
 }
 
+
+// ── Números largos: en lugar de cortarlos con "…", se achica la letra lo justo para que entren completos ──
+const SEL_NUM = '.kpi b, .grande b, .calc3 b, .mini4 b, .supg > div b, .tj-box .r b, .dests > div b, .hb-v';
+const CONT_NUM = '.kpi, .grande, .calc3 > div, .mini4 > div, .supg > div, .tj-box .r, .dests > div, .hb-r';
+function ajustarNumeros(root) {
+  (root || document).querySelectorAll(SEL_NUM).forEach(el => {
+    el.style.fontSize = '';
+    if (!el.offsetParent) return;   // si no está a la vista, se ajusta cuando aparezca
+    const caja = el.closest(CONT_NUM) || el.parentElement;
+    let fs = parseFloat(getComputedStyle(el).fontSize), vueltas = 60;
+    const sobra = () => el.scrollWidth > el.clientWidth + 1 || caja.scrollWidth > caja.clientWidth + 1;
+    while (sobra() && fs > 11 && vueltas--) { fs -= 1; el.style.fontSize = fs + 'px'; }
+  });
+}
+let _ajT; window.addEventListener('resize', () => { clearTimeout(_ajT); _ajT = setTimeout(() => ajustarNumeros(), 150); });
+
 // Visor: el informe completo, encima del portal
 
 // ── Ficha de un show (al tocarlo en el ranking o en los destacados) ──
 let LEC = null;
+
+// Staff de un show: lo facturado al Arena, lo que no se factura y el total de personas
+function staffShow(x) {
+  const tot = (x.fact || 0) + x.bk + x.co;
+  return `<h4>Staff${x.est ? ' estimado' : ''}</h4><div class="mini4">
+    <div><span>Facturados</span><b>${x.fact ?? '—'}</b><small>${x.cargas ? `${x.sala} de sala + ${x.cargas} cargas` : 'puestos del pedido'}</small></div>
+    <div><span>Back-ups</span><b>${x.bk}</b><small>${x.bk ? `no se facturan · ${fmtM(x.bkCosto)} costo real` : 'no hubo'}</small></div>
+    <div><span>Coordinación</span><b>${x.co}</b><small>${x.co ? `a cargo de SBS · ${fmtM(x.coCosto)} costo real` : 'no hubo'}</small></div>
+    <div class="tot"><span>Total de personas</span><b>${tot}</b><small>${x.fact ?? 0} facturados + ${x.bk + x.co} que no se facturan</small></div></div>`;
+}
 window.fichaShow = function (i) {
   const x = LEC; if (!x) return; const d = x.data || {}, esProy = x.tipo === 'proy', s = (d.shows || [])[i]; if (!s) return;
   const cp = (d.estructura?.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0) || 55, real = v => Math.round((v || 0) * (1 + cp / 100));
@@ -472,7 +505,7 @@ window.fichaShow = function (i) {
     <div class="mono">${esProy ? (s.estado === 'real' ? 'Ya facturado' : 'Proyectado') : 'Detalle del show'} · ${fechaC(s.fecha)}</div><h3>${esc(s.nombre)}</h3>`;
   if (!esProy) {
     const egr = s.ventas - s.neto;
-    h += `<div class="f-sub">${s.staff || s.facturables || 0} puestos facturados · ${s.presentes || 0} presentes</div>
+    h += `<div class="f-sub">${s.staff || s.facturables || 0} puestos facturados al Arena</div>
       <div class="grande"><b class="${s.neto < 0 ? 'neg' : ''}">${corto(s.neto)}</b><span>resultado neto · ${pct(s.neto, s.ventas)} de margen</span></div>
       <h4>La cuenta del show</h4><div class="cuenta">
         <div><span>Ingresos (sin IVA)</span><b>${money0(s.ventas)}</b></div>
@@ -482,11 +515,7 @@ window.fichaShow = function (i) {
         ${s.fijos ? `<div class="menos"><span>− Costos fijos</span><b>${money0(s.fijos)}</b></div>` : ''}
         <div class="menos"><span>− Impuesto a las Ganancias</span><b>${money0(s.iigg)}</b></div>
         <div class="tot"><span>Resultado neto</span><b class="${s.neto < 0 ? 'neg' : ''}">${money0(s.neto)}</b></div></div>
-      <h4>Staff</h4><div class="mini4">
-        <div><span>Facturados</span><b>${s.facturables ?? s.staff ?? '—'}</b><small>puestos del pedido</small></div>
-        <div><span>Presentes</span><b>${s.presentes ?? '—'}</b><small>personas que fueron</small></div>
-        <div><span>Back-ups</span><b>${s.backups?.cant || 0}</b><small>${s.backups?.cant ? fmtM(real(s.backups.monto)) + ' costo real' : 'no hubo'}</small></div>
-        <div><span>Coordinación</span><b>${s.coordinador?.cant || 0}</b><small>${s.coordinador?.cant ? fmtM(real(s.coordinador.monto)) + ' costo real' : 'no hubo'}</small></div></div>`;
+      ${staffShow({ sala: s.facturables ?? Math.max(0, (s.staff || 0) - (s.cargasAparte?.cant || 0)), cargas: s.cargasAparte?.cant || 0, fact: s.staff ?? ((s.facturables || 0) + (s.cargasAparte?.cant || 0)), bk: s.backups?.cant || 0, bkCosto: s.backups?.cant ? real(s.backups.monto) : 0, co: s.coordinador?.cant || 0, coCosto: s.coordinador?.cant ? real(s.coordinador.monto) : 0 })}`;
     const zonas = (s.zonas || []).filter(z => z.monto > 0).sort((a, b) => b.monto - a.monto);
     if (zonas.length) h += `<h4>Dónde se facturó</h4>${barras(zonas.slice(0, 8).map(z => ({ l: z.zona, sub: `${z.cant} puesto${z.cant !== 1 ? 's' : ''}`, v: z.monto, extra: pct(z.monto, s.ventas) })))}`;
     const pos = (s.posiciones || []).filter(p => p.cant);
@@ -498,17 +527,13 @@ window.fichaShow = function (i) {
         <div><span>Ingresos${s.estado === 'real' ? '' : ' estimados'} (sin IVA)</span><b>${money0(s.ingresos)}</b></div>
         <div class="menos"><span>− Egresos (personal, cargas sociales, impuestos y Ganancias)</span><b>${money0(s.egresos)}</b></div>
         <div class="tot"><span>Resultado</span><b class="${s.neto < 0 ? 'neg' : ''}">${money0(s.neto)}</b></div></div>
-      <h4>Staff ${s.estado === 'real' ? '' : 'estimado'}</h4><div class="mini4">
-        <div><span>Puestos</span><b>${s.puestos ?? '—'}</b><small>${s.cargas ? `+ ${s.cargas} cargas` : 'facturados'}</small></div>
-        <div><span>Cargas</span><b>${s.cargas ?? '—'}</b><small>se facturan</small></div>
-        <div><span>Back-ups</span><b>${s.backups || 0}</b><small>${s.costoBackups ? fmtM(real(s.costoBackups)) + ' costo real' : 'no se facturan'}</small></div>
-        <div><span>Coordinación</span><b>${s.coords || 0}</b><small>${s.costoCoord ? fmtM(real(s.costoCoord)) + ' costo real' : 'a cargo de SBS'}</small></div></div>`;
+      ${staffShow({ sala: s.puestos || 0, cargas: s.cargas || 0, fact: (s.puestos || 0) + (s.cargas || 0), bk: s.backups || 0, bkCosto: s.costoBackups ? real(s.costoBackups) : 0, co: s.coords || 0, coCosto: s.costoCoord ? real(s.costoCoord) : 0, est: s.estado !== 'real' })}`;
   }
   cerrarFicha();
   const ov = document.createElement('div'); ov.className = 'ficha-ov'; ov.id = 'ficha-ov';
   ov.innerHTML = `<div class="ficha" role="dialog" aria-modal="true">${h}</div>`;
   ov.addEventListener('click', e => { if (e.target === ov) cerrarFicha(); });
-  document.body.appendChild(ov);
+  document.body.appendChild(ov); ajustarNumeros(ov);
   ov.querySelectorAll('.hb-f').forEach(b => { b.style.width = '0'; requestAnimationFrame(() => requestAnimationFrame(() => { b.style.width = b.style.getPropertyValue('--w'); })); });
 };
 window.cerrarFicha = function () { const o = document.getElementById('ficha-ov'); if (o) o.remove(); };
@@ -521,7 +546,7 @@ window.abrir = function(token) {
     <div class="lec-fin rv"><button class="btn-n" onclick="cerrarVisor()">← Volver al portal</button></div></div>`;
   $('lec').scrollTop = 0;
   $('visor').classList.add('on'); document.body.style.overflow = 'hidden';
-  animarLectura();
+  ajustarNumeros($('lec')); animarLectura();
   try { history.pushState({ i: token }, '', urlPortal(token)); } catch {}
 };
 function animarLectura() {
@@ -560,7 +585,7 @@ function intro() {
   ov.innerHTML = `<div class="barras">${slides.map(() => '<span><i></i></span>').join('')}</div><button class="pill saltar" onclick="finIntro()">Saltar →</button><div id="slide"></div>`;
   document.body.appendChild(ov);
   let k = 0, t0 = 0, raf; const DUR = 3200;
-  const mostrar = () => { $('slide').innerHTML = `<div class="slide">${slides[k]}</div>`; t0 = performance.now(); };
+  const mostrar = () => { $('slide').innerHTML = `<div class="slide">${slides[k]}</div>`; ajustarNumeros($('slide')); t0 = performance.now(); };
   const tick = now => { const p = Math.min(1, (now - t0) / DUR); ov.querySelectorAll('.barras i').forEach((b, j) => b.style.width = j < k ? '100%' : j === k ? p * 100 + '%' : '0');
     if (p >= 1) { if (++k >= slides.length) return finIntro(); mostrar(); } raf = requestAnimationFrame(tick); };
   window.finIntro = () => { cancelAnimationFrame(raf); ov.style.transition = 'opacity .4s'; ov.style.opacity = '0'; setTimeout(() => ov.remove(), 400); try { localStorage.setItem('sbs_portal_intro', '1'); } catch {} };
@@ -575,7 +600,7 @@ function intro() {
     if (!LISTA.length) return estado('Todavía no hay informes publicados', 'Cuando se publique el primero, va a aparecer acá.');
     // los números de cada tarjeta salen del propio informe publicado
     await Promise.all(LISTA.map(async x => { try { const r = await sb.rpc('get_informe', { p_token: x.token }); x.data = r.data?.data || null; } catch {} }));
-    dibujar(); animarEntrada();
+    dibujar(); ajustarNumeros(); animarEntrada();
     const pedido = new URLSearchParams(location.search).get('i');
     if (pedido && LISTA.some(x => x.token === pedido)) abrir(pedido);
     else { let visto = false; try { visto = !!localStorage.getItem('sbs_portal_intro'); } catch {} if (!visto) intro(); }
