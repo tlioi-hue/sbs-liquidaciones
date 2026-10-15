@@ -247,7 +247,7 @@ const LOGO = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQ
 const $ = id => document.getElementById(id);
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const corto = v => { const a = Math.abs(v || 0), sg = v < 0 ? '−' : ''; return a >= 1e6 ? `${sg}$${(a / 1e6).toLocaleString('es-AR', { maximumFractionDigits: 1 })} M` : a >= 1e3 ? `${sg}$${Math.round(a / 1e3)} mil` : `${sg}$${Math.round(a)}`; };
+const corto = v => { const n = Math.round(v || 0); return `${n < 0 ? '−' : ''}$ ${Math.abs(n).toLocaleString('es-AR')}`; };   // montos exactos (sin redondear a millones)
 const pct = (a, b) => b ? (a / b * 100).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%' : '—';
 const nomMes = p => { const [y, m] = String(p).split('-'); return { mes: MESES[+m - 1], anio: y }; };
 document.getElementById('visor-logo').src = LOGO;
@@ -351,18 +351,18 @@ function contar(ya) {
 // LECTURA DEL INFORME EN EL PORTAL: capítulos, números protagonistas y barras con una sola paleta
 // ══════════════════════════════════════════════
 const PAL = { navy: '#1a3a6e', cel: '#3b82d6', cel2: '#7ab0ec', cel3: '#b9d4f4', gris: '#8a97a5', gris2: '#c9d2db' };
-const fmtM = v => corto(v).replace('$', '$ ');
+const fmtM = v => corto(v);
 const money0 = v => '$ ' + Math.round(v || 0).toLocaleString('es-AR');
 function cap(n, t1, t2, cuerpo) { return `<section class="cap rv"><div class="cap-n"><span>${String(n).padStart(2, '0')}</span>${esc(t1)}</div><h2>${t2}</h2>${cuerpo}</section>`; }
 function pila(partes, base) {   // partes: [{l, v, c}]
   partes = partes.filter(p => p.v > 0);   // lo que es $0 no se muestra
-  return `<div class="pila">${partes.map((p, k) => { const w = base ? Math.max(0, p.v / base * 100) : 0; return `<div style="--w:${w}%;--d:${(k * .15).toFixed(2)}s;background:${p.c}" title="${esc(p.l)}: ${money0(p.v)}">${w >= Math.max(14, p.l.length * 0.95) ? esc(p.l) : ''}</div>`; }).join('')}</div>
+  return `<div class="pila" data-base="${base}">${partes.map((p, k) => { const w = base ? Math.max(0, p.v / base * 100) : 0; return `<div data-v="${p.v}" style="--w:${w}%;--d:${(k * .15).toFixed(2)}s;background:${p.c}" title="${esc(p.l)}: ${money0(p.v)}">${w >= Math.max(14, p.l.length * 0.95) ? esc(p.l) : ''}</div>`; }).join('')}</div>
     <div class="ley">${partes.map(p => `<div><i style="background:${p.c}"></i><span>${esc(p.l)}</span><b>${fmtM(p.v)}</b><em>${pct(p.v, base)}</em></div>`).join('')}</div>`;
 }
 function barras(filas, { max, valor, sub, cls } = {}) {   // filas: [{l, sub, v, extra}]
   const m = max || Math.max(1, ...filas.map(f => Math.abs(f.v)));
   return `<div class="hb">${filas.map((f, k) => `<div class="hb-r${f.click ? ' clic' : ''}"${f.click ? ` onclick="${f.click}" role="button" tabindex="0" onkeydown="if(event.key==='Enter')${f.click}"` : ''}><div class="hb-l">${esc(f.l)}${f.sub ? `<small>${f.sub}</small>` : ''}</div>
-      <div class="hb-b"><div class="hb-f ${f.v < 0 ? 'neg' : (f.cls || cls || '')}" style="--w:${Math.abs(f.v) / m * 100}%;--d:${(k * .05).toFixed(2)}s"></div></div>
+      <div class="hb-b"><div class="hb-f ${f.v < 0 ? 'neg' : (f.cls || cls || '')}" data-v="${f.v}" style="--w:${Math.abs(f.v) / m * 100}%;--d:${(k * .05).toFixed(2)}s"></div></div>
       <div class="hb-v ${f.v < 0 ? 'neg' : ''}">${valor ? valor(f) : fmtM(f.v)}${f.extra ? `<small>${f.extra}</small>` : ''}</div></div>`).join('')}</div>`;
 }
 const fechaC = iso => { const p = String(iso || '').split('-'); return p.length === 3 ? `${p[2]}/${p[1]}` : ''; };
@@ -395,11 +395,11 @@ function capExtra(n, filas, { cp, pIIGG, resultado, proy }) {   // filas: [{i, n
       <tfoot><tr><td>Total extra</td><td></td><td>${money0(tN)}</td><td>${money0(tR - tN)}</td><td class="r">${money0(tR)}</td></tr></tfoot></table></div>
       <p class="nota"><b>Qué costos incluye:</b> lo pagado a la gente más las cargas sociales (${cp}%). Los impuestos sobre ventas (Ingresos Brutos, SIRCREB, Débitos y Créditos) no aplican, porque este personal no se le factura al Arena. ${proy ? 'Ya está incluido en los egresos estimados.' : 'Ya está incluido en los egresos de cada show.'}</p>
     </div>
-    ${conExtra.length ? `<div class="vidrio" style="margin-top:14px"><h4 style="margin:0 0 14px;font-size:13px;font-weight:600;color:var(--cel)">Show por show</h4>
-      ${barras(conExtra.sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))).map(f => ({ l: f.nombre,
+    ${conExtra.length ? `<div class="vidrio" style="margin-top:14px"><h4 style="margin:0 0 14px;font-size:13px;font-weight:600;color:var(--cel)">Por show</h4>
+      ${barras(conExtra.sort((a, b) => b.tot - a.tot).map(f => ({ l: f.nombre,
         sub: `${fechaC(f.fecha)} · ${f.bkN} back-up${f.bkN !== 1 ? 's' : ''}${f.coN ? ` · ${f.coN} coordinador${f.coN !== 1 ? 'es' : ''}` : ''}`,
-        v: f.tot, cls: 'osc', extra: `back-ups ${fmtM(real(f.bkNeto))}${f.coNeto ? ` · coord. ${fmtM(real(f.coNeto))}` : ''}`, click: `fichaShow(${f.i})` })))}
-      <p class="toca">Costo real de cada show. Tocá uno para ver su detalle completo.</p></div>` : ''}`);
+        v: f.tot, cls: 'osc', extra: `back-ups ${fmtM(real(f.bkNeto))}${f.coNeto ? ` · coord. ${fmtM(real(f.coNeto))}` : ''}` })))}
+      <p class="toca">Costo real de cada show, de mayor a menor.</p></div>` : ''}`);
 }
 
 function lecturaResultados(x) {
