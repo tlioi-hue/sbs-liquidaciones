@@ -362,73 +362,21 @@ details.det-num[open] > summary { margin-bottom: 14px; }
 @media (max-width: 700px) { .ba-r { grid-template-columns: 1fr; } .ba-v { text-align: left; } }
 @media print { details.det-num > summary { display: none; } .ba-b span, .cp-c span { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 
-/* ═══ Modo portal: el informe con la estética oscura del portal de socios ═══ */
-html.portal { --bg: #0b0c0c; --surface: #141617; --surface2: #1b1e1f; --ink: #f1f3f2; --muted: #9aa19e; --rule: rgba(255,255,255,.09); --brand: #8bbcf2;
-  --c-ing: #8bbcf2; --c-egr: #7d8682; --c-neto: #4cbf7a; --c-neto-bg: rgba(76,191,122,.12); --loss: #e0913c;
-  --c-personal: #5b86b8; --c-cargas: #7f97ad; --c-fijo: #5e6a70; color-scheme: dark; }
-html.portal body { background: var(--bg) !important; color: var(--ink); }
-html.portal .head { background: transparent !important; border: 0 !important; border-bottom: 2px solid #8bbcf2 !important; box-shadow: none !important; padding-bottom: 18px; }
+/* ═══ Modo portal: el informe claro, con los acentos celestes del portal de socios ═══ */
+html.portal { --c-ing: #3b82d6; }
+html.portal body { background: #ffffff !important; }
+html.portal .head { background: transparent !important; border: 0 !important; border-bottom: 3px solid #3b82d6 !important; box-shadow: none !important; padding-bottom: 18px; }
 html.portal .head img { border-radius: 10px; }
-html.portal .head .per b { font-size: clamp(30px, 4.4vw, 52px); font-weight: 700; letter-spacing: -.03em; color: #8bbcf2; line-height: 1; }
-html.portal .head .per span, html.portal .kpi .l, html.portal .panel .desc, html.portal .mono { text-transform: none; }
-html.portal .subhead { background: transparent !important; border: 0 !important; box-shadow: none !important; } html.portal .subhead p { font-size: 17px; color: #c9cecb; }
-html.portal .subhead b, html.portal .subhead strong { color: var(--ink); }
-html.portal .panel, html.portal .kpi, html.portal .dest, html.portal details.det-num > summary, html.portal .md { background: var(--surface) !important; border: 1px solid var(--rule) !important; box-shadow: none !important; border-radius: 20px; }
-html.portal .kpi .v { font-size: clamp(24px, 2.6vw, 32px); }
-html.portal .kpi.neto { background: linear-gradient(180deg, rgba(76,191,122,.14), var(--surface)) !important; }
-html.portal .aviso { background: rgba(224,145,60,.1) !important; border-color: rgba(224,145,60,.35) !important; color: #f0c48f !important; }
-html.portal .btn { background: #1b1e1f !important; color: var(--ink) !important; border-color: var(--rule) !important; border-radius: 999px; }
-html.portal .btn-video { background: #8bbcf2 !important; color: #0b0c0c !important; border-color: #8bbcf2 !important; }
-html.portal table th { background: #1b1e1f !important; color: var(--muted) !important; }
-html.portal table td { border-color: var(--rule) !important; }
-html.portal tr:hover td { background: rgba(255,255,255,.03) !important; }
-html.portal .ba-b, html.portal .pbar, html.portal .apbar { background: rgba(255,255,255,.07) !important; }
-html.portal .ba-b span { background: #4cbf7a !important; } html.portal .ba-b span.neg { background: #e0913c !important; }
-html.portal .ba-v { color: #4cbf7a !important; } html.portal .ba-v.neg { color: #e0913c !important; }
-html.portal .cp-c .i.real { background: #8bbcf2 !important; } html.portal .cp-c .i.proyectado { background: rgba(139,188,242,.45) !important; } html.portal .cp-c .e { background: #4a5154 !important; }
-html.portal .cp-ley i[style*="2b2b2b"] { background: #8bbcf2 !important; } html.portal .cp-ley i[style*="9cc3ab"] { background: rgba(139,188,242,.45) !important; } html.portal .cp-ley i[style*="c9ccc9"] { background: #4a5154 !important; }
-html.portal .est.real { background: rgba(139,188,242,.15) !important; color: #8bbcf2 !important; } html.portal .est.proyectado { background: transparent !important; color: var(--muted) !important; border-color: rgba(255,255,255,.25) !important; }
-html.portal .sup-p > div, html.portal .ext-calc > div, html.portal .mini-kpis div, html.portal .proms > div { background: var(--surface2) !important; }
-html.portal .ext-calc > div.fin { background: rgba(224,145,60,.12) !important; }
-html.portal .res, html.portal td.res { color: #4cbf7a; } html.portal .neg, html.portal .res.neg { color: #e0913c !important; }
-html.portal .pie, html.portal .notas { color: var(--muted); } html.portal .pie img { opacity: .8; }
-html.portal .ov { background: rgba(0,0,0,.65) !important; }
-html.portal .toolbar { background: rgba(11,12,12,.88) !important; border-color: transparent !important; box-shadow: none !important; backdrop-filter: blur(8px); }
-html.portal .tag { background: var(--surface2); color: var(--ink) !important; }
-html.portal th { background: var(--surface2) !important; }
-html.portal .eerr tr.sec td { background: var(--surface2) !important; }
-html.portal .eerr tr.parcial td { border-color: var(--rule) !important; }
-html.portal .aviso { background: var(--surface2); border-color: var(--rule) !important; }
-html.portal body { background: var(--surface2) !important; }
-html.portal tr.clic:hover td { background: var(--surface2) !important; }
-html.portal .mini-kpis div { background: var(--surface2) !important; }
-html.portal .vbox canvas { background: var(--surface2) !important; }
-html.portal .vctl input[type=range] { color: var(--ink) !important; }
-html.portal .vcaps button { background: var(--surface2) !important; }
-html.portal /* Pantalla completa del video */
-.vbox.esfull { background: var(--surface2) !important; }
-html.portal .vbox::backdrop { background: var(--surface2) !important; }
-html.portal .proms div { background: var(--surface2) !important; }
-html.portal table.rank .n { background: var(--surface2) !important; }
-html.portal .rk { background: var(--surface2) !important; }
-html.portal .stf { background: var(--surface2) !important; }
-html.portal .stf.warn { color: var(--ink); background: var(--surface2) !important; }
-html.portal .stf.ok { color: var(--ink); background: var(--surface2) !important; }
-html.portal .fb-bar { background: var(--surface2) !important; }
-html.portal .apbar { background: var(--surface2) !important; }
-html.portal table.eerr.areas tr:not(.final):not(.sec) td.tc, html.portal table.eerr.areas th.tc { background: var(--surface2) !important; }
-html.portal .ext-calc > div { background: var(--surface2) !important; }
-html.portal .ext-calc > div.fin { background: var(--surface2) !important; }
-html.portal .sup-p > div { background: var(--surface2) !important; }
-html.portal table.proy-t tr.proyectado td { background: var(--surface2) !important; }
-html.portal .est.real { background: var(--surface2); color: var(--ink) !important; }
-html.portal .est.proyectado { background: var(--surface2) !important; }
-html.portal .pbar { background: var(--surface2) !important; }
-html.portal details.det-num > summary { background: var(--surface2) !important; }
-html.portal .ba-r { border-color: var(--rule) !important; }
-html.portal .ba-b { background: var(--surface2) !important; }
-html.portal .ba-v { color: var(--ink) !important; }
-html.portal .cp-r { color: var(--ink) !important; }
+html.portal .head .per b { font-size: clamp(30px, 4.4vw, 52px); font-weight: 700; letter-spacing: -.03em; color: #3b82d6; line-height: 1; }
+html.portal .subhead { background: transparent !important; border: 0 !important; box-shadow: none !important; } html.portal .subhead p { font-size: 17px; }
+html.portal .panel, html.portal .kpi, html.portal .dest, html.portal details.det-num > summary { border-radius: 20px; }
+html.portal .kpi.ing { border-top-color: #3b82d6 !important; }
+html.portal .btn { border-radius: 999px; }
+html.portal .btn-video { background: #3b82d6 !important; color: #fff !important; border-color: #3b82d6 !important; }
+html.portal .toolbar { background: rgba(255,255,255,.9) !important; backdrop-filter: blur(8px); }
+html.portal .cp-c .i.real { background: #3b82d6 !important; } html.portal .cp-c .i.proyectado { background: #a9c9f0 !important; }
+html.portal .cp-ley i[style*="2b2b2b"] { background: #3b82d6 !important; } html.portal .cp-ley i[style*="9cc3ab"] { background: #a9c9f0 !important; }
+html.portal .est.real { background: #e8f0fa !important; color: #1a3a6e !important; }
 </style>
 </head>
 <body>
@@ -1025,8 +973,8 @@ window.addEventListener('afterprint', reajustarGraficos);
 if (window.matchMedia) window.matchMedia('print').addEventListener?.('change', reajustarGraficos);
 
 const esPortal = () => document.documentElement.classList.contains('portal');
-const TXT = () => esPortal() ? '#e9ecea' : '#1f2421';
-const C_PORTAL = { ing: '#8bbcf2', neto: '#4cbf7a', loss: '#e0913c', egr: '#7d8682', personal: '#5b86b8', cargas: '#7f97ad', imp: '#cbb57f', fijo: '#5e6a70', iigg: '#a3843a', rule: 'rgba(255,255,255,.09)', muted: '#9aa19e' };
+const TXT = () => '#1f2421';
+const C_PORTAL = { ing: '#3b82d6' };   // en el portal, los ingresos van en el celeste de Movistar Arena
 // En el portal, los gráficos se dibujan con la paleta oscura (el video sigue con la suya)
 function graficos(...args) {
   if (!esPortal()) return graficosBase(...args);
