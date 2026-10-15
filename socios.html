@@ -448,8 +448,8 @@ function lecturaResultados(x) {
         <div class="kpi"><b>${pct(T.neto, T.ventas)}</b><span class="mono">Margen</span></div><div class="kpi"><b>${T.staff || '—'}</b><span class="mono">Puestos facturados</span></div></div>
       ${pila([{ l: 'Egresos', v: egr, c: PAL.navy }, { l: 'Resultado neto', lc: 'Resultado', v: Math.max(0, T.neto), c: PAL.cel }], T.ventas)}</div>`);
   // 02 A dónde fue cada peso
-  const partes = [{ l: 'Liquidaciones al personal', lc: 'Personal', v: T.personal || 0, c: PAL.navy }, { l: 'Cargas sociales', lc: 'Cargas sociales', v: T.totCargas || 0, c: PAL.cel }, { l: 'Impuestos sobre ventas', lc: 'Impuestos', v: T.totImp || 0, c: PAL.cel2 },
-    ...(T.fijos ? [{ l: 'Costos fijos', lc: 'Fijos', v: T.fijos, c: PAL.gris2 }] : []), { l: 'Impuesto a las Ganancias', lc: 'Ganancias', v: T.iigg?.monto || 0, c: PAL.gris }];
+  const partes = [{ l: 'Liquidaciones al personal', lc: 'Personal', v: T.personal || 0, c: PAL.navy }, { l: 'Cargas sociales', lc: 'Cargas sociales', v: T.totCargas || 0, c: PAL.cel }, { l: 'Impuestos sobre ventas', lc: 'Imp. ventas', v: T.totImp || 0, c: PAL.cel2 },
+    ...(T.fijos ? [{ l: 'Costos fijos', lc: 'Fijos', v: T.fijos, c: PAL.gris2 }] : []), { l: 'Impuesto a las Ganancias', lc: 'Imp. Ganancias', v: T.iigg?.monto || 0, c: PAL.gris }];
   h += cap(2, 'Los egresos', 'A dónde fue <b>cada peso</b>', `<div class="vidrio">${pila(partes, egr)}</div><p class="nota">El porcentaje de cada parte es sobre el total de egresos (${money0(egr)}).</p>`);
   // 03 Por área
   const areas = (d.porArea || []).filter(a => a.ventas);
