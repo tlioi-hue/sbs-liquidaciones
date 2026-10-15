@@ -90,7 +90,7 @@ body { background: transparent; }
 /* barra: vidrio oscuro, con todo bien visible */
 header { background: rgba(11,12,12,.55) !important; -webkit-backdrop-filter: blur(18px) saturate(160%) !important; backdrop-filter: blur(18px) saturate(160%) !important; box-shadow: 0 8px 30px rgba(26,58,110,.18) !important; border-bottom: 1px solid rgba(255,255,255,.12); }
 .marca img { box-shadow: 0 0 0 2px #fff; background: #fff; }
-.marca span { color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,.35); }
+.marca span { color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.35); }
 .pill { background: #fff !important; color: #0b0c0c !important; border-color: #fff !important; box-shadow: 0 2px 10px rgba(0,0,0,.15); transition: background .2s, color .2s, transform .2s; }
 .pill:hover { background: var(--cel) !important; color: #fff !important; border-color: var(--cel) !important; transform: translateY(-1px); }
 /* tarjetas de vidrio */
@@ -209,6 +209,15 @@ h1 em .w { filter: drop-shadow(0 3px 0 rgba(26,58,110,.32)); background: linear-
 .pill-info { cursor: default; } .pill-info::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--cel); margin-right: 7px; vertical-align: 1px; }
 .pill-info:hover { background: #fff !important; color: #0b0c0c !important; border-color: #fff !important; transform: none !important; }
 @media (max-width: 560px) { .pill-info { max-width: 52vw; overflow: hidden; text-overflow: ellipsis; } }
+
+/* sombra sólida en todas las letras con relieve (no difuminada), sea cual sea su color */
+h1, .lec h1 { text-shadow: 0 3px 0 rgba(26,58,110,.14); }
+h1 em, h1 em .w { text-shadow: none; }   /* el celeste ya lleva la suya */
+h2 { text-shadow: 0 2px 0 rgba(26,58,110,.12); }
+.kpi b, .tj h3, .ficha h3, .supg > div b, .dests > div b, .mini4 b, .intro .kpi b { text-shadow: 0 2px 0 rgba(26,58,110,.14); }
+.kpi b.org { text-shadow: 0 2px 0 rgba(26,58,110,.25); }
+.grande b { text-shadow: 0 3px 0 rgba(26,58,110,.25); }
+.tj-box .r b.pos, .hb-v.pos, .cuenta div.tot b { text-shadow: 0 1px 0 rgba(31,138,76,.2); }
 </style>
 </head>
 <body>
