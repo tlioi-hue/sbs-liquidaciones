@@ -34,7 +34,7 @@ h1 b { font-weight: 700; } h1 em { font-style: normal; font-weight: 700; color: 
 .sub { font-size: clamp(15px, 1.6vw, 18px); color: #3d4744; max-width: 620px; line-height: 1.55; margin: 0 0 34px; }
 .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(14px, 3vw, 40px); max-width: 1100px; }
 .kpi { min-width: 0; } .kpi b { display: block; font-size: clamp(24px, 3.4vw, 44px); font-weight: 700; letter-spacing: -.03em; line-height: 1; margin-bottom: 8px; white-space: nowrap; }
-.kpi b.org { color: #2a6cc4; text-shadow: 0 2px 10px rgba(26,58,110,.22); } .kpi b.pos { color: var(--ok); }
+.kpi b.org { color: #2a6cc4; text-shadow: 0 2px 0 rgba(26,58,110,.25); } .kpi b.pos { color: var(--ok); }
 /* secciones */
 section.sec { padding: 46px clamp(18px, 4vw, 44px) 10px; }
 .sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
@@ -107,7 +107,7 @@ header { background: rgba(11,12,12,.55) !important; -webkit-backdrop-filter: blu
 /* título palabra por palabra */
 h1 .w { display: inline-block; opacity: 0; transform: translateY(.35em); animation: palabra .9s cubic-bezier(.2,.8,.2,1) forwards; animation-delay: var(--d, 0s); }
 @keyframes palabra { to { opacity: 1; transform: none; } }
-h1 em .w { filter: drop-shadow(0 3px 10px rgba(26,58,110,.28)) drop-shadow(0 1px 1px rgba(26,58,110,.25)); background: linear-gradient(90deg, #2563b8, #4f97e6, #2563b8); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+h1 em .w { filter: drop-shadow(0 3px 0 rgba(26,58,110,.32)); background: linear-gradient(90deg, #2563b8, #4f97e6, #2563b8); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
   animation: palabra .9s cubic-bezier(.2,.8,.2,1) var(--d, 0s) forwards, brillo 6s linear infinite; }
 @keyframes brillo { to { background-position: 200% center; } }
 .sello::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #4cbf7a; margin-right: 7px; vertical-align: 1px; animation: latido 2.2s ease-in-out infinite; }
@@ -144,7 +144,7 @@ h1 em .w { filter: drop-shadow(0 3px 10px rgba(26,58,110,.28)) drop-shadow(0 1px
 .cap .nota { font-size: 13.5px; color: var(--mut); max-width: 720px; line-height: 1.55; margin: 14px 0 0; }
 .vidrio { background: rgba(255,255,255,.58); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.8); border-radius: 24px; padding: clamp(16px, 2.4vw, 26px); box-shadow: 0 10px 30px rgba(26,58,110,.08); }
 .grande { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; margin-bottom: 18px; }
-.grande b { font-size: clamp(48px, 8vw, 96px); font-weight: 700; letter-spacing: -.04em; line-height: .95; color: #2a6cc4; text-shadow: 0 3px 14px rgba(26,58,110,.2); }
+.grande b { font-size: clamp(48px, 8vw, 96px); font-weight: 700; letter-spacing: -.04em; line-height: .95; color: #2a6cc4; text-shadow: 0 3px 0 rgba(26,58,110,.25); }
 .grande b.neg { color: var(--neg); }
 .grande span { font-size: 15px; color: var(--mut); }
 .lec .kpis { margin-bottom: 18px; }
@@ -175,12 +175,47 @@ h1 em .w { filter: drop-shadow(0 3px 10px rgba(26,58,110,.28)) drop-shadow(0 1px
 .btn-b { font: inherit; font-size: 14px; font-weight: 600; background: rgba(255,255,255,.7); color: var(--txt); border: 1px solid rgba(0,0,0,.1); border-radius: 999px; padding: 12px 20px; cursor: pointer; }
 .tagp { display: inline-flex; font-size: 11px; font-weight: 600; border-radius: 999px; padding: 2px 8px; margin-left: 6px; vertical-align: 1px; } .tagp.real { background: #1a3a6e; color: #fff; } .tagp.proy { background: #e8f0fa; color: #1a3a6e; border: 1px dashed #8db8ec; }
 @media (max-width: 760px) { .hb-r { grid-template-columns: 1fr auto; } .hb-b { grid-column: 1 / -1; grid-row: 2; } .dests, .supg { grid-template-columns: 1fr 1fr; } }
+
+/* números que se ajustan al ancho real de cada panel (no se pegan) */
+.hpanel, .vidrio { container-type: inline-size; }
+.hpanel .kpi b { font-size: clamp(18px, 6.4cqi, 32px); }
+.vidrio .kpi b { font-size: clamp(18px, 5.6cqi, 40px); }
+.kpi b { overflow: hidden; text-overflow: ellipsis; }
+@container (max-width: 560px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; row-gap: 14px !important; } .hpanel .kpi b, .vidrio .kpi b { font-size: clamp(20px, 9cqi, 32px); } }
+.pila > div { display: block; line-height: 54px; text-overflow: ellipsis; min-width: 0; }
+/* filas y destacados que se pueden tocar */
+.hb-r.clic { cursor: pointer; border-radius: 12px; margin: -4px -8px; padding: 4px 8px; transition: background .2s; }
+.hb-r.clic:hover { background: rgba(59,130,214,.08); } .hb-r.clic:hover .hb-l { color: #2a6cc4; }
+.dests > .clic { cursor: pointer; transition: transform .2s, box-shadow .2s; } .dests > .clic:hover { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(26,58,110,.14); }
+.toca { font-size: 12.5px; color: var(--mut); margin: 10px 0 0; }
+/* ficha de un show */
+.ficha-ov { position: fixed; inset: 0; z-index: 70; background: rgba(11,12,12,.38); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); display: flex; align-items: flex-end; justify-content: center; padding: 16px; animation: fadein .25s ease; }
+@media (min-width: 760px) { .ficha-ov { align-items: center; } }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+.ficha { width: min(760px, 100%); max-height: 88vh; overflow-y: auto; background: radial-gradient(90% 60% at 85% 0%, rgba(59,130,214,.18), transparent 60%), rgba(255,255,255,.94); border-radius: 26px; padding: clamp(18px, 3vw, 30px); box-shadow: 0 30px 70px rgba(11,12,12,.3); animation: subir .35s cubic-bezier(.2,.8,.2,1); position: relative; container-type: inline-size; }
+@keyframes subir { from { transform: translateY(30px); opacity: 0; } to { transform: none; opacity: 1; } }
+.ficha .x { position: absolute; right: 16px; top: 16px; background: var(--txt); border: 0; }
+.ficha h3 { font-size: clamp(30px, 6cqi, 46px); font-weight: 700; letter-spacing: -.03em; margin: 4px 0 2px; line-height: 1.02; padding-right: 50px; }
+.ficha .f-sub { color: var(--mut); font-size: 14px; margin-bottom: 18px; }
+.ficha .grande b { font-size: clamp(40px, 9cqi, 64px); }
+.ficha h4 { font-size: 13px; font-weight: 600; color: var(--cel); margin: 22px 0 10px; }
+.cuenta { display: flex; flex-direction: column; } .cuenta div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,.06); font-size: 14.5px; }
+.cuenta div b { white-space: nowrap; } .cuenta div.menos span, .cuenta div.menos b { color: #46524e; font-weight: 500; } .cuenta div.tot { border-bottom: 0; border-top: 2px solid var(--txt); font-weight: 700; margin-top: 2px; }
+.cuenta div.tot b { color: var(--ok); } .cuenta div.tot b.neg { color: var(--neg); }
+.mini4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.mini4 > div { background: rgba(255,255,255,.75); border: 1px solid rgba(0,0,0,.06); border-radius: 16px; padding: 10px 12px; } .mini4 b { display: block; font-size: 22px; font-weight: 700; } .mini4 span { font-size: 12px; color: var(--mut); } .mini4 small { display: block; font-size: 11.5px; color: var(--mut); }
+@container (max-width: 560px) { .mini4 { grid-template-columns: 1fr 1fr; } }
+
+.pill-info { cursor: default; } .pill-info::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--cel); margin-right: 7px; vertical-align: 1px; }
+.pill-info:hover { background: #fff !important; color: #0b0c0c !important; border-color: #fff !important; transform: none !important; }
+@media (max-width: 560px) { .pill-info { max-width: 52vw; overflow: hidden; text-overflow: ellipsis; } }
 </style>
 </head>
 <body>
 <div class="fondo" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 <div id="app"><div class="estado"><b>Cargando…</b></div></div>
-<div class="visor" id="visor" role="dialog" aria-modal="true"><div class="fondo" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div class="visor-top" style="position:relative;z-index:2"><b id="visor-t"></b><span class="mono" id="visor-s"></span><button class="x" onclick="cerrarVisor()" aria-label="Cerrar">×</button></div><div class="lec" id="lec"></div></div>
+<div class="visor" id="visor" role="dialog" aria-modal="true"><div class="fondo" aria-hidden="true"><i></i><i></i><i></i><i></i></div><header style="position:relative;z-index:2"><a class="marca" href="#" onclick="cerrarVisor();return false" title="Volver al inicio"><img id="visor-logo" alt="SBS"><span>Show Business Solutions</span></a>
+  <nav class="pills"><span class="pill pill-info" id="visor-t"></span><button class="pill" onclick="cerrarVisor()">← Volver</button></nav></header><div class="lec" id="lec"></div></div>
 <script>
 const SUPABASE_URL = 'https://tvggknkvrjsuhnfahtzl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR2Z2drbmt2cmpzdWhuZmFodHpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MDg2MzMsImV4cCI6MjA5NzI4NDYzM30.GjZl4U-VDXzLw21-eMOT3FZUgIdAL_am25z4w_fW6oE';
@@ -191,7 +226,15 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const corto = v => { const a = Math.abs(v || 0), sg = v < 0 ? '−' : ''; return a >= 1e6 ? `${sg}$${(a / 1e6).toLocaleString('es-AR', { maximumFractionDigits: 1 })} M` : a >= 1e3 ? `${sg}$${Math.round(a / 1e3)} mil` : `${sg}$${Math.round(a)}`; };
 const pct = (a, b) => b ? (a / b * 100).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%' : '—';
 const nomMes = p => { const [y, m] = String(p).split('-'); return { mes: MESES[+m - 1], anio: y }; };
-const CLAVE = new URLSearchParams(location.search).get('k') || '';
+document.getElementById('visor-logo').src = LOGO;
+const RUTA_K = (location.pathname.match(/\/socios\/([^/?#]+)/) || [])[1] || '';
+// Sin código en la dirección (/socios), el portal usa este, así el link queda simplemente /socios.
+// Para cerrarlo: borrar este código de la tabla portal_socios en Supabase.
+const CLAVE_PORTAL = 'WE0z4gfpCp';
+const K_QUERY = new URLSearchParams(location.search).get('k') || '';
+const CLAVE = RUTA_K ? decodeURIComponent(RUTA_K) : (K_QUERY || CLAVE_PORTAL);
+// La dirección del portal: /socios/CODIGO (corta) o socios.html?k=CODIGO (la de siempre)
+const urlPortal = i => (RUTA_K || !K_QUERY) ? `${location.pathname}${i ? `?i=${encodeURIComponent(i)}` : ''}` : `${location.pathname}?k=${encodeURIComponent(CLAVE)}${i ? `&i=${encodeURIComponent(i)}` : ''}`;
 let LISTA = [];
 function estado(t, s) { $('app').innerHTML = `<div class="estado"><b>${esc(t)}</b><span>${esc(s || '')}</span></div>`; }
 // Totales de cada informe: los mensuales/anuales traen "totales"; las proyecciones, "T"
@@ -254,7 +297,7 @@ function dibujar() {
     <div class="carril">${[...anios, ...res].map(tarjeta).join('')}</div></section>` : ''}
   ${proy.length ? `<section class="sec" id="proyecciones"><div class="sec-h rv"><h2><b>Proyecciones</b> de lo que viene</h2><span class="mono">Estimaciones con los shows confirmados</span></div>
     <div class="carril">${proy.map(tarjeta).join('')}</div></section>` : ''}
-  <footer>Show Business Solutions · Documento confidencial para uso de los socios. Cada informe se puede ver en video y guardar en PDF.</footer>
+  <footer>Show Business Solutions · Documento confidencial para uso de los socios.</footer>
   ${act ? `<div class="sello">Datos propios · Actualizado ${new Date(act).toLocaleDateString('es-AR')}</div>` : ''}`;
 }
 
@@ -289,12 +332,12 @@ const money0 = v => '$ ' + Math.round(v || 0).toLocaleString('es-AR');
 function cap(n, t1, t2, cuerpo) { return `<section class="cap rv"><div class="cap-n"><span>${String(n).padStart(2, '0')}</span>${esc(t1)}</div><h2>${t2}</h2>${cuerpo}</section>`; }
 function pila(partes, base) {   // partes: [{l, v, c}]
   partes = partes.filter(p => p.v > 0);   // lo que es $0 no se muestra
-  return `<div class="pila">${partes.map((p, k) => { const w = base ? Math.max(0, p.v / base * 100) : 0; return `<div style="--w:${w}%;--d:${(k * .15).toFixed(2)}s;background:${p.c}" title="${esc(p.l)}: ${money0(p.v)}">${w > 12 ? esc(p.l) : ''}</div>`; }).join('')}</div>
+  return `<div class="pila">${partes.map((p, k) => { const w = base ? Math.max(0, p.v / base * 100) : 0; return `<div style="--w:${w}%;--d:${(k * .15).toFixed(2)}s;background:${p.c}" title="${esc(p.l)}: ${money0(p.v)}">${w >= Math.max(14, p.l.length * 0.95) ? esc(p.l) : ''}</div>`; }).join('')}</div>
     <div class="ley">${partes.map(p => `<div><i style="background:${p.c}"></i><span>${esc(p.l)}</span><b>${fmtM(p.v)}</b><em>${pct(p.v, base)}</em></div>`).join('')}</div>`;
 }
 function barras(filas, { max, valor, sub, cls } = {}) {   // filas: [{l, sub, v, extra}]
   const m = max || Math.max(1, ...filas.map(f => Math.abs(f.v)));
-  return `<div class="hb">${filas.map((f, k) => `<div class="hb-r"><div class="hb-l">${esc(f.l)}${f.sub ? `<small>${f.sub}</small>` : ''}</div>
+  return `<div class="hb">${filas.map((f, k) => `<div class="hb-r${f.click ? ' clic' : ''}"${f.click ? ` onclick="${f.click}" role="button" tabindex="0" onkeydown="if(event.key==='Enter')${f.click}"` : ''}><div class="hb-l">${esc(f.l)}${f.sub ? `<small>${f.sub}</small>` : ''}</div>
       <div class="hb-b"><div class="hb-f ${f.v < 0 ? 'neg' : (f.cls || cls || '')}" style="--w:${Math.abs(f.v) / m * 100}%;--d:${(k * .05).toFixed(2)}s"></div></div>
       <div class="hb-v ${f.v < 0 ? 'neg' : ''}">${valor ? valor(f) : fmtM(f.v)}${f.extra ? `<small>${f.extra}</small>` : ''}</div></div>`).join('')}</div>`;
 }
@@ -323,11 +366,11 @@ function lecturaResultados(x) {
   // 04 Show por show
   if (shows.length) {
     const rk = [...shows].sort((a, b) => b.neto - a.neto), porM = [...shows].sort((a, b) => b.neto / (b.ventas || 1) - a.neto / (a.ventas || 1));
-    h += cap(n++, 'Show por show', '<b>Ranking</b> de los shows', `<div class="vidrio">${barras(rk.map(s => ({ l: s.nombre, sub: `${fechaC(s.fecha)} · ${fmtM(s.ventas)} de ingresos`, v: s.neto, extra: pct(s.neto, s.ventas) })))}</div>
+    h += cap(n++, 'Show por show', '<b>Ranking</b> de los shows', `<div class="vidrio">${barras(rk.map(s => ({ l: s.nombre, sub: `${fechaC(s.fecha)} · ${fmtM(s.ventas)} de ingresos`, v: s.neto, extra: pct(s.neto, s.ventas), click: `fichaShow(${shows.indexOf(s)})` })))}<p class="toca">Tocá un show para ver su detalle.</p></div>
       ${shows.length > 2 ? `<div class="dests">
-        <div class="vidrio"><span>Mayor resultado</span><b>${esc(rk[0].nombre)}</b><small>${fmtM(rk[0].neto)} · ${fechaC(rk[0].fecha)}</small></div>
-        <div class="vidrio"><span>Mayor margen</span><b>${esc(porM[0].nombre)}</b><small>${pct(porM[0].neto, porM[0].ventas)} de sus ingresos</small></div>
-        <div class="vidrio"><span>Menor margen</span><b>${esc(porM[porM.length - 1].nombre)}</b><small>${pct(porM[porM.length - 1].neto, porM[porM.length - 1].ventas)} de sus ingresos</small></div></div>` : ''}`);
+        <div class="vidrio clic" onclick="fichaShow(${shows.indexOf(rk[0])})"><span>Mayor resultado</span><b>${esc(rk[0].nombre)}</b><small>${fmtM(rk[0].neto)} · ${fechaC(rk[0].fecha)}</small></div>
+        <div class="vidrio clic" onclick="fichaShow(${shows.indexOf(porM[0])})"><span>Mayor margen</span><b>${esc(porM[0].nombre)}</b><small>${pct(porM[0].neto, porM[0].ventas)} de sus ingresos</small></div>
+        <div class="vidrio clic" onclick="fichaShow(${shows.indexOf(porM[porM.length - 1])})"><span>Menor margen</span><b>${esc(porM[porM.length - 1].nombre)}</b><small>${pct(porM[porM.length - 1].neto, porM[porM.length - 1].ventas)} de sus ingresos</small></div></div>` : ''}`);
   }
   // 05 Costo extra no facturado
   const bk = shows.reduce((a, s) => ({ n: a.n + (s.backups?.cant || 0), v: a.v + (s.backups?.monto || 0) }), { n: 0, v: 0 }), co = shows.reduce((a, s) => ({ n: a.n + (s.coordinador?.cant || 0), v: a.v + (s.coordinador?.monto || 0) }), { n: 0, v: 0 });
@@ -354,7 +397,7 @@ function lecturaProy(x) {
       <div class="vidrio"><span>Coordinadores</span><b>${sup.coord ?? 1}</b><small>a cargo de SBS</small></div>
       <div class="vidrio"><span>Back-ups</span><b>${String(sup.backups ?? 2).replace('.', ',')}</b><small>por show, no se facturan</small></div></div>
       <p class="nota">Si la banda ya tocó, se usa su propio historial; si no, el promedio de los shows anteriores.${d.tar ? ` Valores: ${d.tar.origen === 'cargado' ? 'los del mes, ya cargados' : `${esc((d.tar.desdeLabel || '').toLowerCase())} + ${String(d.tar.aumento).replace('.', ',')}% por mes, hasta tener los de paritarias`}.` : ''}</p>`);
-  if (sh.length) h += cap(3, 'Show por show', 'Lo que dejaría <b>cada show</b>', `<div class="vidrio">${barras([...sh].sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))).map(s => ({ l: s.nombre, sub: `${fechaC(s.fecha)} · ${s.estado === 'real' ? '<span class="tagp real">Real</span>' : '<span class="tagp proy">Proyectado</span>'}`, v: s.neto, cls: s.estado === 'real' ? 'osc' : '', extra: `${fmtM(s.ingresos)} de ingresos` })))}</div>`);
+  if (sh.length) h += cap(3, 'Show por show', 'Lo que dejaría <b>cada show</b>', `<div class="vidrio">${barras([...sh].sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))).map(s => ({ l: s.nombre, sub: `${fechaC(s.fecha)} · ${s.estado === 'real' ? '<span class="tagp real">Real</span>' : '<span class="tagp proy">Proyectado</span>'}`, v: s.neto, cls: s.estado === 'real' ? 'osc' : '', extra: `${fmtM(s.ingresos)} de ingresos`, click: `fichaShow(${sh.indexOf(s)})` })))}<p class="toca">Tocá un show para ver su detalle.</p></div>`);
   if (X && (X.backups.real || X.coord.real)) { const tot = X.backups.real + X.coord.real;
     h += cap(4, 'Costo extra no facturado', 'Lo que <b>no le cobraríamos</b> al Arena', `<div class="vidrio">
       <div class="grande"><b data-cuenta="${tot}" data-fmt="corto">${corto(tot)}</b><span>costo real estimado de back-ups y coordinación</span></div>
@@ -364,17 +407,67 @@ function lecturaProy(x) {
 }
 
 // Visor: el informe completo, encima del portal
+
+// ── Ficha de un show (al tocarlo en el ranking o en los destacados) ──
+let LEC = null;
+window.fichaShow = function (i) {
+  const x = LEC; if (!x) return; const d = x.data || {}, esProy = x.tipo === 'proy', s = (d.shows || [])[i]; if (!s) return;
+  const cp = (d.estructura?.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0) || 55, real = v => Math.round((v || 0) * (1 + cp / 100));
+  let h = `<button class="x" onclick="cerrarFicha()" aria-label="Cerrar">×</button>
+    <div class="mono">${esProy ? (s.estado === 'real' ? 'Ya facturado' : 'Proyectado') : 'Detalle del show'} · ${fechaC(s.fecha)}</div><h3>${esc(s.nombre)}</h3>`;
+  if (!esProy) {
+    const egr = s.ventas - s.neto;
+    h += `<div class="f-sub">${s.staff || s.facturables || 0} puestos facturados · ${s.presentes || 0} presentes</div>
+      <div class="grande"><b class="${s.neto < 0 ? 'neg' : ''}">${corto(s.neto)}</b><span>resultado neto · ${pct(s.neto, s.ventas)} de margen</span></div>
+      <h4>La cuenta del show</h4><div class="cuenta">
+        <div><span>Ingresos (sin IVA)</span><b>${money0(s.ventas)}</b></div>
+        <div class="menos"><span>− Personal</span><b>${money0(s.personal)}</b></div>
+        <div class="menos"><span>− Cargas sociales</span><b>${money0(s.cargas)}</b></div>
+        <div class="menos"><span>− Impuestos sobre ventas</span><b>${money0(s.impuestos)}</b></div>
+        ${s.fijos ? `<div class="menos"><span>− Costos fijos</span><b>${money0(s.fijos)}</b></div>` : ''}
+        <div class="menos"><span>− Impuesto a las Ganancias</span><b>${money0(s.iigg)}</b></div>
+        <div class="tot"><span>Resultado neto</span><b class="${s.neto < 0 ? 'neg' : ''}">${money0(s.neto)}</b></div></div>
+      <h4>Staff</h4><div class="mini4">
+        <div><span>Facturados</span><b>${s.facturables ?? s.staff ?? '—'}</b><small>puestos del pedido</small></div>
+        <div><span>Presentes</span><b>${s.presentes ?? '—'}</b><small>personas que fueron</small></div>
+        <div><span>Back-ups</span><b>${s.backups?.cant || 0}</b><small>${s.backups?.cant ? fmtM(real(s.backups.monto)) + ' costo real' : 'no hubo'}</small></div>
+        <div><span>Coordinación</span><b>${s.coordinador?.cant || 0}</b><small>${s.coordinador?.cant ? fmtM(real(s.coordinador.monto)) + ' costo real' : 'no hubo'}</small></div></div>`;
+    const zonas = (s.zonas || []).filter(z => z.monto > 0).sort((a, b) => b.monto - a.monto);
+    if (zonas.length) h += `<h4>Dónde se facturó</h4>${barras(zonas.slice(0, 8).map(z => ({ l: z.zona, sub: `${z.cant} puesto${z.cant !== 1 ? 's' : ''}`, v: z.monto, extra: pct(z.monto, s.ventas) })))}`;
+    const pos = (s.posiciones || []).filter(p => p.cant);
+    if (pos.length) h += `<h4>Costo por posición</h4>${barras(pos.sort((a, b) => b.monto - a.monto).map(p => ({ l: p.posicion, sub: `${p.cant} persona${p.cant !== 1 ? 's' : ''}${p.sbs ? ' · a cargo de SBS' : ''}`, v: p.monto, cls: 'osc', valor: f => f.v ? fmtM(f.v) : '—' })), { valor: f => f.v ? fmtM(f.v) : 'sin costo' })}`;
+  } else {
+    h += `<div class="f-sub">${s.estado === 'real' ? 'Ya facturado: son sus números reales.' : esc(s.base || 'Estimado con el historial')}</div>
+      <div class="grande"><b class="${s.neto < 0 ? 'neg' : ''}">${corto(s.neto)}</b><span>resultado ${s.estado === 'real' ? 'neto' : 'proyectado'} · ${pct(s.neto, s.ingresos)} de margen</span></div>
+      <h4>La cuenta del show</h4><div class="cuenta">
+        <div><span>Ingresos${s.estado === 'real' ? '' : ' estimados'} (sin IVA)</span><b>${money0(s.ingresos)}</b></div>
+        <div class="menos"><span>− Egresos (personal, cargas sociales, impuestos y Ganancias)</span><b>${money0(s.egresos)}</b></div>
+        <div class="tot"><span>Resultado</span><b class="${s.neto < 0 ? 'neg' : ''}">${money0(s.neto)}</b></div></div>
+      <h4>Staff ${s.estado === 'real' ? '' : 'estimado'}</h4><div class="mini4">
+        <div><span>Puestos</span><b>${s.puestos ?? '—'}</b><small>${s.cargas ? `+ ${s.cargas} cargas` : 'facturados'}</small></div>
+        <div><span>Cargas</span><b>${s.cargas ?? '—'}</b><small>se facturan</small></div>
+        <div><span>Back-ups</span><b>${s.backups || 0}</b><small>${s.costoBackups ? fmtM(real(s.costoBackups)) + ' costo real' : 'no se facturan'}</small></div>
+        <div><span>Coordinación</span><b>${s.coords || 0}</b><small>${s.costoCoord ? fmtM(real(s.costoCoord)) + ' costo real' : 'a cargo de SBS'}</small></div></div>`;
+  }
+  cerrarFicha();
+  const ov = document.createElement('div'); ov.className = 'ficha-ov'; ov.id = 'ficha-ov';
+  ov.innerHTML = `<div class="ficha" role="dialog" aria-modal="true">${h}</div>`;
+  ov.addEventListener('click', e => { if (e.target === ov) cerrarFicha(); });
+  document.body.appendChild(ov);
+  ov.querySelectorAll('.hb-f').forEach(b => { b.style.width = '0'; requestAnimationFrame(() => requestAnimationFrame(() => { b.style.width = b.style.getPropertyValue('--w'); })); });
+};
+window.cerrarFicha = function () { const o = document.getElementById('ficha-ov'); if (o) o.remove(); };
+
 window.abrir = function(token) {
-  const x = LISTA.find(y => y.token === token); if (!x) return;
+  const x = LISTA.find(y => y.token === token); if (!x) return; LEC = x;
   const tit = x.tipo === 'anio' ? `Año ${x.periodo}` : `${nomMes(x.periodo).mes} ${nomMes(x.periodo).anio}`;
-  $('visor-t').textContent = tit; $('visor-s').textContent = x.tipo === 'proy' ? '· Proyección' : '· Resultados';
-  const completo = `informe.html?t=${encodeURIComponent(token)}&tema=portal`;
+  $('visor-t').textContent = `${tit} · ${x.tipo === 'proy' ? 'Proyección' : 'Resultados'}`;
   $('lec').innerHTML = `<div class="lec-in">${x.tipo === 'proy' ? lecturaProy(x) : lecturaResultados(x)}
-    <div class="lec-fin rv"><a class="btn-n" href="${completo}" target="_blank" rel="noopener">▶ Ver en video y descargar PDF</a><button class="btn-b" onclick="cerrarVisor()">Volver al portal</button></div></div>`;
+    <div class="lec-fin rv"><button class="btn-n" onclick="cerrarVisor()">← Volver al portal</button></div></div>`;
   $('lec').scrollTop = 0;
   $('visor').classList.add('on'); document.body.style.overflow = 'hidden';
   animarLectura();
-  try { history.pushState({ i: token }, '', `${location.pathname}?k=${encodeURIComponent(CLAVE)}&i=${encodeURIComponent(token)}`); } catch {}
+  try { history.pushState({ i: token }, '', urlPortal(token)); } catch {}
 };
 function animarLectura() {
   const els = $('lec').querySelectorAll('.rv');
@@ -390,11 +483,11 @@ function contarUno(b) {
   if (quieto()) b.textContent = corto(fin); else requestAnimationFrame(paso);
 }
 window.cerrarVisor = function(desdeHistorial) {
-  $('visor').classList.remove('on'); document.body.style.overflow = '';
-  if (!desdeHistorial) try { history.pushState({}, '', `${location.pathname}?k=${encodeURIComponent(CLAVE)}`); } catch {}
+  cerrarFicha(); $('visor').classList.remove('on'); document.body.style.overflow = '';
+  if (!desdeHistorial) try { history.pushState({}, '', urlPortal()); } catch {}
 };
 window.addEventListener('popstate', e => { if (e.state?.i) abrir(e.state.i); else if ($('visor').classList.contains('on')) cerrarVisor(true); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('visor').classList.contains('on')) cerrarVisor(); });
+document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (document.getElementById('ficha-ov')) return cerrarFicha(); if ($('visor').classList.contains('on')) cerrarVisor(); });
 // Intro tipo historia (solo la primera vez en cada dispositivo)
 function intro() {
   const res = LISTA.filter(x => x.tipo === 'mes').sort((a, b) => String(b.periodo).localeCompare(String(a.periodo)));
@@ -419,7 +512,6 @@ function intro() {
   mostrar(); raf = requestAnimationFrame(tick);
 }
 (async function () {
-  if (!CLAVE) return estado('Falta el código de acceso', 'Entrá con el link completo que te pasaron.');
   try {
     const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const { data, error } = await sb.rpc('get_portal_informes', { p_clave: CLAVE });

@@ -6475,8 +6475,10 @@ async function pgInformes(el, ac) {
   if (!opciones.includes(APP.infPeriodo)) APP.infPeriodo = opciones[0] || '';
   const { data: pubsAll, error: ePub } = await sb.from('informes').select('id,token,tipo,periodo,titulo,updated_at').order('periodo', { ascending: false });
   const pubs = (pubsAll || []).filter(x => x.tipo === 'mes' || x.tipo === 'anio');
-  const { data: portal, error: ePortal } = await sb.from('portal_socios').select('clave').limit(1);
-  const clavePortal = portal?.[0]?.clave || null, urlPortal = clavePortal ? `${location.origin}/socios.html?k=${clavePortal}` : null;
+  const { data: portal, error: ePortal } = await sb.from('portal_socios').select('clave');
+  // el código más corto es el del link corto (/socios/CODIGO)
+  const clavePortal = (portal || []).map(x => x.clave).sort((a, b) => a.length - b.length)[0] || null;
+  const urlPortal = clavePortal ? `${location.origin}/socios` : null;   // el portal trae su código incorporado: el link es solo /socios
   const cab = `<div style="margin-bottom:12px"><h2 style="margin:0">Informes a socios</h2>
       <div style="color:var(--text2);font-size:12.5px">Lo que ves abajo es exactamente el informe que reciben los socios. Elegí el mes o el año y publicalo.</div></div>`;
   if (!APP.infPeriodo) {

@@ -1,1 +1,9 @@
-{"rewrites":[{"source":"/(.*)","destination":"/index.html"}]}
+{
+  "rewrites": [
+    { "source": "/socios", "destination": "/socios.html" },
+    { "source": "/socios/:codigo", "destination": "/socios.html" }
+  ],
+  "headers": [
+    { "source": "/socios(.*)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] }
+  ]
+}
