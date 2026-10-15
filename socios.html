@@ -298,7 +298,8 @@ function proyVigente(proy) {
 function dibujar() {
   const res = LISTA.filter(x => x.tipo === 'mes').sort((a, b) => String(b.periodo).localeCompare(String(a.periodo)));
   const anios = LISTA.filter(x => x.tipo === 'anio').sort((a, b) => String(b.periodo).localeCompare(String(a.periodo)));
-  const proy = LISTA.filter(x => x.tipo === 'proy').sort((a, b) => String(a.periodo).localeCompare(String(b.periodo)));
+  const hoy = new Date(), mesAct = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+  const proy = LISTA.filter(x => x.tipo === 'proy' && String(x.periodo) >= mesAct).sort((a, b) => String(a.periodo).localeCompare(String(b.periodo)));   // las de meses terminados ya no se muestran
   const ult = res[0], tu = ult ? totales(ult) : null, act = LISTA.reduce((a, x) => x.updated_at > a ? x.updated_at : a, '');
   const prox = proyVigente(proy), tp = prox ? totales(prox) : null;
   $('app').innerHTML = `
@@ -499,13 +500,15 @@ function staffShow(x) {
     <div class="tot"><span>Total de personas</span><b>${tot}</b><small>${x.fact ?? 0} facturados + ${x.bk + x.co} que no se facturan</small></div></div>`;
 }
 window.fichaShow = function (i) {
-  const x = LEC; if (!x) return; const d = x.data || {}, esProy = x.tipo === 'proy', s = (d.shows || [])[i]; if (!s) return;
+  const x = LEC; if (!x) return; const d = x.data || {}; let esProy = x.tipo === 'proy', s = (d.shows || [])[i]; if (!s) return;
+  const yaFacturado = esProy && s.estado === 'real' && s.detalle;
+  if (yaFacturado) { s = { ...s.detalle, nombre: s.nombre, fecha: s.fecha }; esProy = false; }   // show que ya pasó: números reales, detalle completo
   const cp = (d.estructura?.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0) || 55, real = v => Math.round((v || 0) * (1 + cp / 100));
   let h = `<button class="x" onclick="cerrarFicha()" aria-label="Cerrar">×</button>
-    <div class="mono">${esProy ? (s.estado === 'real' ? 'Ya facturado' : 'Proyectado') : 'Detalle del show'} · ${fechaC(s.fecha)}</div><h3>${esc(s.nombre)}</h3>`;
+    <div class="mono">${esProy ? (s.estado === 'real' ? 'Ya facturado' : 'Proyectado') : yaFacturado ? 'Ya facturado · números reales' : 'Detalle del show'} · ${fechaC(s.fecha)}</div><h3>${esc(s.nombre)}</h3>`;
   if (!esProy) {
     const egr = s.ventas - s.neto;
-    h += `<div class="f-sub">${s.staff || s.facturables || 0} puestos facturados al Arena</div>
+    h += `<div class="f-sub">${s.staff || s.facturables || 0} puestos facturados al Arena${s.estimado ? ' · el costo de personal es estimado hasta que se liquide la quincena' : ''}</div>
       <div class="grande"><b class="${s.neto < 0 ? 'neg' : ''}">${corto(s.neto)}</b><span>resultado neto · ${pct(s.neto, s.ventas)} de margen</span></div>
       <h4>La cuenta del show</h4><div class="cuenta">
         <div><span>Ingresos (sin IVA)</span><b>${money0(s.ventas)}</b></div>
@@ -572,7 +575,8 @@ document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (
 function intro() {
   const res = LISTA.filter(x => x.tipo === 'mes').sort((a, b) => String(b.periodo).localeCompare(String(a.periodo)));
   const ult = res[0], t = ult ? totales(ult) : null;
-  const pv = proyVigente(LISTA.filter(x => x.tipo === 'proy')), tpv = pv ? totales(pv) : null;
+  const _h = new Date(), _m = `${_h.getFullYear()}-${String(_h.getMonth() + 1).padStart(2, '0')}`;
+  const pv = proyVigente(LISTA.filter(x => x.tipo === 'proy' && String(x.periodo) >= _m)), tpv = pv ? totales(pv) : null;
   const slides = [
     `<img src="${LOGO}" alt=""><h1 style="margin:0"><b>Show Business<br>Solutions</b></h1>`,
     `<h1 style="margin:0">Portal de <b>socios</b><br><em>${palabras('Movistar Arena', 0)}</em></h1><p class="sub" style="margin-top:20px">Resultados de cada mes y proyecciones, en un solo lugar.</p>`,
