@@ -34,7 +34,7 @@ h1 b { font-weight: 700; } h1 em { font-style: normal; font-weight: 700; color: 
 .sub { font-size: clamp(15px, 1.6vw, 18px); color: #3d4744; max-width: 620px; line-height: 1.55; margin: 0 0 34px; }
 .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(14px, 3vw, 40px); max-width: 1100px; }
 .kpi { min-width: 0; } .kpi b { display: block; font-size: clamp(24px, 3.4vw, 44px); font-weight: 700; letter-spacing: -.03em; line-height: 1; margin-bottom: 8px; white-space: nowrap; }
-.kpi b.org { color: var(--cel); } .kpi b.pos { color: var(--ok); }
+.kpi b.org { color: #2a6cc4; text-shadow: 0 2px 10px rgba(26,58,110,.22); } .kpi b.pos { color: var(--ok); }
 /* secciones */
 section.sec { padding: 46px clamp(18px, 4vw, 44px) 10px; }
 .sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
@@ -107,18 +107,80 @@ header { background: rgba(11,12,12,.55) !important; -webkit-backdrop-filter: blu
 /* título palabra por palabra */
 h1 .w { display: inline-block; opacity: 0; transform: translateY(.35em); animation: palabra .9s cubic-bezier(.2,.8,.2,1) forwards; animation-delay: var(--d, 0s); }
 @keyframes palabra { to { opacity: 1; transform: none; } }
-h1 em .w { background: linear-gradient(90deg, #3b82d6, #7ab8f2, #3b82d6); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+h1 em .w { filter: drop-shadow(0 3px 10px rgba(26,58,110,.28)) drop-shadow(0 1px 1px rgba(26,58,110,.25)); background: linear-gradient(90deg, #2563b8, #4f97e6, #2563b8); background-size: 200% auto; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
   animation: palabra .9s cubic-bezier(.2,.8,.2,1) var(--d, 0s) forwards, brillo 6s linear infinite; }
 @keyframes brillo { to { background-position: 200% center; } }
 .sello::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #4cbf7a; margin-right: 7px; vertical-align: 1px; animation: latido 2.2s ease-in-out infinite; }
 @keyframes latido { 0%, 100% { box-shadow: 0 0 0 0 rgba(76,191,122,.6); } 50% { box-shadow: 0 0 0 6px rgba(76,191,122,0); } }
 @media (prefers-reduced-motion: reduce) { .fondo i, h1 em .w, .sello::before { animation: none !important; } h1 em .w { opacity: 1; transform: none; } .rv { opacity: 1; transform: none; transition: none; } h1 .w { animation: none; opacity: 1; transform: none; } }
+
+.hero-dos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 1240px; }
+.hero-dos.uno { grid-template-columns: minmax(0, 760px); }
+.hpanel { background: rgba(255,255,255,.55); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.75); border-radius: 24px; padding: 18px 20px 20px; box-shadow: 0 10px 30px rgba(26,58,110,.08); }
+.hpanel.proy { border: 1.5px dashed rgba(59,130,214,.55); background: rgba(255,255,255,.42); }
+.hp-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.hp-h .mono b { color: var(--txt); font-weight: 600; }
+.hp-go { font: inherit; font-size: 13px; font-weight: 600; background: var(--txt); color: #fff; border: 0; border-radius: 999px; padding: 8px 14px; cursor: pointer; transition: background .2s, transform .2s; }
+.hp-go:hover { background: var(--cel); transform: translateX(2px); }
+.hpanel .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.hpanel .kpi b { font-size: clamp(20px, 2.3vw, 32px); }
+.hpanel.proy .kpi b.org { color: #2a6cc4; }
+.chip-p { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: #1a3a6e; background: #e8f0fa; border: 1px solid #a8c0e0; border-radius: 999px; padding: 3px 10px; margin-left: 6px; }
+@media (max-width: 980px) { .hero-dos { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .hpanel .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ═══ Lectura de un informe dentro del portal ═══ */
+.visor { background: transparent; }
+.visor .fondo { z-index: 0; }
+.lec { position: relative; z-index: 1; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.lec-in { max-width: 1080px; margin: 0 auto; padding: clamp(24px, 5vh, 56px) clamp(18px, 4vw, 40px) 90px; }
+.lec h1 { font-size: clamp(44px, 8vw, 96px); }
+.lec-sub { font-size: clamp(15px, 1.6vw, 19px); color: #2c3633; line-height: 1.55; max-width: 760px; margin: 0 0 8px; }
+.lec-sub b { font-weight: 600; color: var(--txt); }
+.cap { margin-top: clamp(46px, 8vh, 80px); }
+.cap-n { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; color: var(--cel); margin-bottom: 8px; }
+.cap-n span { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--txt); color: #fff; font-size: 11.5px; }
+.cap h2 { margin-bottom: 18px; }
+.cap .nota { font-size: 13.5px; color: var(--mut); max-width: 720px; line-height: 1.55; margin: 14px 0 0; }
+.vidrio { background: rgba(255,255,255,.58); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border: 1px solid rgba(255,255,255,.8); border-radius: 24px; padding: clamp(16px, 2.4vw, 26px); box-shadow: 0 10px 30px rgba(26,58,110,.08); }
+.grande { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; margin-bottom: 18px; }
+.grande b { font-size: clamp(48px, 8vw, 96px); font-weight: 700; letter-spacing: -.04em; line-height: .95; color: #2a6cc4; text-shadow: 0 3px 14px rgba(26,58,110,.2); }
+.grande b.neg { color: var(--neg); }
+.grande span { font-size: 15px; color: var(--mut); }
+.lec .kpis { margin-bottom: 18px; }
+/* barra apilada */
+.pila { display: flex; height: 54px; border-radius: 14px; overflow: hidden; background: rgba(26,58,110,.06); }
+.pila > div { width: 0; height: 100%; display: flex; align-items: center; padding: 0 14px; color: #fff; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; transition: width 1.2s cubic-bezier(.2,.8,.2,1); transition-delay: var(--d, 0s); }
+.rv.vis .pila > div { width: var(--w); }
+.ley { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 10px 22px; margin-top: 16px; }
+.ley > div { display: flex; align-items: baseline; gap: 10px; font-size: 14px; }
+.ley i { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; transform: translateY(1px); }
+.ley span { flex: 1; } .ley b { font-weight: 700; white-space: nowrap; } .ley em { font-style: normal; color: var(--mut); font-size: 12.5px; width: 52px; text-align: right; }
+/* barras horizontales */
+.hb { display: flex; flex-direction: column; gap: 12px; }
+.hb-r { display: grid; grid-template-columns: minmax(120px, 230px) 1fr minmax(96px, auto); gap: 14px; align-items: center; }
+.hb-l { font-size: 14.5px; font-weight: 600; line-height: 1.2; } .hb-l small { display: block; font-weight: 400; font-size: 12px; color: var(--mut); margin-top: 2px; }
+.hb-b { height: 16px; border-radius: 8px; background: rgba(26,58,110,.07); overflow: hidden; }
+.hb-f { height: 100%; width: 0; border-radius: 8px; background: linear-gradient(90deg, #2563b8, #5a9ee8); transition: width 1.1s cubic-bezier(.2,.8,.2,1); transition-delay: var(--d, 0s); }
+.hb-f.neg { background: linear-gradient(90deg, #c26a1a, #e0913c); } .hb-f.suave { background: linear-gradient(90deg, #8db8ec, #b9d4f4); } .hb-f.osc { background: linear-gradient(90deg, #1a3a6e, #2f5b9e); }
+.rv.vis .hb-f { width: var(--w); }
+.hb-v { text-align: right; font-weight: 700; font-size: 15px; white-space: nowrap; } .hb-v small { display: block; font-weight: 500; font-size: 12px; color: var(--mut); }
+.hb-v.pos { color: var(--ok); } .hb-v.neg { color: var(--neg); }
+.dests { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+.dests > div span { display: block; font-size: 12.5px; color: var(--mut); font-weight: 500; } .dests > div b { display: block; font-size: 20px; font-weight: 700; margin: 4px 0 2px; } .dests > div small { font-size: 12.5px; color: var(--mut); }
+.supg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.supg > div b { display: block; font-size: clamp(40px, 5vw, 60px); font-weight: 700; letter-spacing: -.03em; line-height: 1; margin: 6px 0; } .supg > div span { font-size: 13px; color: var(--mut); font-weight: 500; } .supg > div small { display: block; font-size: 12.5px; color: var(--mut); }
+.lec-fin { margin-top: 60px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.btn-n { font: inherit; font-size: 14px; font-weight: 600; background: var(--txt); color: #fff; border: 0; border-radius: 999px; padding: 12px 20px; cursor: pointer; text-decoration: none; transition: background .2s; } .btn-n:hover { background: var(--cel); }
+.btn-b { font: inherit; font-size: 14px; font-weight: 600; background: rgba(255,255,255,.7); color: var(--txt); border: 1px solid rgba(0,0,0,.1); border-radius: 999px; padding: 12px 20px; cursor: pointer; }
+.tagp { display: inline-flex; font-size: 11px; font-weight: 600; border-radius: 999px; padding: 2px 8px; margin-left: 6px; vertical-align: 1px; } .tagp.real { background: #1a3a6e; color: #fff; } .tagp.proy { background: #e8f0fa; color: #1a3a6e; border: 1px dashed #8db8ec; }
+@media (max-width: 760px) { .hb-r { grid-template-columns: 1fr auto; } .hb-b { grid-column: 1 / -1; grid-row: 2; } .dests, .supg { grid-template-columns: 1fr 1fr; } }
 </style>
 </head>
 <body>
 <div class="fondo" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 <div id="app"><div class="estado"><b>Cargando…</b></div></div>
-<div class="visor" id="visor" role="dialog" aria-modal="true"><div class="visor-top"><b id="visor-t"></b><span class="mono" id="visor-s"></span><button class="x" onclick="cerrarVisor()" aria-label="Cerrar">×</button></div><iframe id="visor-f" title="Informe" allow="fullscreen"></iframe></div>
+<div class="visor" id="visor" role="dialog" aria-modal="true"><div class="fondo" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div class="visor-top" style="position:relative;z-index:2"><b id="visor-t"></b><span class="mono" id="visor-s"></span><button class="x" onclick="cerrarVisor()" aria-label="Cerrar">×</button></div><div class="lec" id="lec"></div></div>
 <script>
 const SUPABASE_URL = 'https://tvggknkvrjsuhnfahtzl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR2Z2drbmt2cmpzdWhuZmFodHpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MDg2MzMsImV4cCI6MjA5NzI4NDYzM30.GjZl4U-VDXzLw21-eMOT3FZUgIdAL_am25z4w_fW6oE';
@@ -152,23 +214,40 @@ function tarjeta(x, i) {
     <span class="tj-go">${x.tipo === 'proy' ? 'Ver proyección' : 'Ver informe'} →</span>
   </article>`;
 }
+
+// Proyección a destacar: la del mes en curso; si no hay, la próxima; si no, la más reciente
+function proyVigente(proy) {
+  const h = new Date(), mesAct = `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}`;
+  const ord = [...proy].sort((a, b) => String(a.periodo).localeCompare(String(b.periodo)));
+  return ord.find(x => x.periodo === mesAct) || ord.find(x => x.periodo > mesAct) || ord[ord.length - 1] || null;
+}
 function dibujar() {
   const res = LISTA.filter(x => x.tipo === 'mes').sort((a, b) => String(b.periodo).localeCompare(String(a.periodo)));
   const anios = LISTA.filter(x => x.tipo === 'anio').sort((a, b) => String(b.periodo).localeCompare(String(a.periodo)));
   const proy = LISTA.filter(x => x.tipo === 'proy').sort((a, b) => String(a.periodo).localeCompare(String(b.periodo)));
   const ult = res[0], tu = ult ? totales(ult) : null, act = LISTA.reduce((a, x) => x.updated_at > a ? x.updated_at : a, '');
+  const prox = proyVigente(proy), tp = prox ? totales(prox) : null;
   $('app').innerHTML = `
   <header><a class="marca" href="#top"><img src="${LOGO}" alt="SBS"><span>Show Business Solutions</span></a>
     <nav class="pills">${res.length || anios.length ? '<a class="pill" href="#resultados">Resultados</a>' : ''}${proy.length ? '<a class="pill" href="#proyecciones">Proyecciones</a>' : ''}</nav></header>
   <div class="hero" id="top">
     <h1>${palabras('¿Cómo nos fue', 0)}<br><b>${palabras('en el', .35)}</b> <em>${palabras('Movistar Arena?', .55)}</em></h1>
     <p class="sub rv" style="--d:.7s">Resultados de cada mes y proyecciones de lo que viene: cuánto se le facturó al Arena, cuánto costó el personal y cuánto quedó para SBS.</p>
-    ${tu ? `<div class="mono" style="margin-bottom:14px">Último informe · ${esc(nomMes(ult.periodo).mes)} ${esc(nomMes(ult.periodo).anio)}</div>
-    <div class="kpis">
-      <div class="kpi rv" style="--d:.9s"><b data-cuenta="${tu.ing}" data-fmt="corto">${corto(tu.ing)}</b><span class="mono">Ingresos sin IVA</span></div>
-      <div class="kpi rv" style="--d:1s"><b class="org" data-cuenta="${tu.neto}" data-fmt="corto">${corto(tu.neto)}</b><span class="mono">Resultado neto</span></div>
-      <div class="kpi rv" style="--d:1.1s"><b data-cuenta="${tu.ing ? tu.neto / tu.ing * 100 : 0}" data-fmt="pct">${pct(tu.neto, tu.ing)}</b><span class="mono">Margen</span></div>
-      <div class="kpi rv" style="--d:1.2s"><b data-cuenta="${tu.shows}" data-fmt="ent">${tu.shows}</b><span class="mono">Shows</span></div>
+    ${tu || tp ? `<div class="hero-dos ${tu && tp ? '' : 'uno'}">
+      ${tu ? `<div class="hpanel rv" style="--d:.85s"><div class="hp-h"><span class="mono">Último informe · <b>${esc(nomMes(ult.periodo).mes)} ${esc(nomMes(ult.periodo).anio)}</b></span><button class="hp-go" onclick="abrir('${esc(ult.token)}')">Ver informe →</button></div>
+        <div class="kpis">
+          <div class="kpi"><b data-cuenta="${tu.ing}" data-fmt="corto">${corto(tu.ing)}</b><span class="mono">Ingresos sin IVA</span></div>
+          <div class="kpi"><b class="org" data-cuenta="${tu.neto}" data-fmt="corto">${corto(tu.neto)}</b><span class="mono">Resultado neto</span></div>
+          <div class="kpi"><b data-cuenta="${tu.ing ? tu.neto / tu.ing * 100 : 0}" data-fmt="pct">${pct(tu.neto, tu.ing)}</b><span class="mono">Margen</span></div>
+          <div class="kpi"><b data-cuenta="${tu.shows}" data-fmt="ent">${tu.shows}</b><span class="mono">Shows</span></div>
+        </div></div>` : ''}
+      ${tp ? `<div class="hpanel proy rv" style="--d:1s"><div class="hp-h"><span class="mono">Lo que viene · <b>${esc(nomMes(prox.periodo).mes)} ${esc(nomMes(prox.periodo).anio)}</b><span class="chip-p">Proyección</span></span><button class="hp-go" onclick="abrir('${esc(prox.token)}')">Ver proyección →</button></div>
+        <div class="kpis">
+          <div class="kpi"><b data-cuenta="${tp.ing}" data-fmt="corto">${corto(tp.ing)}</b><span class="mono">Ingresos estimados</span></div>
+          <div class="kpi"><b class="org" data-cuenta="${tp.neto}" data-fmt="corto">${corto(tp.neto)}</b><span class="mono">Resultado proyectado</span></div>
+          <div class="kpi"><b data-cuenta="${tp.ing ? tp.neto / tp.ing * 100 : 0}" data-fmt="pct">${pct(tp.neto, tp.ing)}</b><span class="mono">Margen</span></div>
+          <div class="kpi"><b data-cuenta="${tp.shows}" data-fmt="ent">${tp.shows}</b><span class="mono">Shows confirmados</span></div>
+        </div></div>` : ''}
     </div>` : ''}
   </div>
   ${res.length || anios.length ? `<section class="sec" id="resultados"><div class="sec-h rv"><h2><b>Resultados</b> de cada mes</h2><span class="mono">${res.length} mes${res.length !== 1 ? 'es' : ''} publicado${res.length !== 1 ? 's' : ''}</span></div>
@@ -200,17 +279,118 @@ function contar(ya) {
   });
 }
 
+
+// ══════════════════════════════════════════════
+// LECTURA DEL INFORME EN EL PORTAL: capítulos, números protagonistas y barras con una sola paleta
+// ══════════════════════════════════════════════
+const PAL = { navy: '#1a3a6e', cel: '#3b82d6', cel2: '#7ab0ec', cel3: '#b9d4f4', gris: '#8a97a5', gris2: '#c9d2db' };
+const fmtM = v => corto(v).replace('$', '$ ');
+const money0 = v => '$ ' + Math.round(v || 0).toLocaleString('es-AR');
+function cap(n, t1, t2, cuerpo) { return `<section class="cap rv"><div class="cap-n"><span>${String(n).padStart(2, '0')}</span>${esc(t1)}</div><h2>${t2}</h2>${cuerpo}</section>`; }
+function pila(partes, base) {   // partes: [{l, v, c}]
+  partes = partes.filter(p => p.v > 0);   // lo que es $0 no se muestra
+  return `<div class="pila">${partes.map((p, k) => { const w = base ? Math.max(0, p.v / base * 100) : 0; return `<div style="--w:${w}%;--d:${(k * .15).toFixed(2)}s;background:${p.c}" title="${esc(p.l)}: ${money0(p.v)}">${w > 12 ? esc(p.l) : ''}</div>`; }).join('')}</div>
+    <div class="ley">${partes.map(p => `<div><i style="background:${p.c}"></i><span>${esc(p.l)}</span><b>${fmtM(p.v)}</b><em>${pct(p.v, base)}</em></div>`).join('')}</div>`;
+}
+function barras(filas, { max, valor, sub, cls } = {}) {   // filas: [{l, sub, v, extra}]
+  const m = max || Math.max(1, ...filas.map(f => Math.abs(f.v)));
+  return `<div class="hb">${filas.map((f, k) => `<div class="hb-r"><div class="hb-l">${esc(f.l)}${f.sub ? `<small>${f.sub}</small>` : ''}</div>
+      <div class="hb-b"><div class="hb-f ${f.v < 0 ? 'neg' : (f.cls || cls || '')}" style="--w:${Math.abs(f.v) / m * 100}%;--d:${(k * .05).toFixed(2)}s"></div></div>
+      <div class="hb-v ${f.v < 0 ? 'neg' : ''}">${valor ? valor(f) : fmtM(f.v)}${f.extra ? `<small>${f.extra}</small>` : ''}</div></div>`).join('')}</div>`;
+}
+const fechaC = iso => { const p = String(iso || '').split('-'); return p.length === 3 ? `${p[2]}/${p[1]}` : ''; };
+function lecturaResultados(x) {
+  const d = x.data || {}, T = d.totales || {}, tit = x.tipo === 'anio' ? { mes: 'Año', anio: x.periodo } : nomMes(x.periodo);
+  const egr = (T.ventas || 0) - (T.neto || 0), shows = d.shows || [], cp = (d.estructura?.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0) || 55;
+  const sv = (d.servicios || []).filter(s => s.ventas);
+  let h = `<div class="mono rv">${x.tipo === 'anio' ? 'Informe anual' : 'Informe mensual'} · Movistar Arena</div>
+    <h1>${palabras(tit.mes, 0)} <b>${palabras(String(tit.anio), .2)}</b></h1>
+    <p class="lec-sub rv">El Arena facturó <b>${money0(T.ventas)}</b> sin IVA en ${shows.length} show${shows.length !== 1 ? 's' : ''}${sv.length ? ' más mesa de entrada' : ''}. Después de pagar al personal, las cargas sociales y los impuestos, a SBS le quedaron <b>${money0(T.neto)}</b>.</p>`;
+  // 01 El resultado
+  h += cap(1, 'El resultado', '<b>Cuánto</b> quedó', `<div class="vidrio">
+      <div class="grande"><b class="${T.neto < 0 ? 'neg' : ''}" data-cuenta="${T.neto}" data-fmt="corto">${corto(T.neto)}</b><span>resultado neto · ${pct(T.neto, T.ventas)} de lo facturado</span></div>
+      <div class="kpis"><div class="kpi"><b>${corto(T.ventas)}</b><span class="mono">Ingresos sin IVA</span></div><div class="kpi"><b>${corto(egr)}</b><span class="mono">Egresos</span></div>
+        <div class="kpi"><b>${pct(T.neto, T.ventas)}</b><span class="mono">Margen</span></div><div class="kpi"><b>${T.staff || '—'}</b><span class="mono">Puestos facturados</span></div></div>
+      ${pila([{ l: 'Egresos', v: egr, c: PAL.navy }, { l: 'Resultado', v: Math.max(0, T.neto), c: PAL.cel }], T.ventas)}</div>`);
+  // 02 A dónde fue cada peso
+  const partes = [{ l: 'Liquidaciones al personal', v: T.personal || 0, c: PAL.navy }, { l: 'Cargas sociales', v: T.totCargas || 0, c: PAL.cel }, { l: 'Impuestos sobre ventas', v: T.totImp || 0, c: PAL.cel2 },
+    ...(T.fijos ? [{ l: 'Costos fijos', v: T.fijos, c: PAL.gris2 }] : []), { l: 'Impuesto a las Ganancias', v: T.iigg?.monto || 0, c: PAL.gris }];
+  h += cap(2, 'Los egresos', 'A dónde fue <b>cada peso</b>', `<div class="vidrio">${pila(partes, egr)}</div><p class="nota">El porcentaje de cada parte es sobre el total de egresos (${money0(egr)}).</p>`);
+  // 03 Por área
+  const areas = (d.porArea || []).filter(a => a.ventas);
+  let n = 3;
+  if (areas.length > 1) h += cap(n++, 'Por área', 'Qué dejó <b>cada servicio</b>', `<div class="vidrio">${barras(areas.map(a => ({ l: a.nombre, sub: `${fmtM(a.ventas)} de ingresos`, v: a.neto, extra: `${pct(a.neto, a.ventas)} de margen` })))}</div>`);
+  // 04 Show por show
+  if (shows.length) {
+    const rk = [...shows].sort((a, b) => b.neto - a.neto), porM = [...shows].sort((a, b) => b.neto / (b.ventas || 1) - a.neto / (a.ventas || 1));
+    h += cap(n++, 'Show por show', '<b>Ranking</b> de los shows', `<div class="vidrio">${barras(rk.map(s => ({ l: s.nombre, sub: `${fechaC(s.fecha)} · ${fmtM(s.ventas)} de ingresos`, v: s.neto, extra: pct(s.neto, s.ventas) })))}</div>
+      ${shows.length > 2 ? `<div class="dests">
+        <div class="vidrio"><span>Mayor resultado</span><b>${esc(rk[0].nombre)}</b><small>${fmtM(rk[0].neto)} · ${fechaC(rk[0].fecha)}</small></div>
+        <div class="vidrio"><span>Mayor margen</span><b>${esc(porM[0].nombre)}</b><small>${pct(porM[0].neto, porM[0].ventas)} de sus ingresos</small></div>
+        <div class="vidrio"><span>Menor margen</span><b>${esc(porM[porM.length - 1].nombre)}</b><small>${pct(porM[porM.length - 1].neto, porM[porM.length - 1].ventas)} de sus ingresos</small></div></div>` : ''}`);
+  }
+  // 05 Costo extra no facturado
+  const bk = shows.reduce((a, s) => ({ n: a.n + (s.backups?.cant || 0), v: a.v + (s.backups?.monto || 0) }), { n: 0, v: 0 }), co = shows.reduce((a, s) => ({ n: a.n + (s.coordinador?.cant || 0), v: a.v + (s.coordinador?.monto || 0) }), { n: 0, v: 0 });
+  const real = v => Math.round(v * (1 + cp / 100)), tot = real(bk.v) + real(co.v);
+  if (tot) h += cap(n++, 'Costo extra no facturado', 'Lo que <b>no le cobramos</b> al Arena', `<div class="vidrio">
+      <div class="grande"><b data-cuenta="${tot}" data-fmt="corto">${corto(tot)}</b><span>costo real de back-ups y coordinación · ${pct(tot, T.neto)} del resultado</span></div>
+      ${pila([{ l: `Back-ups (${bk.n} personas)`, v: real(bk.v), c: PAL.navy }, { l: `Coordinación (${co.n} jornadas)`, v: real(co.v), c: PAL.cel }], tot)}</div>
+      <p class="nota">Personal que SBS paga y no le factura al Arena: back-ups por encima de lo pedido y un coordinador por show. Costo real = lo pagado + ${cp}% de cargas sociales. Ya está incluido en los egresos.</p>`);
+  return h;
+}
+function lecturaProy(x) {
+  const d = x.data || {}, T = d.T || {}, tit = nomMes(x.periodo), sh = d.shows || [], sup = d.sup || {}, X = d.extra;
+  let h = `<div class="mono rv">Proyección · Movistar Arena</div>
+    <h1>${palabras(tit.mes, 0)} <b>${palabras(String(tit.anio), .2)}</b></h1>
+    <p class="lec-sub rv">Con <b>${sh.length} show${sh.length !== 1 ? 's' : ''} confirmados</b>${d.servicios?.length ? ' más mesa de entrada' : ''}, esperamos facturar <b>${money0(T.ingresos)}</b> sin IVA y que a SBS le queden <b>${money0(T.neto)}</b>. Es una estimación: a medida que los shows se facturan, se reemplaza por los números reales.</p>`;
+  h += cap(1, 'Lo que esperamos', '<b>Cuánto</b> quedaría', `<div class="vidrio">
+      <div class="grande"><b class="${T.neto < 0 ? 'neg' : ''}" data-cuenta="${T.neto}" data-fmt="corto">${corto(T.neto)}</b><span>resultado proyectado · ${pct(T.neto, T.ingresos)} de lo facturado</span></div>
+      <div class="kpis"><div class="kpi"><b>${corto(T.ingresos)}</b><span class="mono">Ingresos estimados</span></div><div class="kpi"><b>${corto(T.egresos)}</b><span class="mono">Egresos estimados</span></div>
+        <div class="kpi"><b>${pct(T.neto, T.ingresos)}</b><span class="mono">Margen</span></div><div class="kpi"><b>${sh.length}</b><span class="mono">Shows confirmados</span></div></div>
+      ${pila([{ l: 'Egresos', v: T.egresos, c: PAL.navy }, { l: 'Resultado', v: Math.max(0, T.neto), c: PAL.cel }], T.ingresos)}</div>`);
+  h += cap(2, 'Supuestos', 'Cómo se estima <b>cada show</b>', `<div class="supg">
+      <div class="vidrio"><span>Puestos de sala</span><b>${sup.puestos ?? '—'}</b><small>${sup.puestosProm ? `promedio de ${sup.nRefs} shows` : 'fijado para el mes'}</small></div>
+      <div class="vidrio"><span>Cargas</span><b>${sup.cargas ?? 2}</b><small>por show, se facturan</small></div>
+      <div class="vidrio"><span>Coordinadores</span><b>${sup.coord ?? 1}</b><small>a cargo de SBS</small></div>
+      <div class="vidrio"><span>Back-ups</span><b>${String(sup.backups ?? 2).replace('.', ',')}</b><small>por show, no se facturan</small></div></div>
+      <p class="nota">Si la banda ya tocó, se usa su propio historial; si no, el promedio de los shows anteriores.${d.tar ? ` Valores: ${d.tar.origen === 'cargado' ? 'los del mes, ya cargados' : `${esc((d.tar.desdeLabel || '').toLowerCase())} + ${String(d.tar.aumento).replace('.', ',')}% por mes, hasta tener los de paritarias`}.` : ''}</p>`);
+  if (sh.length) h += cap(3, 'Show por show', 'Lo que dejaría <b>cada show</b>', `<div class="vidrio">${barras([...sh].sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))).map(s => ({ l: s.nombre, sub: `${fechaC(s.fecha)} · ${s.estado === 'real' ? '<span class="tagp real">Real</span>' : '<span class="tagp proy">Proyectado</span>'}`, v: s.neto, cls: s.estado === 'real' ? 'osc' : '', extra: `${fmtM(s.ingresos)} de ingresos` })))}</div>`);
+  if (X && (X.backups.real || X.coord.real)) { const tot = X.backups.real + X.coord.real;
+    h += cap(4, 'Costo extra no facturado', 'Lo que <b>no le cobraríamos</b> al Arena', `<div class="vidrio">
+      <div class="grande"><b data-cuenta="${tot}" data-fmt="corto">${corto(tot)}</b><span>costo real estimado de back-ups y coordinación</span></div>
+      ${pila([{ l: `Back-ups (${X.backups.n} personas)`, v: X.backups.real, c: PAL.navy }, { l: `Coordinación (${X.coord.n} jornadas)`, v: X.coord.real, c: PAL.cel }], tot)}</div>
+      <p class="nota">Ya está incluido en los egresos estimados. Costo real = lo pagado + ${X.pctCargas}% de cargas sociales.</p>`); }
+  return h;
+}
+
 // Visor: el informe completo, encima del portal
 window.abrir = function(token) {
   const x = LISTA.find(y => y.token === token); if (!x) return;
   const tit = x.tipo === 'anio' ? `Año ${x.periodo}` : `${nomMes(x.periodo).mes} ${nomMes(x.periodo).anio}`;
   $('visor-t').textContent = tit; $('visor-s').textContent = x.tipo === 'proy' ? '· Proyección' : '· Resultados';
-  $('visor-f').src = `informe.html?t=${encodeURIComponent(token)}&embed=1&tema=portal`;
+  const completo = `informe.html?t=${encodeURIComponent(token)}&tema=portal`;
+  $('lec').innerHTML = `<div class="lec-in">${x.tipo === 'proy' ? lecturaProy(x) : lecturaResultados(x)}
+    <div class="lec-fin rv"><a class="btn-n" href="${completo}" target="_blank" rel="noopener">▶ Ver en video y descargar PDF</a><button class="btn-b" onclick="cerrarVisor()">Volver al portal</button></div></div>`;
+  $('lec').scrollTop = 0;
   $('visor').classList.add('on'); document.body.style.overflow = 'hidden';
+  animarLectura();
   try { history.pushState({ i: token }, '', `${location.pathname}?k=${encodeURIComponent(CLAVE)}&i=${encodeURIComponent(token)}`); } catch {}
 };
+function animarLectura() {
+  const els = $('lec').querySelectorAll('.rv');
+  if (quieto() || !('IntersectionObserver' in window)) { els.forEach(x => x.classList.add('vis')); return; }
+  const io = new IntersectionObserver(es => es.forEach(en => { if (en.isIntersecting) { en.target.classList.add('vis'); io.unobserve(en.target);
+    en.target.querySelectorAll('[data-cuenta]').forEach(b => contarUno(b)); } }), { root: $('lec'), threshold: .15 });
+  els.forEach(x => io.observe(x));
+}
+function contarUno(b) {
+  if (b.dataset.contado) return; b.dataset.contado = '1';
+  const fin = +b.dataset.cuenta, t0 = performance.now(), dur = 1300;
+  const paso = now => { const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3); b.textContent = corto(fin * e); if (p < 1) requestAnimationFrame(paso); };
+  if (quieto()) b.textContent = corto(fin); else requestAnimationFrame(paso);
+}
 window.cerrarVisor = function(desdeHistorial) {
-  $('visor').classList.remove('on'); $('visor-f').src = 'about:blank'; document.body.style.overflow = '';
+  $('visor').classList.remove('on'); document.body.style.overflow = '';
   if (!desdeHistorial) try { history.pushState({}, '', `${location.pathname}?k=${encodeURIComponent(CLAVE)}`); } catch {}
 };
 window.addEventListener('popstate', e => { if (e.state?.i) abrir(e.state.i); else if ($('visor').classList.contains('on')) cerrarVisor(true); });
@@ -219,11 +399,14 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && $('visor')
 function intro() {
   const res = LISTA.filter(x => x.tipo === 'mes').sort((a, b) => String(b.periodo).localeCompare(String(a.periodo)));
   const ult = res[0], t = ult ? totales(ult) : null;
+  const pv = proyVigente(LISTA.filter(x => x.tipo === 'proy')), tpv = pv ? totales(pv) : null;
   const slides = [
     `<img src="${LOGO}" alt=""><h1 style="margin:0"><b>Show Business</b><br>Solutions</h1>`,
-    `<h1 style="margin:0">Portal de <b>socios</b><br><em>Movistar Arena</em></h1><p class="sub" style="margin-top:20px">Resultados de cada mes y proyecciones, en un solo lugar.</p>`,
-    ...(t ? [`<div class="mono" style="margin-bottom:12px">${esc(nomMes(ult.periodo).mes)} ${esc(nomMes(ult.periodo).anio)} · Resultado neto</div><h1 style="margin:0"><em>${corto(t.neto)}</em></h1>
+    `<h1 style="margin:0">Portal de <b>socios</b><br><em>${palabras('Movistar Arena', 0)}</em></h1><p class="sub" style="margin-top:20px">Resultados de cada mes y proyecciones, en un solo lugar.</p>`,
+    ...(t ? [`<div class="mono" style="margin-bottom:12px">${esc(nomMes(ult.periodo).mes)} ${esc(nomMes(ult.periodo).anio)} · Resultado neto</div><h1 style="margin:0"><em>${palabras(corto(t.neto), 0)}</em></h1>
       <div class="kpis" style="margin-top:30px"><div class="kpi"><b>${corto(t.ing)}</b><span class="mono">Ingresos</span></div><div class="kpi"><b>${pct(t.neto, t.ing)}</b><span class="mono">Margen</span></div><div class="kpi"><b>${t.shows}</b><span class="mono">Shows</span></div></div>`] : []),
+    ...(pv ? [`<div class="mono" style="margin-bottom:12px">Lo que viene · ${esc(nomMes(pv.periodo).mes)} ${esc(nomMes(pv.periodo).anio)} · Resultado proyectado</div><h1 style="margin:0"><em>${palabras(corto(tpv.neto), 0)}</em></h1>
+      <div class="kpis" style="margin-top:30px"><div class="kpi"><b>${corto(tpv.ing)}</b><span class="mono">Ingresos estimados</span></div><div class="kpi"><b>${pct(tpv.neto, tpv.ing)}</b><span class="mono">Margen</span></div><div class="kpi"><b>${tpv.shows}</b><span class="mono">Shows confirmados</span></div></div>`] : []),
   ];
   const ov = document.createElement('div'); ov.className = 'intro';
   ov.innerHTML = `<div class="barras">${slides.map(() => '<span><i></i></span>').join('')}</div><button class="pill saltar" onclick="finIntro()">Saltar →</button><div id="slide"></div>`;
