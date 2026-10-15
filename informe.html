@@ -11,6 +11,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>if (/[?&]tema=portal\b/.test(location.search)) document.documentElement.classList.add('portal');</script>
 <style>
 :root {
   --brand: #2b2b2b; --ink: #1f2421; --muted: #69726d; --rule: #e2e5e3;
@@ -360,6 +361,74 @@ details.det-num[open] > summary { margin-bottom: 14px; }
 .k-extra { grid-template-columns: 1fr !important; }
 @media (max-width: 700px) { .ba-r { grid-template-columns: 1fr; } .ba-v { text-align: left; } }
 @media print { details.det-num > summary { display: none; } .ba-b span, .cp-c span { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+
+/* ═══ Modo portal: el informe con la estética oscura del portal de socios ═══ */
+html.portal { --bg: #0b0c0c; --surface: #141617; --surface2: #1b1e1f; --ink: #f1f3f2; --muted: #9aa19e; --rule: rgba(255,255,255,.09); --brand: #8bbcf2;
+  --c-ing: #8bbcf2; --c-egr: #7d8682; --c-neto: #4cbf7a; --c-neto-bg: rgba(76,191,122,.12); --loss: #e0913c;
+  --c-personal: #5b86b8; --c-cargas: #7f97ad; --c-fijo: #5e6a70; color-scheme: dark; }
+html.portal body { background: var(--bg) !important; color: var(--ink); }
+html.portal .head { background: transparent !important; border: 0 !important; border-bottom: 2px solid #8bbcf2 !important; box-shadow: none !important; padding-bottom: 18px; }
+html.portal .head img { border-radius: 10px; }
+html.portal .head .per b { font-size: clamp(30px, 4.4vw, 52px); font-weight: 700; letter-spacing: -.03em; color: #8bbcf2; line-height: 1; }
+html.portal .head .per span, html.portal .kpi .l, html.portal .panel .desc, html.portal .mono { text-transform: none; }
+html.portal .subhead { background: transparent !important; border: 0 !important; box-shadow: none !important; } html.portal .subhead p { font-size: 17px; color: #c9cecb; }
+html.portal .subhead b, html.portal .subhead strong { color: var(--ink); }
+html.portal .panel, html.portal .kpi, html.portal .dest, html.portal details.det-num > summary, html.portal .md { background: var(--surface) !important; border: 1px solid var(--rule) !important; box-shadow: none !important; border-radius: 20px; }
+html.portal .kpi .v { font-size: clamp(24px, 2.6vw, 32px); }
+html.portal .kpi.neto { background: linear-gradient(180deg, rgba(76,191,122,.14), var(--surface)) !important; }
+html.portal .aviso { background: rgba(224,145,60,.1) !important; border-color: rgba(224,145,60,.35) !important; color: #f0c48f !important; }
+html.portal .btn { background: #1b1e1f !important; color: var(--ink) !important; border-color: var(--rule) !important; border-radius: 999px; }
+html.portal .btn-video { background: #8bbcf2 !important; color: #0b0c0c !important; border-color: #8bbcf2 !important; }
+html.portal table th { background: #1b1e1f !important; color: var(--muted) !important; }
+html.portal table td { border-color: var(--rule) !important; }
+html.portal tr:hover td { background: rgba(255,255,255,.03) !important; }
+html.portal .ba-b, html.portal .pbar, html.portal .apbar { background: rgba(255,255,255,.07) !important; }
+html.portal .ba-b span { background: #4cbf7a !important; } html.portal .ba-b span.neg { background: #e0913c !important; }
+html.portal .ba-v { color: #4cbf7a !important; } html.portal .ba-v.neg { color: #e0913c !important; }
+html.portal .cp-c .i.real { background: #8bbcf2 !important; } html.portal .cp-c .i.proyectado { background: rgba(139,188,242,.45) !important; } html.portal .cp-c .e { background: #4a5154 !important; }
+html.portal .cp-ley i[style*="2b2b2b"] { background: #8bbcf2 !important; } html.portal .cp-ley i[style*="9cc3ab"] { background: rgba(139,188,242,.45) !important; } html.portal .cp-ley i[style*="c9ccc9"] { background: #4a5154 !important; }
+html.portal .est.real { background: rgba(139,188,242,.15) !important; color: #8bbcf2 !important; } html.portal .est.proyectado { background: transparent !important; color: var(--muted) !important; border-color: rgba(255,255,255,.25) !important; }
+html.portal .sup-p > div, html.portal .ext-calc > div, html.portal .mini-kpis div, html.portal .proms > div { background: var(--surface2) !important; }
+html.portal .ext-calc > div.fin { background: rgba(224,145,60,.12) !important; }
+html.portal .res, html.portal td.res { color: #4cbf7a; } html.portal .neg, html.portal .res.neg { color: #e0913c !important; }
+html.portal .pie, html.portal .notas { color: var(--muted); } html.portal .pie img { opacity: .8; }
+html.portal .ov { background: rgba(0,0,0,.65) !important; }
+html.portal .toolbar { background: rgba(11,12,12,.88) !important; border-color: transparent !important; box-shadow: none !important; backdrop-filter: blur(8px); }
+html.portal .tag { background: var(--surface2); color: var(--ink) !important; }
+html.portal th { background: var(--surface2) !important; }
+html.portal .eerr tr.sec td { background: var(--surface2) !important; }
+html.portal .eerr tr.parcial td { border-color: var(--rule) !important; }
+html.portal .aviso { background: var(--surface2); border-color: var(--rule) !important; }
+html.portal body { background: var(--surface2) !important; }
+html.portal tr.clic:hover td { background: var(--surface2) !important; }
+html.portal .mini-kpis div { background: var(--surface2) !important; }
+html.portal .vbox canvas { background: var(--surface2) !important; }
+html.portal .vctl input[type=range] { color: var(--ink) !important; }
+html.portal .vcaps button { background: var(--surface2) !important; }
+html.portal /* Pantalla completa del video */
+.vbox.esfull { background: var(--surface2) !important; }
+html.portal .vbox::backdrop { background: var(--surface2) !important; }
+html.portal .proms div { background: var(--surface2) !important; }
+html.portal table.rank .n { background: var(--surface2) !important; }
+html.portal .rk { background: var(--surface2) !important; }
+html.portal .stf { background: var(--surface2) !important; }
+html.portal .stf.warn { color: var(--ink); background: var(--surface2) !important; }
+html.portal .stf.ok { color: var(--ink); background: var(--surface2) !important; }
+html.portal .fb-bar { background: var(--surface2) !important; }
+html.portal .apbar { background: var(--surface2) !important; }
+html.portal table.eerr.areas tr:not(.final):not(.sec) td.tc, html.portal table.eerr.areas th.tc { background: var(--surface2) !important; }
+html.portal .ext-calc > div { background: var(--surface2) !important; }
+html.portal .ext-calc > div.fin { background: var(--surface2) !important; }
+html.portal .sup-p > div { background: var(--surface2) !important; }
+html.portal table.proy-t tr.proyectado td { background: var(--surface2) !important; }
+html.portal .est.real { background: var(--surface2); color: var(--ink) !important; }
+html.portal .est.proyectado { background: var(--surface2) !important; }
+html.portal .pbar { background: var(--surface2) !important; }
+html.portal details.det-num > summary { background: var(--surface2) !important; }
+html.portal .ba-r { border-color: var(--rule) !important; }
+html.portal .ba-b { background: var(--surface2) !important; }
+html.portal .ba-v { color: var(--ink) !important; }
+html.portal .cp-r { color: var(--ink) !important; }
 </style>
 </head>
 <body>
@@ -519,6 +588,12 @@ function barrasAreas(areas, T) {
       <div class="ba-v ${x.neto < 0 ? 'neg' : ''}">${money(x.neto)}<small>${p1(x.neto, x.ventas)} de margen · ${T.neto ? nf1(x.neto / T.neto * 100) : '0'}% del resultado</small></div></div>`).join('')}</div>`;
 }
 // Al imprimir o guardar en PDF, el detalle plegado se abre para que el documento quede completo
+['dibujar', 'dibujarProy'].forEach(n => { const f = window[n]; window[n] = function (...a) {
+  if (!esPortal()) return f.apply(this, a);
+  const prev = { ...C }; Object.assign(C, C_PORTAL); try { return f.apply(this, a); } finally { Object.assign(C, prev); } }; });
+const redibujar = () => S.d?.tipo === 'proy' ? dibujarProy() : dibujar();
+window.addEventListener('beforeprint', () => { if (document.documentElement.classList.contains('portal')) { document.documentElement.classList.remove('portal'); document.documentElement.dataset.portalPrint = '1'; try { redibujar(); } catch {} } });
+window.addEventListener('afterprint', () => { if (document.documentElement.dataset.portalPrint) { delete document.documentElement.dataset.portalPrint; document.documentElement.classList.add('portal'); try { redibujar(); } catch {} } });
 window.addEventListener('beforeprint', () => document.querySelectorAll('details.det-num:not([open])').forEach(d => { d.dataset.cerrado = '1'; d.open = true; }));
 window.addEventListener('afterprint', () => document.querySelectorAll('details.det-num[data-cerrado]').forEach(d => { d.open = false; delete d.dataset.cerrado; }));
 
@@ -925,7 +1000,7 @@ const ETIQUETAS = {
             ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             horiz ? ctx.fillText(txt, (el.x + el.base) / 2, el.y) : ctx.fillText(txt, el.x, (el.y + el.base) / 2);
           } else {
-            ctx.fillStyle = '#1f2421';
+            ctx.fillStyle = TXT();
             if (horiz) { ctx.textAlign = v >= 0 ? 'left' : 'right'; ctx.textBaseline = 'middle'; ctx.fillText(txt, el.x + (v >= 0 ? 6 : -6), el.y); }
             else { ctx.textAlign = 'center'; ctx.textBaseline = v >= 0 ? 'bottom' : 'top'; ctx.fillText(txt, el.x, el.y + (v >= 0 ? -5 : 5)); }
           }
@@ -949,7 +1024,16 @@ window.addEventListener('beforeprint', reajustarGraficos);
 window.addEventListener('afterprint', reajustarGraficos);
 if (window.matchMedia) window.matchMedia('print').addEventListener?.('change', reajustarGraficos);
 
-function graficos(T, shows, egresos) {
+const esPortal = () => document.documentElement.classList.contains('portal');
+const TXT = () => esPortal() ? '#e9ecea' : '#1f2421';
+const C_PORTAL = { ing: '#8bbcf2', neto: '#4cbf7a', loss: '#e0913c', egr: '#7d8682', personal: '#5b86b8', cargas: '#7f97ad', imp: '#cbb57f', fijo: '#5e6a70', iigg: '#a3843a', rule: 'rgba(255,255,255,.09)', muted: '#9aa19e' };
+// En el portal, los gráficos se dibujan con la paleta oscura (el video sigue con la suya)
+function graficos(...args) {
+  if (!esPortal()) return graficosBase(...args);
+  const prev = { ...C }; Object.assign(C, C_PORTAL);
+  try { return graficosBase(...args); } finally { Object.assign(C, prev); }
+}
+function graficosBase(T, shows, egresos) {
   CHARTS.splice(0).forEach(c => c.destroy());
   if (typeof Chart === 'undefined') return;
   const _Chart = Chart;
@@ -961,7 +1045,7 @@ function graficos(T, shows, egresos) {
   Chart.defaults.animation = false;
   Chart.defaults.devicePixelRatio = Math.max(2, window.devicePixelRatio || 1);
   const eje = { ticks: { callback: v => pct ? v + '%' : corto(v), maxTicksLimit: 6 }, grid: { color: C.rule }, border: { display: false } };
-  const sinGrilla = { grid: { display: false }, border: { display: false }, ticks: { color: '#1f2421', maxRotation: 0, autoSkip: false } };
+  const sinGrilla = { grid: { display: false }, border: { display: false }, ticks: { color: TXT(), maxRotation: 0, autoSkip: false } };
   // Tooltip: siempre muestra monto y porcentaje, sea cual sea el modo
   const tip = { callbacks: { label: c => { const mm = c.dataset.montos?.[c.dataIndex] ?? c.raw, base = c.dataset.bases?.[c.dataIndex];
     return ` ${c.dataset.label || c.label}: ${money(mm)}${base ? ` (${p1(mm, base)} de los ingresos)` : ''}`; } } };
@@ -1069,7 +1153,7 @@ function vFondo(ctx, i) {
 }
 function vTitulo(ctx, t, titulo, sub) {
   const a = vEase(vIn(t, 0.1, 0.6)); ctx.save(); ctx.globalAlpha *= a;
-  ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 58); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = TXT(); ctx.font = vF(600, 58); ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
   ctx.fillText(titulo, 120, 150 + (1 - a) * 20);
   if (sub) { ctx.fillStyle = C.muted; ctx.font = vF(400, 30); ctx.fillText(sub, 120, 200 + (1 - a) * 20); }
   ctx.restore();
@@ -1082,7 +1166,7 @@ function vTexto(ctx, t, ini, txt) {
   let px = 34; while (px > 24 && lineas(px) > 2) px -= 2;
   const lh = Math.round(px * 1.3), alto = Math.min(2, lineas(px)) * lh - (lh - px);
   ctx.fillStyle = C.neto; ctx.fillRect(120, 884, 7, Math.max(alto + 6, 40));
-  ctx.fillStyle = '#1f2421'; ctx.font = vF(500, px); ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  ctx.fillStyle = TXT(); ctx.font = vF(500, px); ctx.textAlign = 'left'; ctx.textBaseline = 'top';
   vWrap(ctx, txt, 152, 884, 1640, lh);
   ctx.restore();
 }
@@ -1090,7 +1174,7 @@ const vLeyenda = (ctx, items, xDer, y) => {
   ctx.font = vF(500, 24); ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
   let x = xDer; const anchos = items.map(([t]) => ctx.measureText(t).width + 70);
   x -= anchos.reduce((a, b) => a + b, 0);
-  items.forEach(([t, c], i) => { ctx.fillStyle = c; vRR(ctx, x, y - 11, 22, 22, 4); ctx.fill(); ctx.fillStyle = '#1f2421'; ctx.fillText(t, x + 32, y); x += anchos[i]; });
+  items.forEach(([t, c], i) => { ctx.fillStyle = c; vRR(ctx, x, y - 11, 22, 22, 4); ctx.fill(); ctx.fillStyle = TXT(); ctx.fillText(t, x + 32, y); x += anchos[i]; });
 };
 
 // ── Escenas ──
@@ -1101,7 +1185,7 @@ function escPortada(ctx, t) {
   ctx.restore();
   const b = vEase(vIn(t, 0.9, 0.8));
   ctx.save(); ctx.globalAlpha *= b; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 104); ctx.fillText(V.data.per, V.W / 2, 590 + (1 - b) * 24);
+  ctx.fillStyle = TXT(); ctx.font = vF(700, 104); ctx.fillText(V.data.per, V.W / 2, 590 + (1 - b) * 24);
   ctx.fillStyle = C.muted; ctx.font = vF(400, 40); ctx.fillText('Informe de resultados · Movistar Arena', V.W / 2, 665 + (1 - b) * 24);
   ctx.restore();
   const c = vEase(vIn(t, 1.8, 0.8));
@@ -1117,7 +1201,7 @@ function escResumen(ctx, t) {
   ctx.save(); ctx.globalAlpha *= vIn(t, 0.5, 0.5);
   ctx.fillStyle = C.muted; ctx.font = vF(500, 34); ctx.fillText('Resultado neto', V.W / 2, 360);
   ctx.fillStyle = T.neto >= 0 ? C.neto : C.loss; ctx.font = vF(700, 150); ctx.fillText(money(T.neto * p), V.W / 2, 520);
-  ctx.fillStyle = '#1f2421'; ctx.font = vF(500, 38); ctx.fillText(`${p1(T.neto, T.ventas)} de los ingresos`, V.W / 2, 590);
+  ctx.fillStyle = TXT(); ctx.font = vF(500, 38); ctx.fillText(`${p1(T.neto, T.ventas)} de los ingresos`, V.W / 2, 590);
   ctx.restore();
   const cajas = [['Ingresos (sin IVA)', T.ventas, C.ing], ['Egresos', eg, C.egr], ['Puestos cubiertos', T.staff, null]];
   cajas.forEach(([l, v, c], i) => {
@@ -1128,7 +1212,7 @@ function escResumen(ctx, t) {
     if (a > 0.3) V.hits.push({ r: [x, y, w, 150], tip: [l, c ? money(v) : `${v} puestos`, c && i ? `${p1(v, T.ventas)} de los ingresos` : ''] });
     ctx.fillStyle = c || C.neto; ctx.fillRect(x, y, w, 6);
     ctx.textAlign = 'left'; ctx.fillStyle = C.muted; ctx.font = vF(500, 26); ctx.fillText(l, x + 30, y + 58);
-    ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 46); ctx.fillText(c ? money(v * vEase(vIn(t, 1.6 + i * 0.3, 1.4))) : String(Math.round(v * vEase(vIn(t, 1.6 + i * 0.3, 1.4)))), x + 30, y + 118);
+    ctx.fillStyle = TXT(); ctx.font = vF(700, 46); ctx.fillText(c ? money(v * vEase(vIn(t, 1.6 + i * 0.3, 1.4))) : String(Math.round(v * vEase(vIn(t, 1.6 + i * 0.3, 1.4)))), x + 30, y + 118);
     ctx.restore();
   });
   vTexto(ctx, t, 3.4, `Ingresos por ${money(T.ventas)} y egresos por ${money(eg)}: quedaron ${money(T.neto)} de resultado neto.`);
@@ -1154,13 +1238,13 @@ function escIER(ctx, t) {
     ctx.fillStyle = cols[i]; vRR(ctx, cx - bw / 2, Math.min(y, y0), bw, Math.abs(y0 - y), 8); ctx.fill();
     if (p === 1) V.med.push({ esc: 'ier', v, px: y0 - y });
     if (p > 0.05) { V.hits.push({ r: [cx - bw / 2, Math.min(y, y0), bw, Math.max(8, Math.abs(y0 - y))], tip: [labs[i], money(v), i ? `${p1(v, T.ventas)} de los ingresos` : 'Base: 100%'] }); }
-    ctx.fillStyle = '#1f2421'; ctx.font = vF(500, 28); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillStyle = TXT(); ctx.font = vF(500, 28); ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.globalAlpha = Math.min(ctx.globalAlpha, 1); ctx.fillText(labs[i], cx, yB + 20);
     const a = vIn(t, 1.7 + i * 0.8, 0.5);
     if (a) {
       ctx.save(); ctx.globalAlpha *= a; ctx.textBaseline = 'alphabetic';
       const yl = v >= 0 ? y - 18 : y + 46;
-      ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 34); ctx.fillText(money(v), cx, yl);
+      ctx.fillStyle = TXT(); ctx.font = vF(700, 34); ctx.fillText(money(v), cx, yl);
       ctx.fillStyle = C.muted; ctx.font = vF(500, 24); ctx.fillText(i ? `${p1(v, T.ventas)} de los ingresos` : '100%', cx, yl - 40);
       ctx.restore();
     }
@@ -1183,7 +1267,7 @@ function escAreas(ctx, t) {
   areas.forEach((a, k) => {
     const cy = yT + rowH * (k + 0.5), p = vEase(vIn(t, 0.6 + k * 0.4, 1.1)), al = vIn(t, 0.4 + k * 0.4, 0.4);
     ctx.save(); ctx.globalAlpha *= al; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 30); ctx.fillText(a.nombre, x0 - 26, cy + 4);
+    ctx.fillStyle = TXT(); ctx.font = vF(600, 30); ctx.fillText(a.nombre, x0 - 26, cy + 4);
     ctx.fillStyle = C.muted; ctx.font = vF(400, 21); ctx.fillText(a.detalle || '', x0 - 26, cy + 34);
     ctx.restore();
     [[a.ventas, C.ing], [a.ventas - a.neto, C.egr], [a.neto, a.neto >= 0 ? C.neto : C.loss]].forEach(([v, c], j) => {
@@ -1191,7 +1275,7 @@ function escAreas(ctx, t) {
       ctx.fillStyle = c; vRR(ctx, Math.min(x0v, xe), y, Math.abs(xe - x0v), bh, 5); ctx.fill();
       if (p === 1) V.med.push({ esc: 'areas', v, px: xe - x0v });
       if (p > 0.05) V.hits.push({ r: [Math.min(x0v, xe), y - 3, Math.max(10, Math.abs(xe - x0v)), bh + 6], tip: [a.nombre, `${['Ingresos', 'Egresos', 'Resultado neto'][j]}: ${money(v)}`, j ? `${p1(v, a.ventas)} de sus ingresos` : ''] });
-      if (vIn(t, 1.5 + k * 0.4, 0.4)) { ctx.save(); ctx.globalAlpha *= vIn(t, 1.5 + k * 0.4, 0.4); ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 20); ctx.textBaseline = 'middle'; ctx.textAlign = v >= 0 ? 'left' : 'right'; ctx.fillText(corto(v), xe + (v >= 0 ? 10 : -10), y + bh / 2); ctx.restore(); }
+      if (vIn(t, 1.5 + k * 0.4, 0.4)) { ctx.save(); ctx.globalAlpha *= vIn(t, 1.5 + k * 0.4, 0.4); ctx.fillStyle = TXT(); ctx.font = vF(600, 20); ctx.textBaseline = 'middle'; ctx.textAlign = v >= 0 ? 'left' : 'right'; ctx.fillText(corto(v), xe + (v >= 0 ? 10 : -10), y + bh / 2); ctx.restore(); }
     });
     const b = vIn(t, 1.6 + k * 0.4, 0.4);
     if (b) { ctx.save(); ctx.globalAlpha *= b; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
@@ -1216,13 +1300,13 @@ function escTorta(ctx, t) {
     ang += w;
   });
   const c = vIn(t, 2.9, 0.5);
-  if (c) { ctx.save(); ctx.globalAlpha *= c; ctx.textAlign = 'center'; ctx.fillStyle = C.muted; ctx.font = vF(500, 26); ctx.textBaseline = 'alphabetic'; ctx.fillText('Total egresos', cx, cy - 10); ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 36); ctx.fillText(corto(eg), cx, cy + 36); ctx.restore(); }
+  if (c) { ctx.save(); ctx.globalAlpha *= c; ctx.textAlign = 'center'; ctx.fillStyle = C.muted; ctx.font = vF(500, 26); ctx.textBaseline = 'alphabetic'; ctx.fillText('Total egresos', cx, cy - 10); ctx.fillStyle = TXT(); ctx.font = vF(700, 36); ctx.fillText(corto(eg), cx, cy + 36); ctx.restore(); }
   egresos.forEach((x, i) => {
     const a = vEase(vIn(t, 0.9 + i * 0.4, 0.6)); if (!a) return;
     const y = 320 + i * 118 + (1 - a) * 16;
     ctx.save(); ctx.globalAlpha *= a; ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = x.c; vRR(ctx, 990, y - 30, 32, 32, 6); ctx.fill();
-    ctx.fillStyle = '#1f2421'; ctx.font = vF(500, 32); ctx.textAlign = 'left'; ctx.fillText(x.t, 1044, y);
+    ctx.fillStyle = TXT(); ctx.font = vF(500, 32); ctx.textAlign = 'left'; ctx.fillText(x.t, 1044, y);
     ctx.font = vF(700, 32); ctx.textAlign = 'right'; ctx.fillText(money(x.v), 1800, y);
     ctx.fillStyle = C.muted; ctx.font = vF(400, 24); ctx.textAlign = 'left'; ctx.fillText(`${p1(x.v, eg)} de los egresos · ${p1(x.v, T.ventas)} de los ingresos`, 1044, y + 38);
     ctx.restore();
@@ -1246,7 +1330,7 @@ function escShows(ctx, t) {
   lista.forEach((s, k) => {
     const cy = yT + rowH * (k + 0.5), p = vEase(vIn(t, 0.6 + k * 0.3, 1.1));
     ctx.save(); ctx.globalAlpha *= vIn(t, 0.4 + k * 0.3, 0.4);
-    ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 28); ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic'; ctx.fillText(s.nombre, x0 - 26, cy + 2);
+    ctx.fillStyle = TXT(); ctx.font = vF(600, 28); ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic'; ctx.fillText(s.nombre, x0 - 26, cy + 2);
     ctx.fillStyle = C.muted; ctx.font = vF(400, 22); ctx.fillText(fecha(s.fecha), x0 - 26, cy + 30);
     ctx.restore();
     if (p > 0.05) V.hits.push({ r: [120, cy - 34, x0 - 130, 74], tip: [s.nombre, `Resultado neto: ${money(s.neto)}`, `${p1(s.neto, s.ventas)} de sus ingresos`, 'Tocá para ver el detalle'], accion: () => { vPausar(); abrirShow(s._i); } });
@@ -1258,7 +1342,7 @@ function escShows(ctx, t) {
         const serie = ['Ingresos', 'Egresos', 'Resultado neto'][j];
         V.hits.push({ r: [Math.min(x0v, xe), y - 3, Math.max(10, Math.abs(xe - x0v)), bh + 6], tip: [`${s.nombre} · ${fecha(s.fecha)}`, `${serie}: ${money(v)}`, j ? `${p1(v, s.ventas)} de sus ingresos` : '', 'Tocá para ver el detalle'], accion: () => { vPausar(); abrirShow(s._i); } }); }
       const a = vIn(t, 1.6 + k * 0.3, 0.4);
-      if (a) { ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 20); ctx.textBaseline = 'middle'; ctx.textAlign = v >= 0 ? 'left' : 'right'; ctx.fillText(corto(v), xe + (v >= 0 ? 10 : -10), y + bh / 2); ctx.restore(); }
+      if (a) { ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = TXT(); ctx.font = vF(600, 20); ctx.textBaseline = 'middle'; ctx.textAlign = v >= 0 ? 'left' : 'right'; ctx.fillText(corto(v), xe + (v >= 0 ? 10 : -10), y + bh / 2); ctx.restore(); }
     });
   });
   const tt = 1.9 + n * 0.3;
@@ -1294,13 +1378,13 @@ function escRanking(ctx, t) {
     ctx.fillStyle = k === 0 ? C.neto : '#eceeed'; ctx.beginPath(); ctx.arc(150, cy, 26, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = k === 0 ? '#fff' : '#1f2421'; ctx.font = vF(700, 26); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(String(k + 1), 150, cy + 1);
     // nombre
-    ctx.textAlign = 'left'; ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 32); ctx.textBaseline = 'alphabetic'; ctx.fillText(s.nombre, 200, cy + 4);
+    ctx.textAlign = 'left'; ctx.fillStyle = TXT(); ctx.font = vF(600, 32); ctx.textBaseline = 'alphabetic'; ctx.fillText(s.nombre, 200, cy + 4);
     ctx.fillStyle = C.muted; ctx.font = vF(400, 22); ctx.fillText(fecha(s.fecha), 200, cy + 34);
     // barra de resultado (a escala)
     const xe = xv(s.neto * p);
     ctx.fillStyle = s.neto >= 0 ? C.neto : C.loss; vRR(ctx, Math.min(xc, xe), cy - bh / 2, Math.abs(xe - xc), bh, 6); ctx.fill();
     if (p === 1) V.med.push({ esc: 'ranking', v: s.neto, px: xe - xc });
-    ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 26); ctx.textBaseline = 'middle'; ctx.textAlign = s.neto >= 0 ? 'left' : 'right';
+    ctx.fillStyle = TXT(); ctx.font = vF(600, 26); ctx.textBaseline = 'middle'; ctx.textAlign = s.neto >= 0 ? 'left' : 'right';
     if (p > 0.9) ctx.fillText(money(s.neto), xe + (s.neto >= 0 ? 14 : -14), cy);
     // margen y diferencia contra el promedio
     const mg = s.ventas ? s.neto / s.ventas * 100 : 0, d = mg - mProm;
@@ -1332,7 +1416,7 @@ function vSpot(ctx, t, s, tipo) {
   vTitulo(ctx, t, tipo === 'top' ? 'Show destacado' : 'El show con menor margen', tipo === 'top' ? `El de mayor resultado del período · puesto 1 de ${shows.length}` : `Puesto ${puesto} de ${shows.length} por resultado`);
   const a = vEase(vIn(t, 0.4, 0.7));
   ctx.save(); ctx.globalAlpha *= a; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 84); ctx.fillText(s.nombre, 120, 340 + (1 - a) * 20);
+  ctx.fillStyle = TXT(); ctx.font = vF(700, 84); ctx.fillText(s.nombre, 120, 340 + (1 - a) * 20);
   ctx.fillStyle = C.muted; ctx.font = vF(400, 30); ctx.fillText(`${fecha(s.fecha)}${s.staff ? ` · ${s.staff} puestos facturados` : ''}${bkc ? ` · ${bkc} back-up${bkc > 1 ? 's' : ''}` : ''}`, 120, 392);
   ctx.restore();
   const cajas = [
@@ -1359,7 +1443,7 @@ function vSpot(ctx, t, s, tipo) {
       ctx.fillStyle = C.muted; ctx.font = vF(600, 22); ctx.textAlign = 'left'; ctx.fillText('Donde más facturó', 120, 712);
       (s.zonas || []).slice(0, 3).forEach((z, i) => {
         const x = 120 + i * 570, w = 530, frac = z.monto / s.ventas;
-        ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 26); ctx.textAlign = 'left'; ctx.fillText(z.zona, x, 752);
+        ctx.fillStyle = TXT(); ctx.font = vF(600, 26); ctx.textAlign = 'left'; ctx.fillText(z.zona, x, 752);
         ctx.textAlign = 'right'; ctx.fillText(money(z.monto), x + w, 752);
         ctx.fillStyle = '#eceeed'; vRR(ctx, x, 766, w, 14, 7); ctx.fill();
         ctx.fillStyle = C.ing; vRR(ctx, x, 766, w * frac * vEase(vIn(t, 2.1 + i * 0.2, 0.8)), 14, 7); ctx.fill();
@@ -1407,9 +1491,9 @@ function escMeses(ctx, t) {
       if (p > 0.05) {
         V.hits.push({ r: [bx, Math.min(y, y0), bw, Math.max(8, Math.abs(y0 - y))], tip: [x.label, `${lado < 0 ? 'Ingresos' : 'Egresos'}: ${money(v)}`, lado > 0 ? `${p1(v, x.ventas)} de los ingresos` : '', `Resultado neto del mes: ${money(x.neto)}`, 'Tocá para ver el video de este mes'], accion: () => vFiltrar(x.periodo) }); }
       const a = vIn(t, 1.6 + i * 0.35, 0.4);
-      if (a) { ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 20); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText(corto(v), bx + bw / 2, y - 10); ctx.restore(); }
+      if (a) { ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = TXT(); ctx.font = vF(600, 20); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.fillText(corto(v), bx + bw / 2, y - 10); ctx.restore(); }
     });
-    ctx.fillStyle = '#1f2421'; ctx.font = vF(500, 26); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(x.label.split(' ')[0], cx, yB + 18);
+    ctx.fillStyle = TXT(); ctx.font = vF(500, 26); ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(x.label.split(' ')[0], cx, yB + 18);
     pts.push([cx, yv(x.neto), x.neto]);
   });
   const q = vEase(vIn(t, 1.2 + k * 0.35, 1.4)) * (pts.length - 1);
@@ -1467,7 +1551,7 @@ function escCierre(ctx, t) {
   ctx.save(); ctx.globalAlpha *= a;
   if (V.logo) { ctx.save(); vRR(ctx, V.W / 2 - L / 2, 250, L, L, 24); ctx.clip(); ctx.drawImage(V.logo, V.W / 2 - L / 2, 250, L, L); ctx.restore(); }
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 60); ctx.fillText('Show Business Solutions', V.W / 2, 530);
+  ctx.fillStyle = TXT(); ctx.font = vF(600, 60); ctx.fillText('Show Business Solutions', V.W / 2, 530);
   ctx.fillStyle = C.muted; ctx.font = vF(400, 34); ctx.fillText(`Informe de resultados, Movistar Arena · ${V.data.per}`, V.W / 2, 590);
   ctx.restore();
   const b = vIn(t, 1.2, 0.8);
@@ -1582,7 +1666,7 @@ function escPortadaP(ctx, t) {
   ctx.restore();
   const b = vEase(vIn(t, 0.9, 0.8));
   ctx.save(); ctx.globalAlpha *= b; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 104); ctx.fillText(V.data.per, V.W / 2, 590 + (1 - b) * 24);
+  ctx.fillStyle = TXT(); ctx.font = vF(700, 104); ctx.fillText(V.data.per, V.W / 2, 590 + (1 - b) * 24);
   ctx.fillStyle = C.muted; ctx.font = vF(400, 40); ctx.fillText('Proyección · Movistar Arena', V.W / 2, 665 + (1 - b) * 24);
   ctx.restore();
   const c = vEase(vIn(t, 1.8, 0.8));
@@ -1596,12 +1680,12 @@ function escResumenP(ctx, t) {
   ctx.save(); ctx.globalAlpha *= vIn(t, 0.5, 0.5); ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = C.muted; ctx.font = vF(500, 34); ctx.fillText('Resultado neto proyectado', V.W / 2, 360);
   ctx.fillStyle = T.neto >= 0 ? C.neto : C.loss; ctx.font = vF(700, 150); ctx.fillText(money(T.neto * p), V.W / 2, 520);
-  ctx.fillStyle = '#1f2421'; ctx.font = vF(500, 38); ctx.fillText(`${p1(T.neto, T.ingresos)} de los ingresos`, V.W / 2, 590);
+  ctx.fillStyle = TXT(); ctx.font = vF(500, 38); ctx.fillText(`${p1(T.neto, T.ingresos)} de los ingresos`, V.W / 2, 590);
   ctx.restore();
   const cajas = [['Ingresos estimados', T.ingresos, C.ing], ['Egresos estimados', T.egresos, C.personal || '#888']];
   cajas.forEach(([l, v, c], i) => { const a = vEase(vIn(t, 1.4 + i * 0.3, 0.6)); if (!a) return; const x = V.W / 2 - 520 + i * 540, y = 650;
     ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#f4f5f4'; vRR(ctx, x, y, 500, 140, 18); ctx.fill(); ctx.fillStyle = c; ctx.fillRect(x, y, 500, 7);
-    ctx.textAlign = 'left'; ctx.fillStyle = C.muted; ctx.font = vF(500, 28); ctx.fillText(l, x + 30, y + 55); ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 48); ctx.fillText(money(v * p), x + 30, y + 112); ctx.restore(); });
+    ctx.textAlign = 'left'; ctx.fillStyle = C.muted; ctx.font = vF(500, 28); ctx.fillText(l, x + 30, y + 55); ctx.fillStyle = TXT(); ctx.font = vF(700, 48); ctx.fillText(money(v * p), x + 30, y + 112); ctx.restore(); });
   vTexto(ctx, t, 2.6, 'Es una estimación con los shows confirmados; se reemplaza por los números reales a medida que se facturan.');
 }
 function escShowsP(ctx, t) {
@@ -1610,11 +1694,11 @@ function escShowsP(ctx, t) {
   const max = Math.max(1, ...lista.map(x => x.ingresos)), x0 = 520, w = 760, y0 = 270, h = Math.min(66, 560 / Math.max(1, lista.length));
   lista.forEach((x, i) => { const a = vEase(vIn(t, 0.6 + i * 0.25, 0.7)); if (!a) return; const y = y0 + i * h;
     ctx.save(); ctx.globalAlpha *= Math.min(1, a * 1.5); ctx.textBaseline = 'middle'; ctx.textAlign = 'right';
-    ctx.fillStyle = '#1f2421'; ctx.font = vF(600, Math.min(30, h * 0.46)); ctx.fillText(x.nombre.length > 24 ? x.nombre.slice(0, 23) + '…' : x.nombre, x0 - 30, y + h * 0.38);
+    ctx.fillStyle = TXT(); ctx.font = vF(600, Math.min(30, h * 0.46)); ctx.fillText(x.nombre.length > 24 ? x.nombre.slice(0, 23) + '…' : x.nombre, x0 - 30, y + h * 0.38);
     ctx.fillStyle = C.muted; ctx.font = vF(400, Math.min(22, h * 0.34)); ctx.fillText(`${fecha(x.fecha).slice(0, 5)} · ${x.estado === 'real' ? 'real' : 'proyectado'}`, x0 - 30, y + h * 0.78);
     const bw = w * x.ingresos / max * a;
     ctx.fillStyle = x.estado === 'real' ? C.ing : '#9cc3ab'; vRR(ctx, x0, y + h * 0.18, Math.max(4, bw), h * 0.5, 6); ctx.fill();
-    ctx.textAlign = 'left'; ctx.fillStyle = '#1f2421'; ctx.font = vF(600, Math.min(28, h * 0.42)); ctx.fillText(money(x.ingresos), x0 + bw + 16, y + h * 0.43);
+    ctx.textAlign = 'left'; ctx.fillStyle = TXT(); ctx.font = vF(600, Math.min(28, h * 0.42)); ctx.fillText(money(x.ingresos), x0 + bw + 16, y + h * 0.43);
     ctx.textAlign = 'right'; ctx.fillStyle = x.neto >= 0 ? C.neto : C.loss; ctx.font = vF(600, Math.min(26, h * 0.4)); ctx.fillText(money(x.neto), V.W - 120, y + h * 0.43);
     ctx.restore(); });
   vLeyenda(ctx, [['Real', C.ing], ['Proyectado', '#9cc3ab']], V.W - 360, 230);
@@ -1628,7 +1712,7 @@ function escSupuestosP(ctx, t) {
   cajas.forEach(([l, v, sub], i) => { const a = vEase(vIn(t, 0.6 + i * 0.3, 0.6)); if (!a) return; const x = 120 + i * 425, y = 320;
     ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = '#f4f5f4'; vRR(ctx, x, y + (1 - a) * 20, 395, 300, 20); ctx.fill();
     ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillStyle = C.muted; ctx.font = vF(500, 30); ctx.fillText(l, x + 34, y + 70);
-    ctx.fillStyle = '#1f2421'; ctx.font = vF(700, 110); ctx.fillText(v, x + 34, y + 200); ctx.fillStyle = C.muted; ctx.font = vF(400, 24); ctx.fillText(sub, x + 34, y + 252); ctx.restore(); });
+    ctx.fillStyle = TXT(); ctx.font = vF(700, 110); ctx.fillText(v, x + 34, y + 200); ctx.fillStyle = C.muted; ctx.font = vF(400, 24); ctx.fillText(sub, x + 34, y + 252); ctx.restore(); });
   const tar = d.tar, X = d.extra;
   if (X && (X.backups.neto || X.coord.neto)) { const a = vEase(vIn(t, 1.8, 0.6)); if (a) { ctx.save(); ctx.globalAlpha *= a; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = C.muted; ctx.font = vF(500, 28); ctx.fillText('Costo extra no facturado (back-ups y coordinación)', 120, 720);
@@ -1641,7 +1725,7 @@ function escCierreP(ctx, t) {
   ctx.save(); ctx.globalAlpha *= a;
   if (V.logo) { ctx.save(); vRR(ctx, V.W / 2 - L / 2, 250, L, L, 24); ctx.clip(); ctx.drawImage(V.logo, V.W / 2 - L / 2, 250, L, L); ctx.restore(); }
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.fillStyle = '#1f2421'; ctx.font = vF(600, 60); ctx.fillText('Show Business Solutions', V.W / 2, 530);
+  ctx.fillStyle = TXT(); ctx.font = vF(600, 60); ctx.fillText('Show Business Solutions', V.W / 2, 530);
   ctx.fillStyle = C.muted; ctx.font = vF(400, 34); ctx.fillText(`Proyección, Movistar Arena · ${V.data.per}`, V.W / 2, 590);
   ctx.restore();
   const b = vIn(t, 1.2, 0.8);
