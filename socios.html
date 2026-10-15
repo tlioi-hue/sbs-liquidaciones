@@ -244,6 +244,19 @@ h2 { text-shadow: 0 2px 0 rgba(26,58,110,.12); }
 .ley-rp { display: flex; gap: 18px; font-size: 12.5px; color: var(--mut); margin-bottom: 14px; flex-wrap: wrap; }
 .ley-rp i { display: inline-block; width: 22px; height: 9px; border-radius: 5px; margin-right: 6px; vertical-align: 1px; background: linear-gradient(90deg, #2563b8, #5a9ee8); }
 .ley-rp i.osc { background: linear-gradient(90deg, #1a3a6e, #2f5b9e); }
+
+.cuenta-t { font-size: 13px; font-weight: 600; color: var(--cel); margin: 22px 0 6px; }
+.cuenta-x div { align-items: center; padding: 10px 0; }
+.cuenta-x span { font-size: 14.5px; } .cuenta-x span small { display: block; font-size: 12px; color: var(--mut); font-weight: 400; margin-top: 1px; }
+.cuenta-x b { font-size: 16px; }
+.cuenta-x div.mas span, .cuenta-x div.mas b, .cuenta-x div.menos span, .cuenta-x div.menos b { color: #46524e; font-weight: 500; }
+.cuenta-x div.subt { border-top: 1px solid rgba(0,0,0,.25); } .cuenta-x div.subt span, .cuenta-x div.subt b { font-weight: 700; color: var(--txt); }
+.cuenta-x div.menos b { color: var(--ok); }
+.cuenta-x div.tot { background: #1a3a6e; color: #fff; border-radius: 14px; padding: 12px 14px; margin-top: 8px; border: 0; }
+.cuenta-x div.tot span, .cuenta-x div.tot b { color: #fff; } .cuenta-x div.tot small { color: rgba(255,255,255,.75); } .cuenta-x div.tot b.negx { color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.25); font-size: 19px; }
+
+.marca img.logo-orig { width: auto; height: 32px; max-width: 170px; border-radius: 6px; background: #fff; padding: 3px 8px; box-shadow: none; object-fit: contain; }
+.marca img.logo-orig + span { display: none; }
 </style>
 </head>
 <body>
@@ -368,7 +381,7 @@ const money0 = v => '$ ' + Math.round(v || 0).toLocaleString('es-AR');
 function cap(n, t1, t2, cuerpo) { return `<section class="cap rv"><div class="cap-n"><span>${String(n).padStart(2, '0')}</span>${esc(t1)}</div><h2>${t2}</h2>${cuerpo}</section>`; }
 function pila(partes, base) {   // partes: [{l, v, c}]
   partes = partes.filter(p => p.v > 0);   // lo que es $0 no se muestra
-  return `<div class="pila" data-base="${base}">${partes.map((p, k) => { const w = base ? Math.max(0, p.v / base * 100) : 0; return `<div data-v="${p.v}" style="--w:${w}%;--d:${(k * .15).toFixed(2)}s;background:${p.c}" title="${esc(p.l)}: ${money0(p.v)}">${w >= Math.max(14, p.l.length * 0.95) ? esc(p.l) : ''}</div>`; }).join('')}</div>
+  return `<div class="pila" data-base="${base}">${partes.map((p, k) => { const w = base ? Math.max(0, p.v / base * 100) : 0; const et = p.lc || p.l; return `<div data-v="${p.v}" style="--w:${w}%;--d:${(k * .15).toFixed(2)}s;background:${p.c}" title="${esc(p.l)}: ${money0(p.v)}">${w >= Math.max(8, et.length * 0.85) ? esc(et) : ''}</div>`; }).join('')}</div>
     <div class="ley">${partes.map(p => `<div><i style="background:${p.c}"></i><span>${esc(p.l)}</span><b>${fmtM(p.v)}</b><em>${pct(p.v, base)}</em></div>`).join('')}</div>`;
 }
 function barras(filas, { max, valor, sub, cls } = {}) {   // filas: [{l, sub, v, extra}]
@@ -392,10 +405,13 @@ function capExtra(n, filas, { cp, pIIGG, resultado, proy }) {   // filas: [{i, n
     <div class="vidrio">
       <div class="grande"><b data-cuenta="${tR}" data-fmt="corto">${corto(tR)}</b><span>costo real${proy ? ' estimado' : ''} de back-ups y coordinación en ${proy ? 'el mes' : 'el período'}</span></div>
       ${pila([{ l: `Back-ups · ${bkN} persona${bkN !== 1 ? 's' : ''}`, v: bkR, c: PAL.navy }, { l: `Coordinación · ${coN} jornada${coN !== 1 ? 's' : ''}`, v: coR, c: PAL.cel }], tR)}
-      <div class="calc3">
-        <div><span>Costo real del extra</span><b>${fmtM(tR)}</b><small>pagado ${fmtM(tN)} + ${cp}% de cargas sociales (${fmtM(tR - tN)})</small></div>
-        <div><span>Menos Ganancias que se deja de pagar</span><b class="ok">− ${fmtM(ahorro)}</b><small>${pIIGG}%: el costo extra baja la ganancia sobre la que se paga el impuesto</small></div>
-        <div class="fin"><span>Impacto en el resultado neto</span><b>${fmtM(impacto)}</b><small>${pct(impacto, resultado + impacto)} de lo que ${proy ? 'dejarían' : 'habrían dejado'} los shows sin este costo</small></div>
+      <h4 class="cuenta-t">La cuenta</h4>
+      <div class="cuenta cuenta-x">
+        <div><span>Pagado a back-ups y coordinación<small>lo que se les transfirió (neto)</small></span><b>${money0(tN)}</b></div>
+        <div class="mas"><span>+ Cargas sociales (${cp}%)<small>aportes y contribuciones que paga SBS</small></span><b>${money0(tR - tN)}</b></div>
+        <div class="subt"><span>= Costo real del extra<small>lo que le costó a SBS</small></span><b>${money0(tR)}</b></div>
+        <div class="menos"><span>− Ganancias que se deja de pagar (${pIIGG}%)<small>este costo baja la ganancia sobre la que se paga el impuesto</small></span><b>− ${money0(ahorro)}</b></div>
+        <div class="tot"><span>= Impacto en el resultado neto<small>${pct(impacto, resultado + impacto)} de lo que ${proy ? 'dejarían' : 'habrían dejado'} los shows sin este costo</small></span><b class="negx">${money0(impacto)}</b></div>
       </div>
     </div>
     <div class="vidrio" style="margin-top:14px"><h4 style="margin:0 0 6px;font-size:13px;font-weight:600;color:var(--cel)">Por concepto</h4><div class="scroll-x"><table class="tabla-x">
@@ -427,10 +443,10 @@ function lecturaResultados(x) {
       <div class="grande"><b class="${T.neto < 0 ? 'neg' : ''}" data-cuenta="${T.neto}" data-fmt="corto">${corto(T.neto)}</b><span>resultado neto · ${pct(T.neto, T.ventas)} de lo facturado</span></div>
       <div class="kpis"><div class="kpi"><b>${corto(T.ventas)}</b><span class="mono">Ingresos sin IVA</span></div><div class="kpi"><b>${corto(egr)}</b><span class="mono">Egresos</span></div>
         <div class="kpi"><b>${pct(T.neto, T.ventas)}</b><span class="mono">Margen</span></div><div class="kpi"><b>${T.staff || '—'}</b><span class="mono">Puestos facturados</span></div></div>
-      ${pila([{ l: 'Egresos', v: egr, c: PAL.navy }, { l: 'Resultado', v: Math.max(0, T.neto), c: PAL.cel }], T.ventas)}</div>`);
+      ${pila([{ l: 'Egresos', v: egr, c: PAL.navy }, { l: 'Resultado neto', lc: 'Resultado', v: Math.max(0, T.neto), c: PAL.cel }], T.ventas)}</div>`);
   // 02 A dónde fue cada peso
-  const partes = [{ l: 'Liquidaciones al personal', v: T.personal || 0, c: PAL.navy }, { l: 'Cargas sociales', v: T.totCargas || 0, c: PAL.cel }, { l: 'Impuestos sobre ventas', v: T.totImp || 0, c: PAL.cel2 },
-    ...(T.fijos ? [{ l: 'Costos fijos', v: T.fijos, c: PAL.gris2 }] : []), { l: 'Impuesto a las Ganancias', v: T.iigg?.monto || 0, c: PAL.gris }];
+  const partes = [{ l: 'Liquidaciones al personal', lc: 'Personal', v: T.personal || 0, c: PAL.navy }, { l: 'Cargas sociales', lc: 'Cargas sociales', v: T.totCargas || 0, c: PAL.cel }, { l: 'Impuestos sobre ventas', lc: 'Impuestos', v: T.totImp || 0, c: PAL.cel2 },
+    ...(T.fijos ? [{ l: 'Costos fijos', lc: 'Fijos', v: T.fijos, c: PAL.gris2 }] : []), { l: 'Impuesto a las Ganancias', lc: 'Ganancias', v: T.iigg?.monto || 0, c: PAL.gris }];
   h += cap(2, 'Los egresos', 'A dónde fue <b>cada peso</b>', `<div class="vidrio">${pila(partes, egr)}</div><p class="nota">El porcentaje de cada parte es sobre el total de egresos (${money0(egr)}).</p>`);
   // 03 Por área
   const areas = (d.porArea || []).filter(a => a.ventas);
@@ -614,6 +630,13 @@ function intro() {
     if (pedido && LISTA.some(x => x.token === pedido)) abrir(pedido);
     else { let visto = false; try { visto = !!localStorage.getItem('sbs_portal_intro'); } catch {} if (!visto) intro(); }
   } catch (e) { estado('No se pudo abrir el portal', 'Probá de nuevo en un rato.'); }
+})();
+
+// Logo de la barra: el archivo original de la empresa (/logo-sbs.jpg en el proyecto). Si no está, se usa el de siempre.
+(function () {
+  const pon = src => document.querySelectorAll('.marca img').forEach(i => { i.src = src; i.classList.add('logo-orig'); });
+  const img = new Image(); img.onload = () => { window.LOGO_BARRA = '/logo-sbs.jpg'; pon('/logo-sbs.jpg'); }; img.src = '/logo-sbs.jpg';
+  new MutationObserver(() => { if (window.LOGO_BARRA) document.querySelectorAll('.marca img:not(.logo-orig)').forEach(i => { i.src = window.LOGO_BARRA; i.classList.add('logo-orig'); }); }).observe(document.body, { childList: true, subtree: true });
 })();
 </script>
 </body>
