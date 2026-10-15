@@ -255,14 +255,16 @@ h2 { text-shadow: 0 2px 0 rgba(26,58,110,.12); }
 .cuenta-x div.tot { background: #1a3a6e; color: #fff; border-radius: 14px; padding: 12px 14px; margin-top: 8px; border: 0; }
 .cuenta-x div.tot span, .cuenta-x div.tot b { color: #fff; } .cuenta-x div.tot small { color: rgba(255,255,255,.75); } .cuenta-x div.tot b.negx { color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.25); font-size: 19px; }
 
-.marca img.logo-orig { width: auto; height: 32px; max-width: 170px; border-radius: 6px; background: #fff; padding: 3px 8px; box-shadow: none; object-fit: contain; }
-.marca img.logo-orig + span { display: none; }
+/* logo original: recortado en círculo (sin el fondo gris cuadrado), con aro blanco */
+.logo-c { display: inline-block; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex-shrink: 0; box-shadow: 0 0 0 2px rgba(255,255,255,.9), 0 2px 0 2px rgba(0,0,0,.25); background: #2a2a2a; position: relative; }
+.logo-c img { position: absolute; width: 118%; height: 118%; left: -9%; top: -9%; max-width: none; border-radius: 0; box-shadow: none; background: none; }
+.logo-c.viejo { border-radius: 9px; box-shadow: 0 0 0 2px #fff; } .logo-c.viejo img { width: 100%; height: 100%; left: 0; top: 0; }
 </style>
 </head>
 <body>
 <div class="fondo" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 <div id="app"><div class="estado"><b>Cargando…</b></div></div>
-<div class="visor" id="visor" role="dialog" aria-modal="true"><div class="fondo" aria-hidden="true"><i></i><i></i><i></i><i></i></div><header style="position:relative;z-index:2"><a class="marca" href="#" onclick="cerrarVisor();return false" title="Volver al inicio"><img id="visor-logo" alt="SBS"><span>Show Business Solutions</span></a>
+<div class="visor" id="visor" role="dialog" aria-modal="true"><div class="fondo" aria-hidden="true"><i></i><i></i><i></i><i></i></div><header style="position:relative;z-index:2"><a class="marca" href="#" onclick="cerrarVisor();return false" title="Volver al inicio"><span class="logo-c"><img id="visor-logo" src="/logo-sbs.jpg" onerror="this.onerror=null;this.src=LOGO;this.parentNode.classList.add('viejo')" alt="SBS"></span><span>Show Business Solutions</span></a>
   <nav class="pills"><span class="pill pill-info" id="visor-t"></span><button class="pill" onclick="cerrarVisor()">← Volver</button></nav></header><div class="lec" id="lec"></div></div>
 <script>
 const SUPABASE_URL = 'https://tvggknkvrjsuhnfahtzl.supabase.co';
@@ -274,7 +276,6 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const corto = v => { const n = Math.round(v || 0); return `${n < 0 ? '−' : ''}$ ${Math.abs(n).toLocaleString('es-AR')}`; };   // montos exactos (sin redondear a millones)
 const pct = (a, b) => b ? (a / b * 100).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%' : '—';
 const nomMes = p => { const [y, m] = String(p).split('-'); return { mes: MESES[+m - 1], anio: y }; };
-document.getElementById('visor-logo').src = LOGO;
 const RUTA_K = (location.pathname.match(/\/socios\/([^/?#]+)/) || [])[1] || '';
 // Sin código en la dirección (/socios), el portal usa este, así el link queda simplemente /socios.
 // Para cerrarlo: borrar este código de la tabla portal_socios en Supabase.
@@ -320,7 +321,7 @@ function dibujar() {
   const ult = res[0], tu = ult ? totales(ult) : null, act = LISTA.reduce((a, x) => x.updated_at > a ? x.updated_at : a, '');
   const prox = proyVigente(proy), tp = prox ? totales(prox) : null;
   $('app').innerHTML = `
-  <header><a class="marca" href="#top"><img src="${LOGO}" alt="SBS"><span>Show Business Solutions</span></a>
+  <header><a class="marca" href="#top"><span class="logo-c"><img src="/logo-sbs.jpg" onerror="this.onerror=null;this.src=LOGO;this.parentNode.classList.add('viejo')" alt="SBS"></span><span>Show Business Solutions</span></a>
     <nav class="pills">${res.length || anios.length ? '<a class="pill" href="#resultados">Resultados</a>' : ''}${proy.length ? '<a class="pill" href="#proyecciones">Proyecciones</a>' : ''}</nav></header>
   <div class="hero" id="top">
     <h1>${palabras('¿Cómo', 0)} <b>${palabras('nos va', .12)}</b><br>${palabras('en el', .35)} <em>${palabras('Movistar Arena?', .55)}</em></h1>
@@ -632,12 +633,6 @@ function intro() {
   } catch (e) { estado('No se pudo abrir el portal', 'Probá de nuevo en un rato.'); }
 })();
 
-// Logo de la barra: el archivo original de la empresa (/logo-sbs.jpg en el proyecto). Si no está, se usa el de siempre.
-(function () {
-  const pon = src => document.querySelectorAll('.marca img').forEach(i => { i.src = src; i.classList.add('logo-orig'); });
-  const img = new Image(); img.onload = () => { window.LOGO_BARRA = '/logo-sbs.jpg'; pon('/logo-sbs.jpg'); }; img.src = '/logo-sbs.jpg';
-  new MutationObserver(() => { if (window.LOGO_BARRA) document.querySelectorAll('.marca img:not(.logo-orig)').forEach(i => { i.src = window.LOGO_BARRA; i.classList.add('logo-orig'); }); }).observe(document.body, { childList: true, subtree: true });
-})();
 </script>
 </body>
 </html>
