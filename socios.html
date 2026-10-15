@@ -305,7 +305,7 @@ function dibujar() {
   <header><a class="marca" href="#top"><img src="${LOGO}" alt="SBS"><span>Show Business Solutions</span></a>
     <nav class="pills">${res.length || anios.length ? '<a class="pill" href="#resultados">Resultados</a>' : ''}${proy.length ? '<a class="pill" href="#proyecciones">Proyecciones</a>' : ''}</nav></header>
   <div class="hero" id="top">
-    <h1>${palabras('¿Cómo nos va', 0)}<br><b>${palabras('en el', .35)}</b> <em>${palabras('Movistar Arena?', .55)}</em></h1>
+    <h1>${palabras('¿Cómo', 0)} <b>${palabras('nos va', .12)}</b><br>${palabras('en el', .35)} <em>${palabras('Movistar Arena?', .55)}</em></h1>
     <p class="sub rv" style="--d:.7s">Lo que ya pasó y lo que viene: los resultados de cada mes y las proyecciones de los próximos, con cuánto se le factura al Arena, cuánto cuesta el personal y cuánto queda para SBS.</p>
     ${tu || tp ? `<div class="hero-dos ${tu && tp ? '' : 'uno'}">
       ${tu ? `<div class="hpanel rv" style="--d:.85s"><div class="hp-h"><span class="mono">Último informe · <b>${esc(nomMes(ult.periodo).mes)} ${esc(nomMes(ult.periodo).anio)}</b></span><button class="hp-go" onclick="abrir('${esc(ult.token)}')">Ver informe →</button></div>
@@ -414,7 +414,7 @@ function lecturaResultados(x) {
   const egr = (T.ventas || 0) - (T.neto || 0), shows = d.shows || [], cp = (d.estructura?.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0) || 55;
   const sv = (d.servicios || []).filter(s => s.ventas);
   let h = `<div class="mono rv">${x.tipo === 'anio' ? 'Informe anual' : 'Informe mensual'} · Movistar Arena</div>
-    <h1>${palabras(tit.mes, 0)} <b>${palabras(String(tit.anio), .2)}</b></h1>
+    <h1><b>${palabras(tit.mes, 0)}</b> ${palabras(String(tit.anio), .2)}</h1>
     <p class="lec-sub rv">El Arena facturó <b>${money0(T.ventas)}</b> sin IVA en ${shows.length} show${shows.length !== 1 ? 's' : ''}${sv.length ? ' más mesa de entrada' : ''}. Después de pagar al personal, las cargas sociales y los impuestos, a SBS le quedaron <b>${money0(T.neto)}</b>.</p>`;
   // 01 El resultado
   h += cap(1, 'El resultado', '<b>Cuánto</b> quedó', `<div class="vidrio">
@@ -448,7 +448,7 @@ function lecturaResultados(x) {
 function lecturaProy(x) {
   const d = x.data || {}, T = d.T || {}, tit = nomMes(x.periodo), sh = d.shows || [], sup = d.sup || {}, X = d.extra;
   let h = `<div class="mono rv">Proyección · Movistar Arena</div>
-    <h1>${palabras(tit.mes, 0)} <b>${palabras(String(tit.anio), .2)}</b></h1>
+    <h1><b>${palabras(tit.mes, 0)}</b> ${palabras(String(tit.anio), .2)}</h1>
     <p class="lec-sub rv">Con <b>${sh.length} show${sh.length !== 1 ? 's' : ''} confirmados</b>${d.servicios?.length ? ' más mesa de entrada' : ''}, esperamos facturar <b>${money0(T.ingresos)}</b> sin IVA y que a SBS le queden <b>${money0(T.neto)}</b>. Es una estimación: a medida que los shows se facturan, se reemplaza por los números reales.</p>`;
   h += cap(1, 'Lo que esperamos', '<b>Cuánto</b> quedaría', `<div class="vidrio">
       <div class="grande"><b class="${T.neto < 0 ? 'neg' : ''}" data-cuenta="${T.neto}" data-fmt="corto">${corto(T.neto)}</b><span>resultado proyectado · ${pct(T.neto, T.ingresos)} de lo facturado</span></div>
@@ -574,7 +574,7 @@ function intro() {
   const ult = res[0], t = ult ? totales(ult) : null;
   const pv = proyVigente(LISTA.filter(x => x.tipo === 'proy')), tpv = pv ? totales(pv) : null;
   const slides = [
-    `<img src="${LOGO}" alt=""><h1 style="margin:0"><b>Show Business</b><br>Solutions</h1>`,
+    `<img src="${LOGO}" alt=""><h1 style="margin:0"><b>Show Business<br>Solutions</b></h1>`,
     `<h1 style="margin:0">Portal de <b>socios</b><br><em>${palabras('Movistar Arena', 0)}</em></h1><p class="sub" style="margin-top:20px">Resultados de cada mes y proyecciones, en un solo lugar.</p>`,
     ...(t ? [`<div class="mono" style="margin-bottom:12px">${esc(nomMes(ult.periodo).mes)} ${esc(nomMes(ult.periodo).anio)} · Resultado neto</div><h1 style="margin:0"><em>${palabras(corto(t.neto), 0)}</em></h1>
       <div class="kpis" style="margin-top:30px"><div class="kpi"><b>${corto(t.ing)}</b><span class="mono">Ingresos</span></div><div class="kpi"><b>${pct(t.neto, t.ing)}</b><span class="mono">Margen</span></div><div class="kpi"><b>${t.shows}</b><span class="mono">Shows</span></div></div>`] : []),
