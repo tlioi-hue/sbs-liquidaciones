@@ -218,6 +218,21 @@ h2 { text-shadow: 0 2px 0 rgba(26,58,110,.12); }
 .kpi b.org { text-shadow: 0 2px 0 rgba(26,58,110,.25); }
 .grande b { text-shadow: 0 3px 0 rgba(26,58,110,.25); }
 .tj-box .r b.pos, .hb-v.pos, .cuenta div.tot b { text-shadow: 0 1px 0 rgba(31,138,76,.2); }
+
+/* costo extra no facturado, detallado */
+.calc3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+.calc3 > div { background: rgba(255,255,255,.75); border: 1px solid rgba(0,0,0,.06); border-radius: 18px; padding: 14px 16px; }
+.calc3 span { display: block; font-size: 12.5px; color: var(--mut); font-weight: 500; } .calc3 b { display: block; font-size: clamp(22px, 2.6vw, 30px); font-weight: 700; letter-spacing: -.02em; margin: 4px 0 2px; text-shadow: 0 2px 0 rgba(26,58,110,.14); }
+.calc3 b.ok { color: var(--ok); } .calc3 small { display: block; font-size: 12px; color: var(--mut); line-height: 1.4; }
+.calc3 > div.fin { background: #1a3a6e; border-color: #1a3a6e; } .calc3 > div.fin span, .calc3 > div.fin small { color: rgba(255,255,255,.75); } .calc3 > div.fin b { color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.25); }
+.tabla-x { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tabla-x th { text-align: right; font-size: 12px; font-weight: 600; color: var(--mut); padding: 8px 6px; border-bottom: 1px solid rgba(0,0,0,.08); }
+.tabla-x th:first-child, .tabla-x td:first-child { text-align: left; }
+.tabla-x td { text-align: right; padding: 10px 6px; border-bottom: 1px solid rgba(0,0,0,.06); white-space: nowrap; }
+.tabla-x td:first-child { white-space: normal; font-weight: 600; } .tabla-x td small { display: block; font-weight: 400; color: var(--mut); font-size: 12px; }
+.tabla-x td.r { font-weight: 700; color: #2a6cc4; } .tabla-x tfoot td { font-weight: 700; border-bottom: 0; border-top: 2px solid var(--txt); }
+.scroll-x { overflow-x: auto; }
+@container (max-width: 620px) { .calc3 { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -351,6 +366,42 @@ function barras(filas, { max, valor, sub, cls } = {}) {   // filas: [{l, sub, v,
       <div class="hb-v ${f.v < 0 ? 'neg' : ''}">${valor ? valor(f) : fmtM(f.v)}${f.extra ? `<small>${f.extra}</small>` : ''}</div></div>`).join('')}</div>`;
 }
 const fechaC = iso => { const p = String(iso || '').split('-'); return p.length === 3 ? `${p[2]}/${p[1]}` : ''; };
+
+// ── Capítulo "Lo que no le cobramos al Arena", detallado (back-ups y coordinación) ──
+function capExtra(n, filas, { cp, pIIGG, resultado, proy }) {   // filas: [{i, nombre, fecha, bkN, bkNeto, coN, coNeto}]
+  const real = v => Math.round((v || 0) * (1 + cp / 100));
+  const bkN = filas.reduce((a, f) => a + f.bkN, 0), coN = filas.reduce((a, f) => a + f.coN, 0);
+  const bkNeto = filas.reduce((a, f) => a + f.bkNeto, 0), coNeto = filas.reduce((a, f) => a + f.coNeto, 0);
+  const bkR = real(bkNeto), coR = real(coNeto), tN = bkNeto + coNeto, tR = bkR + coR; if (!tR) return '';
+  const ahorro = resultado > 0 ? Math.round(tR * pIIGG / 100) : 0, impacto = tR - ahorro;
+  const conExtra = filas.filter(f => f.bkNeto || f.coNeto).map(f => ({ ...f, tot: real(f.bkNeto) + real(f.coNeto) }));
+  const verbo = proy ? 'cobraríamos' : 'cobramos';
+  return cap(n, 'Costo extra no facturado', `Lo que <b>no le ${verbo}</b> al Arena`, `
+    <div class="vidrio">
+      <div class="grande"><b data-cuenta="${tR}" data-fmt="corto">${corto(tR)}</b><span>costo real${proy ? ' estimado' : ''} de back-ups y coordinación en ${proy ? 'el mes' : 'el período'}</span></div>
+      ${pila([{ l: `Back-ups · ${bkN} persona${bkN !== 1 ? 's' : ''}`, v: bkR, c: PAL.navy }, { l: `Coordinación · ${coN} jornada${coN !== 1 ? 's' : ''}`, v: coR, c: PAL.cel }], tR)}
+      <div class="calc3">
+        <div><span>Costo real del extra</span><b>${fmtM(tR)}</b><small>pagado ${fmtM(tN)} + ${cp}% de cargas sociales (${fmtM(tR - tN)})</small></div>
+        <div><span>Menos Ganancias que se deja de pagar</span><b class="ok">− ${fmtM(ahorro)}</b><small>${pIIGG}%: el costo extra baja la ganancia sobre la que se paga el impuesto</small></div>
+        <div class="fin"><span>Impacto en el resultado neto</span><b>${fmtM(impacto)}</b><small>${pct(impacto, resultado + impacto)} de lo que ${proy ? 'dejarían' : 'habrían dejado'} los shows sin este costo</small></div>
+      </div>
+    </div>
+    <div class="vidrio" style="margin-top:14px"><h4 style="margin:0 0 6px;font-size:13px;font-weight:600;color:var(--cel)">Por concepto</h4><div class="scroll-x"><table class="tabla-x">
+      <thead><tr><th>Concepto</th><th>Cantidad</th><th>Pagado (neto)</th><th>+ ${cp}% cargas sociales</th><th>Costo real</th></tr></thead>
+      <tbody>
+        <tr><td>Back-ups<small>personas convocadas por encima de lo que pidió el Arena</small></td><td>${bkN} persona${bkN !== 1 ? 's' : ''}</td><td>${money0(bkNeto)}</td><td>${money0(bkR - bkNeto)}</td><td class="r">${money0(bkR)}</td></tr>
+        <tr><td>Coordinación<small>un coordinador por show, a cargo de SBS</small></td><td>${coN} jornada${coN !== 1 ? 's' : ''}</td><td>${money0(coNeto)}</td><td>${money0(coR - coNeto)}</td><td class="r">${money0(coR)}</td></tr>
+      </tbody>
+      <tfoot><tr><td>Total extra</td><td></td><td>${money0(tN)}</td><td>${money0(tR - tN)}</td><td class="r">${money0(tR)}</td></tr></tfoot></table></div>
+      <p class="nota"><b>Qué costos incluye:</b> lo pagado a la gente más las cargas sociales (${cp}%). Los impuestos sobre ventas (Ingresos Brutos, SIRCREB, Débitos y Créditos) no aplican, porque este personal no se le factura al Arena. ${proy ? 'Ya está incluido en los egresos estimados.' : 'Ya está incluido en los egresos de cada show.'}</p>
+    </div>
+    ${conExtra.length ? `<div class="vidrio" style="margin-top:14px"><h4 style="margin:0 0 14px;font-size:13px;font-weight:600;color:var(--cel)">Show por show</h4>
+      ${barras(conExtra.sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))).map(f => ({ l: f.nombre,
+        sub: `${fechaC(f.fecha)} · ${f.bkN} back-up${f.bkN !== 1 ? 's' : ''}${f.coN ? ` · ${f.coN} coordinador${f.coN !== 1 ? 'es' : ''}` : ''}`,
+        v: f.tot, cls: 'osc', extra: `back-ups ${fmtM(real(f.bkNeto))}${f.coNeto ? ` · coord. ${fmtM(real(f.coNeto))}` : ''}`, click: `fichaShow(${f.i})` })))}
+      <p class="toca">Costo real de cada show. Tocá uno para ver su detalle completo.</p></div>` : ''}`);
+}
+
 function lecturaResultados(x) {
   const d = x.data || {}, T = d.totales || {}, tit = x.tipo === 'anio' ? { mes: 'Año', anio: x.periodo } : nomMes(x.periodo);
   const egr = (T.ventas || 0) - (T.neto || 0), shows = d.shows || [], cp = (d.estructura?.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0) || 55;
@@ -381,13 +432,10 @@ function lecturaResultados(x) {
         <div class="vidrio clic" onclick="fichaShow(${shows.indexOf(porM[0])})"><span>Mayor margen</span><b>${esc(porM[0].nombre)}</b><small>${pct(porM[0].neto, porM[0].ventas)} de sus ingresos</small></div>
         <div class="vidrio clic" onclick="fichaShow(${shows.indexOf(porM[porM.length - 1])})"><span>Menor margen</span><b>${esc(porM[porM.length - 1].nombre)}</b><small>${pct(porM[porM.length - 1].neto, porM[porM.length - 1].ventas)} de sus ingresos</small></div></div>` : ''}`);
   }
-  // 05 Costo extra no facturado
-  const bk = shows.reduce((a, s) => ({ n: a.n + (s.backups?.cant || 0), v: a.v + (s.backups?.monto || 0) }), { n: 0, v: 0 }), co = shows.reduce((a, s) => ({ n: a.n + (s.coordinador?.cant || 0), v: a.v + (s.coordinador?.monto || 0) }), { n: 0, v: 0 });
-  const real = v => Math.round(v * (1 + cp / 100)), tot = real(bk.v) + real(co.v);
-  if (tot) h += cap(n++, 'Costo extra no facturado', 'Lo que <b>no le cobramos</b> al Arena', `<div class="vidrio">
-      <div class="grande"><b data-cuenta="${tot}" data-fmt="corto">${corto(tot)}</b><span>costo real de back-ups y coordinación · ${pct(tot, T.neto)} del resultado</span></div>
-      ${pila([{ l: `Back-ups (${bk.n} personas)`, v: real(bk.v), c: PAL.navy }, { l: `Coordinación (${co.n} jornadas)`, v: real(co.v), c: PAL.cel }], tot)}</div>
-      <p class="nota">Personal que SBS paga y no le factura al Arena: back-ups por encima de lo pedido y un coordinador por show. Costo real = lo pagado + ${cp}% de cargas sociales. Ya está incluido en los egresos.</p>`);
+  // Costo extra no facturado, detallado
+  const pIIGG = +(T.iigg?.pct ?? d.estructura?.iigg ?? 35);
+  h += capExtra(n++, shows.map((s, i) => ({ i, nombre: s.nombre, fecha: s.fecha, bkN: s.backups?.cant || 0, bkNeto: s.backups?.monto || 0, coN: s.coordinador?.cant || 0, coNeto: s.coordinador?.monto || 0 })),
+    { cp, pIIGG, resultado: shows.reduce((a, s) => a + (s.neto || 0), 0), proy: false });
   return h;
 }
 function lecturaProy(x) {
@@ -407,11 +455,9 @@ function lecturaProy(x) {
       <div class="vidrio"><span>Back-ups</span><b>${String(sup.backups ?? 2).replace('.', ',')}</b><small>por show, no se facturan</small></div></div>
       <p class="nota">Si la banda ya tocó, se usa su propio historial; si no, el promedio de los shows anteriores.${d.tar ? ` Valores: ${d.tar.origen === 'cargado' ? 'los del mes, ya cargados' : `${esc((d.tar.desdeLabel || '').toLowerCase())} + ${String(d.tar.aumento).replace('.', ',')}% por mes, hasta tener los de paritarias`}.` : ''}</p>`);
   if (sh.length) h += cap(3, 'Show por show', 'Lo que dejaría <b>cada show</b>', `<div class="vidrio">${barras([...sh].sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))).map(s => ({ l: s.nombre, sub: `${fechaC(s.fecha)} · ${s.estado === 'real' ? '<span class="tagp real">Real</span>' : '<span class="tagp proy">Proyectado</span>'}`, v: s.neto, cls: s.estado === 'real' ? 'osc' : '', extra: `${fmtM(s.ingresos)} de ingresos`, click: `fichaShow(${sh.indexOf(s)})` })))}<p class="toca">Tocá un show para ver su detalle.</p></div>`);
-  if (X && (X.backups.real || X.coord.real)) { const tot = X.backups.real + X.coord.real;
-    h += cap(4, 'Costo extra no facturado', 'Lo que <b>no le cobraríamos</b> al Arena', `<div class="vidrio">
-      <div class="grande"><b data-cuenta="${tot}" data-fmt="corto">${corto(tot)}</b><span>costo real estimado de back-ups y coordinación</span></div>
-      ${pila([{ l: `Back-ups (${X.backups.n} personas)`, v: X.backups.real, c: PAL.navy }, { l: `Coordinación (${X.coord.n} jornadas)`, v: X.coord.real, c: PAL.cel }], tot)}</div>
-      <p class="nota">Ya está incluido en los egresos estimados. Costo real = lo pagado + ${X.pctCargas}% de cargas sociales.</p>`); }
+  const cpP = +(X?.pctCargas ?? 55), pIIGGp = +(d.estructura?.iigg ?? 35);
+  h += capExtra(4, sh.map((s, i) => ({ i, nombre: s.nombre, fecha: s.fecha, bkN: s.backups || 0, bkNeto: s.costoBackups || 0, coN: s.coords || 0, coNeto: s.costoCoord || 0 })),
+    { cp: cpP, pIIGG: pIIGGp, resultado: sh.reduce((a, s) => a + (s.neto || 0), 0), proy: true });
   return h;
 }
 
