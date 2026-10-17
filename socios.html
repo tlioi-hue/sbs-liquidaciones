@@ -285,6 +285,11 @@ h2 { text-shadow: 0 2px 0 rgba(26,58,110,.12); }
 .login-pie { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; font-size: 11.5px; color: var(--mut); margin-top: 18px; text-align: center; }
 .pill-salir { background: transparent !important; color: #fff !important; border-color: rgba(255,255,255,.4) !important; box-shadow: none !important; }
 .pill-salir:hover { background: rgba(255,255,255,.15) !important; color: #fff !important; }
+
+/* logo y título afuera de la tarjeta, como el inicio de la plataforma */
+.login { flex-direction: column; gap: 22px; }
+.login-h { margin-bottom: 0 !important; animation: subir .6s cubic-bezier(.2,.8,.2,1); }
+.login-c { padding: 26px 26px 22px !important; animation-delay: .08s; animation-fill-mode: both; }
 </style>
 </head>
 <body>
@@ -650,11 +655,11 @@ const SB = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { pers
 function pantallaLogin(msg) {
   document.querySelectorAll('.intro').forEach(x => x.remove());
   $('app').innerHTML = `<div class="login">
-    <form class="login-c" onsubmit="entrar(event)">
-      <div class="login-h">
+    <div class="login-h">
         <span class="logo-c logo-l"><img src="/logo-sbs.jpg" onerror="this.onerror=null;this.src=LOGO;this.parentNode.classList.add('viejo')" alt="SBS"></span>
         <h1 class="login-t">Portal de Socios</h1>
       </div>
+    <form class="login-c" onsubmit="entrar(event)">
       <label class="login-f"><span class="login-i"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><input id="lg-u" placeholder="Usuario" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
       <label class="login-f"><span class="login-i"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><input id="lg-p" type="password" placeholder="Contraseña" autocomplete="current-password" required></label>
       <div class="login-e" id="lg-e">${msg ? esc(msg) : ''}</div>
