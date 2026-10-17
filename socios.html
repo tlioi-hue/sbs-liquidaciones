@@ -256,8 +256,8 @@ h2 { text-shadow: 0 2px 0 rgba(26,58,110,.12); }
 .cuenta-x div.tot span, .cuenta-x div.tot b { color: #fff; } .cuenta-x div.tot small { color: rgba(255,255,255,.75); } .cuenta-x div.tot b.negx { color: #fff; text-shadow: 0 2px 0 rgba(0,0,0,.25); font-size: 19px; }
 
 /* logo original: recortado en círculo (sin el fondo gris cuadrado), con aro blanco */
-.logo-c { display: inline-block; width: 40px; height: 40px; flex-shrink: 0; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1.5px rgba(255,255,255,.85); }
-.logo-c img { width: 100%; height: 100%; display: block; border-radius: 0; box-shadow: none; background: none; }
+.logo-c { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; overflow: hidden; background: rgb(40,40,40); box-shadow: 0 0 0 1.5px rgba(255,255,255,.85); }
+.logo-c img { width: 86%; height: 86%; display: block; border-radius: 0; box-shadow: none; background: none; }   /* redondo: el logo un poco más chico para que las letras entren enteras */
 
 .ley.ley-t { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 12px 28px; }
 .ley.ley-t span small { display: block; font-size: 12px; color: var(--mut); margin-top: 1px; }
@@ -266,7 +266,7 @@ h2 { text-shadow: 0 2px 0 rgba(26,58,110,.12); }
 .login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 18px; }
 .login-c { width: 100%; max-width: 400px; background: rgba(255,255,255,.66); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); border: 1px solid rgba(255,255,255,.9); border-radius: 30px; padding: 36px 30px 24px; box-shadow: 0 24px 60px rgba(26,58,110,.16); display: flex; flex-direction: column; animation: subir .6s cubic-bezier(.2,.8,.2,1); }
 .login-h { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 26px; }
-.logo-l { width: 72px !important; height: 72px !important; border-radius: 18px !important; box-shadow: none !important; margin-bottom: 16px; }
+.logo-l { width: 76px !important; height: 76px !important; border-radius: 50% !important; box-shadow: none !important; margin-bottom: 16px; }
 .login-m { font-size: 12px; font-weight: 600; letter-spacing: .06em; color: var(--mut); text-transform: uppercase; }
 .login-t { font-size: 26px !important; font-weight: 700 !important; margin: 0 !important; line-height: 1.1; letter-spacing: -.01em; text-shadow: none !important; }
 .login-s { color: #3d4744; font-size: 14px; margin: 0; }
