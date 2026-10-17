@@ -269,10 +269,10 @@ h2 { text-shadow: 0 2px 0 rgba(26,58,110,.12); }
 .login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 18px; }
 .login-c { width: 100%; max-width: 400px; background: rgba(255,255,255,.66); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); border: 1px solid rgba(255,255,255,.9); border-radius: 30px; padding: 36px 30px 24px; box-shadow: 0 24px 60px rgba(26,58,110,.16); display: flex; flex-direction: column; animation: subir .6s cubic-bezier(.2,.8,.2,1); }
 .login-h { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 26px; }
-.logo-l { width: 76px !important; height: 76px !important; background: radial-gradient(circle at 50% 50%, #e6e6e6 0 33.8px, rgba(255,255,255,.95) 34.4px 35.6px, transparent 36.2px) !important; filter: drop-shadow(0 6px 14px rgba(26,58,110,.22)) !important; margin-bottom: 18px; }
+.logo-l { width: 76px !important; height: 76px !important; background: radial-gradient(circle at 50% 50%, #e6e6e6 0 34.2px, transparent 34.7px) !important; filter: none !important; box-shadow: none !important; margin-bottom: 16px; }   /* logo común: sin marco ni sombra */
 .logo-l.viejo { background: none !important; }
 .login-m { font-size: 12px; font-weight: 600; letter-spacing: .06em; color: var(--mut); text-transform: uppercase; }
-.login-t { font-size: 25px !important; margin: 4px 0 0 !important; line-height: 1.1; text-transform: uppercase; letter-spacing: .03em; text-shadow: 0 2px 0 rgba(26,58,110,.12); }
+.login-t { font-size: 26px !important; font-weight: 700 !important; margin: 0 !important; line-height: 1.1; letter-spacing: -.01em; text-shadow: none !important; }
 .login-s { color: #3d4744; font-size: 14px; margin: 0; }
 .login-f { position: relative; display: block; margin-bottom: 12px; }
 .login-i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #8a97a5; display: flex; pointer-events: none; transition: color .2s; }
@@ -653,13 +653,12 @@ function pantallaLogin(msg) {
     <form class="login-c" onsubmit="entrar(event)">
       <div class="login-h">
         <span class="logo-c logo-l"><img src="/logo-sbs.jpg" onerror="this.onerror=null;this.src=LOGO;this.parentNode.classList.add('viejo')" alt="SBS"></span>
-        <h1 class="login-t">Portal de <b>socios</b></h1>
+        <h1 class="login-t">Portal de Socios</h1>
       </div>
       <label class="login-f"><span class="login-i"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><input id="lg-u" placeholder="Usuario" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
       <label class="login-f"><span class="login-i"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><input id="lg-p" type="password" placeholder="Contraseña" autocomplete="current-password" required></label>
       <div class="login-e" id="lg-e">${msg ? esc(msg) : ''}</div>
       <button class="btn-n login-b" id="lg-b" type="submit">Entrar →</button>
-      <div class="login-pie"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> Acceso exclusivo para socios · Conexión cifrada</div>
     </form></div>`;
   setTimeout(() => $('lg-u')?.focus(), 50);
 }
