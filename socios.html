@@ -294,12 +294,15 @@ h2 { text-shadow: 0 2px 0 rgba(26,58,110,.12); }
 .pila > div.con-tip:hover, .pila > div.con-tip.activo { filter: brightness(1.12); box-shadow: inset 0 0 0 2px rgba(255,255,255,.75); }
 .ley > div.con-tip { border-radius: 10px; padding: 4px 6px; margin: -4px -6px; } .ley > div.con-tip:hover, .ley > div.con-tip.activo { background: rgba(59,130,214,.08); }
 .ley u, .ley .vc { font-size: 11.5px; color: var(--cel); text-decoration: underline; text-underline-offset: 2px; font-weight: 500; }
-.tip-pop { position: fixed; z-index: 90; width: min(360px, calc(100vw - 24px)); background: rgba(255,255,255,.97); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid rgba(0,0,0,.08); border-radius: 18px; padding: 14px 16px; box-shadow: 0 18px 44px rgba(26,58,110,.22); font-size: 13px; pointer-events: none; animation: fadein .15s ease; }
-.tip-t { font-weight: 700; font-size: 14.5px; margin-bottom: 2px; } .tip-d { font-size: 12px; color: var(--mut); margin-bottom: 10px; line-height: 1.4; }
-.tip-r { display: flex; justify-content: space-between; gap: 14px; padding: 5px 0; border-bottom: 1px solid rgba(0,0,0,.05); } .tip-r b { white-space: nowrap; font-weight: 600; }
-.tip-r.menos span, .tip-r.menos b { color: #46524e; font-weight: 500; }
-.tip-r.sub { border-top: 1px solid rgba(0,0,0,.25); } .tip-r.sub span, .tip-r.sub b { font-weight: 700; }
-.tip-r.tot { border-bottom: 0; border-top: 2px solid var(--txt); margin-top: 2px; padding-top: 7px; } .tip-r.tot span, .tip-r.tot b { font-weight: 700; } .tip-r.tot b { color: #2a6cc4; }
+.tip-pop { position: fixed; z-index: 90; width: min(320px, calc(100vw - 24px)); background: rgba(255,255,255,.97); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border: 1px solid rgba(0,0,0,.07); border-radius: 16px; padding: 12px 14px; box-shadow: 0 14px 36px rgba(26,58,110,.18); font-size: 12.5px; color: #2c3633; pointer-events: none; animation: fadein .15s ease; }
+.tip-t { font-weight: 600; font-size: 13px; color: var(--txt); margin-bottom: 6px; }
+.tip-r { display: flex; justify-content: space-between; gap: 14px; padding: 4px 0; border-bottom: 1px solid rgba(0,0,0,.05); } .tip-r b { white-space: nowrap; font-weight: 500; }
+.tip-r.menos span, .tip-r.menos b { color: #6b7672; }
+.tip-r.sub { border-top: 1px solid rgba(0,0,0,.2); } .tip-r.sub span, .tip-r.sub b { font-weight: 600; }
+.tip-r.tot { border-bottom: 0; border-top: 1px solid rgba(0,0,0,.35); margin-top: 2px; padding-top: 6px; } .tip-r.tot span, .tip-r.tot b { font-weight: 600; } .tip-r.tot b { color: #1a3a6e; }
+.tip-n { font-size: 11px; color: var(--mut); margin-top: 8px; line-height: 1.4; }
+.ley .subr { text-decoration: underline dotted rgba(26,58,110,.45); text-underline-offset: 3px; }
+.ley em.tasa { font-style: normal; font-size: 11.5px; font-weight: 600; color: #1a3a6e; background: #e8f0fa; border-radius: 999px; padding: 1px 7px; margin-left: 4px; }
 </style>
 </head>
 <body>
@@ -452,8 +455,8 @@ function pila(partes, base, op = {}) {   // partes: [{l, v, c, lc?, tasa?}]
   partes = partes.filter(p => p.v > 0);   // lo que es $0 no se muestra
   return `<div class="pila" data-base="${base}">${partes.map((p, k) => { const w = base ? Math.max(0, p.v / base * 100) : 0; const et = p.lc || p.l, ti = p.tip ? TIPS.push(p.tip) - 1 : -1; return `<div data-v="${p.v}" style="--w:${w}%;--d:${(k * .15).toFixed(2)}s;background:${p.c}" ${ti >= 0 ? `data-tip="${ti}" class="con-tip"` : `title="${esc(p.l)}: ${money0(p.v)}"`}>${w >= Math.max(8, et.length * 0.85) ? esc(et) : ''}</div>`; }).join('')}</div>
     <div class="ley${op.tasas ? ' ley-t' : ''}">${partes.map(p => op.tasas
-      ? `<div${p.tip ? ` data-tip="${TIPS.indexOf(p.tip)}" class="con-tip"` : ''}><i style="background:${p.c}"></i><span>${esc(p.l)}<small>${esc(p.tasa || '')}${p.tip ? ' <u>ver cuenta</u>' : ''}</small></span><b>${fmtM(p.v)}</b></div>`
-      : `<div${p.tip ? ` data-tip="${TIPS.indexOf(p.tip)}" class="con-tip"` : ''}><i style="background:${p.c}"></i><span>${esc(p.l)}${p.tip ? ' <u class="vc">ver cuenta</u>' : ''}</span><b>${fmtM(p.v)}</b><em>${pct(p.v, base)}</em></div>`).join('')}</div>`;
+      ? `<div${p.tip ? ` data-tip="${TIPS.indexOf(p.tip)}" class="con-tip"` : ''}><i style="background:${p.c}"></i><span><span class="${p.tip ? 'subr' : ''}">${esc(p.l)}</span>${p.tc ? ` <em class="tasa">${esc(p.tc)}</em>` : ''}</span><b>${fmtM(p.v)}</b></div>`
+      : `<div${p.tip ? ` data-tip="${TIPS.indexOf(p.tip)}" class="con-tip"` : ''}><i style="background:${p.c}"></i><span class="${p.tip ? 'subr' : ''}">${esc(p.l)}</span><b>${fmtM(p.v)}</b><em>${pct(p.v, base)}</em></div>`).join('')}</div>`;
 }
 function barras(filas, { max, valor, sub, cls } = {}) {   // filas: [{l, sub, v, extra}]
   const m = max || Math.max(1, ...filas.map(f => Math.abs(f.v)));
@@ -475,12 +478,14 @@ function capExtra(n, filas, { cp, pIIGG, resultado, proy }) {   // filas: [{i, n
   return cap(n, 'Costo extra no facturado', `Lo que <b>no le ${verbo}</b> al Arena`, `
     <div class="vidrio">
       <div class="grande"><b data-cuenta="${tR}" data-fmt="corto">${corto(tR)}</b><span>costo real${proy ? ' estimado' : ''} de back-ups y coordinación en ${proy ? 'el mes' : 'el período'}</span></div>
+      <div class="kpis"><div class="kpi"><b>${bkN}</b><span class="mono">Back-ups (personas)</span></div><div class="kpi"><b>${coN}</b><span class="mono">Coordinación (jornadas)</span></div>
+        <div class="kpi"><b>${corto(tN)}</b><span class="mono">Pagado (neto)</span></div><div class="kpi"><b>${pct(tR, resultado)}</b><span class="mono">Del resultado neto</span></div></div>
       ${pila([{ l: `Back-ups · ${bkN} persona${bkN !== 1 ? 's' : ''}`, v: bkR, c: PAL.navy }, { l: `Coordinación · ${coN} jornada${coN !== 1 ? 's' : ''}`, v: coR, c: PAL.cel }], tR)}
       <h4 class="cuenta-t">La cuenta</h4>
       <div class="cuenta cuenta-x">
         <div><span>Pagado a back-ups y coordinación<small>lo que se les transfirió (neto)</small></span><b>${money0(tN)}</b></div>
         <div class="mas"><span>+ Cargas sociales (${cp}%)<small>aportes y contribuciones que paga SBS</small></span><b>${money0(tR - tN)}</b></div>
-        <div class="tot"><span>= Costo real del extra<small>lo que le costó a SBS · equivale al ${pct(tR, resultado)} del resultado neto</small></span><b class="negx">${money0(tR)}</b></div>
+        <div class="tot"><span>= Costo real del extra<small>lo que le costó a SBS</small></span><b class="negx">${money0(tR)}</b></div>
       </div>
     </div>
     <div class="vidrio" style="margin-top:14px"><h4 style="margin:0 0 6px;font-size:13px;font-weight:600;color:var(--cel)">Por concepto</h4><div class="scroll-x"><table class="tabla-x">
@@ -512,8 +517,8 @@ function lecturaResultados(x) {
       <div class="grande"><b class="${T.neto < 0 ? 'neg' : ''}" data-cuenta="${T.neto}" data-fmt="corto">${corto(T.neto)}</b><span>resultado neto · ${pct(T.neto, T.ventas)} de lo facturado</span></div>
       <div class="kpis"><div class="kpi"><b>${corto(T.ventas)}</b><span class="mono">Ingresos sin IVA</span></div><div class="kpi"><b>${corto(egr)}</b><span class="mono">Egresos</span></div>
         <div class="kpi"><b>${pct(T.neto, T.ventas)}</b><span class="mono">Margen</span></div><div class="kpi"><b>${T.staff || '—'}</b><span class="mono">Puestos facturados</span></div></div>
-      ${pila([{ l: 'Egresos', v: egr, c: PAL.navy, tip: `<div class="tip-t">Egresos</div><div class="tip-d">Todo lo que salió del período.</div><div class="tip-r"><span>Liquidaciones al personal</span><b>${money0(T.personal)}</b></div><div class="tip-r"><span>Cargas sociales</span><b>${money0(T.totCargas)}</b></div><div class="tip-r"><span>Impuestos sobre ventas</span><b>${money0(T.totImp)}</b></div>${T.fijos ? `<div class="tip-r"><span>Costos fijos</span><b>${money0(T.fijos)}</b></div>` : ''}<div class="tip-r"><span>Impuesto a las Ganancias</span><b>${money0(T.iigg?.monto || 0)}</b></div><div class="tip-r tot"><span>= Egresos</span><b>${money0(egr)}</b></div>` },
-        { l: 'Resultado neto', lc: 'Resultado', v: Math.max(0, T.neto), c: PAL.cel, tip: `<div class="tip-t">Resultado neto</div><div class="tip-d">Lo que le quedó a SBS.</div><div class="tip-r"><span>Ingresos (sin IVA)</span><b>${money0(T.ventas)}</b></div><div class="tip-r menos"><span>− Egresos</span><b>${money0(egr)}</b></div><div class="tip-r tot"><span>= Resultado neto</span><b>${money0(T.neto)}</b></div>` }], T.ventas)}</div>`);
+      ${pila([{ l: 'Egresos', v: egr, c: PAL.navy },
+        { l: 'Resultado neto', lc: 'Resultado', v: Math.max(0, T.neto), c: PAL.cel, tip: `<div class="tip-t">Resultado neto</div><div class="tip-r"><span>Ingresos (sin IVA)</span><b>${money0(T.ventas)}</b></div><div class="tip-r menos"><span>− Egresos</span><b>${money0(egr)}</b></div><div class="tip-r tot"><span>= Resultado neto</span><b>${money0(T.neto)}</b></div>` }], T.ventas)}</div>`);
   // 02 A dónde fue cada peso
   const E = d.estructura || {}, nf = v => String(Math.round(v * 10) / 10).replace('.', ',');
   const pCargas = (E.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0);
@@ -521,27 +526,25 @@ function lecturaResultados(x) {
   const pGan = +(T.iigg?.pct ?? E.iigg ?? 0);
   const partes = [
     { l: 'Liquidaciones al personal', lc: 'Personal', tasa: 'lo pagado a la gente', v: T.personal || 0, c: PAL.navy },
-    { l: 'Cargas sociales', lc: 'Cargas sociales', tasa: `${nf(pCargas)}% de lo pagado al personal`, v: T.totCargas || 0, c: PAL.cel },
-    { l: 'Impuestos sobre ventas', lc: 'Imp. ventas', tasa: `${nf(pImp)}% de lo facturado${imps.length > 1 ? ` (${imps.map(x => `${x.nombre} ${nf(+x.pct)}%`).join(' + ')})` : ''}`, v: T.totImp || 0, c: PAL.cel2 },
+    { l: 'Cargas sociales', lc: 'Cargas sociales', tc: `${nf(pCargas)}%`, tasa: `${nf(pCargas)}% de lo pagado al personal`, v: T.totCargas || 0, c: PAL.cel },
+    { l: 'Impuestos sobre ventas', lc: 'Imp. ventas', tc: `${nf(pImp)}%`, tasa: `${nf(pImp)}% de lo facturado${imps.length > 1 ? ` (${imps.map(x => `${x.nombre} ${nf(+x.pct)}%`).join(' + ')})` : ''}`, v: T.totImp || 0, c: PAL.cel2 },
     ...(T.fijos ? [{ l: 'Costos fijos', lc: 'Fijos', tasa: 'del período', v: T.fijos, c: PAL.gris2 }] : []),
-    { l: 'Impuesto a las Ganancias', lc: 'Imp. Ganancias', tasa: `${nf(pGan)}% del resultado antes de Ganancias`, v: T.iigg?.monto || 0, c: PAL.gris }];
+    { l: 'Impuesto a las Ganancias', lc: 'Imp. Ganancias', tc: `${nf(pGan)}%`, tasa: `${nf(pGan)}% del resultado antes de Ganancias`, v: T.iigg?.monto || 0, c: PAL.gris }];
   // La cuenta de cada egreso (se ve al pasar el mouse o tocar la barra o la leyenda)
   const fila = (l, v, cl = '') => `<div class="tip-r ${cl}"><span>${l}</span><b>${v == null ? '' : money0(v)}</b></div>`;
   const areasP = (d.porArea || []).filter(a => a.personal);
-  partes[0].tip = `<div class="tip-t">Liquidaciones al personal</div><div class="tip-d">Lo que se le transfirió a la gente (neto), por área:</div>`
-    + (areasP.length ? areasP.map(a => fila(a.nombre, a.personal)).join('') : '') + fila('Total pagado', T.personal || 0, 'tot');
+  partes[0].tip = `<div class="tip-t">Liquidaciones al personal</div>` + (areasP.length ? areasP.map(a => fila(a.nombre, a.personal)).join('') : '') + fila('Total pagado', T.personal || 0, 'tot');
   const cargasL = (T.cargas || []).filter(c => c.monto);
-  partes[1].tip = `<div class="tip-t">Cargas sociales</div><div class="tip-d">Aportes y contribuciones que paga SBS sobre lo pagado al personal.</div>`
-    + fila('Pagado al personal', T.personal || 0) + (cargasL.length > 1 ? cargasL.map(c => fila(`× ${nf(+c.pct)}% ${esc(c.nombre)}`, c.monto)).join('') : fila(`× ${nf(pCargas)}% de cargas sociales`, null, 'menos')) + fila('= Cargas sociales', T.totCargas || 0, 'tot');
+  partes[1].tip = `<div class="tip-t">Cargas sociales</div>` + fila('Pagado al personal', T.personal || 0)
+    + (cargasL.length > 1 ? cargasL.map(c => fila(`× ${nf(+c.pct)}% ${esc(c.nombre)}`, c.monto)).join('') : fila(`× ${nf(pCargas)}%`, null, 'menos')) + fila('= Cargas sociales', T.totCargas || 0, 'tot');
   const impL = (T.impuestos || []).filter(x => x.monto || x.pct);
-  partes[2].tip = `<div class="tip-t">Impuestos sobre ventas</div><div class="tip-d">Se calculan sobre lo facturado al Arena, sin IVA.</div>`
-    + fila('Facturado (sin IVA)', T.ventas || 0) + impL.map(x => fila(`× ${nf(+x.pct)}% ${esc(x.nombre)}`, x.monto ?? Math.round((T.ventas || 0) * x.pct / 100))).join('') + fila(`= Total (${nf(pImp)}%)`, T.totImp || 0, 'tot');
+  partes[2].tip = `<div class="tip-t">Impuestos sobre ventas</div>` + fila('Facturado (sin IVA)', T.ventas || 0)
+    + impL.map(x => fila(`× ${nf(+x.pct)}% ${esc(x.nombre)}`, x.monto ?? Math.round((T.ventas || 0) * x.pct / 100), 'menos')).join('') + fila(`= Total ${nf(pImp)}%`, T.totImp || 0, 'tot');
   const ebit = T.ebit ?? ((T.ventas || 0) - (T.personal || 0) - (T.totCargas || 0) - (T.totImp || 0) - (T.fijos || 0));
   const gi = partes.length - 1;
-  partes[gi].tip = `<div class="tip-t">Impuesto a las Ganancias</div><div class="tip-d">Se calcula sobre lo que queda después de pagar personal, cargas sociales e impuestos sobre ventas.</div>`
-    + fila('Facturado (sin IVA)', T.ventas || 0) + fila('− Personal', T.personal || 0, 'menos') + fila('− Cargas sociales', T.totCargas || 0, 'menos') + fila('− Impuestos sobre ventas', T.totImp || 0, 'menos')
-    + (T.fijos ? fila('− Costos fijos', T.fijos, 'menos') : '') + fila('= Resultado antes de Ganancias', ebit, 'sub') + fila(`× ${nf(pGan)}% = Ganancias`, T.iigg?.monto || 0, 'tot');
-  h += cap(2, 'Los egresos', 'A dónde fue <b>cada peso</b>', `<div class="vidrio">${pila(partes, egr, { tasas: true })}</div><p class="nota">Pasá el mouse (o tocá) sobre cada parte para ver cómo se calculó. El total de egresos es ${money0(egr)}.</p>`);
+  partes[gi].tip = `<div class="tip-t">Impuesto a las Ganancias</div>` + fila('Resultado antes de Ganancias', ebit) + fila(`× ${nf(pGan)}%`, null, 'menos') + fila('= Ganancias', T.iigg?.monto || 0, 'tot')
+    + `<div class="tip-n">Resultado antes de Ganancias = facturado − personal − cargas sociales − impuestos sobre ventas.</div>`;
+  h += cap(2, 'Los egresos', 'A dónde fue <b>cada peso</b>', `<div class="vidrio">${pila(partes, egr, { tasas: true })}</div><p class="nota">Pasá el mouse o tocá cada parte para ver la cuenta. Total de egresos: ${money0(egr)}.</p>`);
   // 03 Por área
   const areas = (d.porArea || []).filter(a => a.ventas);
   let n = 3;
