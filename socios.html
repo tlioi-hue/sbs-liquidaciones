@@ -264,6 +264,20 @@ h2 { text-shadow: 0 2px 0 rgba(26,58,110,.12); }
 
 .ley.ley-t { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 12px 28px; }
 .ley.ley-t span small { display: block; font-size: 12px; color: var(--mut); margin-top: 1px; }
+
+/* pantalla de inicio de sesión */
+.login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 18px; }
+.login-c { width: 100%; max-width: 420px; background: rgba(255,255,255,.62); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,.85); border-radius: 28px; padding: 32px 30px 28px; box-shadow: 0 20px 50px rgba(26,58,110,.14); display: flex; flex-direction: column; }
+.logo-l { width: 64px !important; height: 64px !important; background: radial-gradient(circle at 50% 50%, #e6e6e6 0 28.4px, rgba(255,255,255,.95) 29px 30px, transparent 30.5px) !important; }
+.login-t { font-size: 40px !important; margin: 4px 0 6px !important; line-height: 1.05; }
+.login-s { color: #3d4744; font-size: 14.5px; margin: 0 0 22px; }
+.login-c label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; margin-bottom: 14px; }
+.login-c input { font: inherit; font-size: 15px; font-weight: 500; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(0,0,0,.12); background: rgba(255,255,255,.9); outline: none; transition: border-color .2s, box-shadow .2s; }
+.login-c input:focus { border-color: var(--cel); box-shadow: 0 0 0 3px rgba(59,130,214,.18); }
+.login-e { min-height: 20px; color: var(--neg); font-size: 13px; font-weight: 500; margin: -4px 0 8px; }
+.login-b { width: 100%; padding: 14px; font-size: 15px; } .login-b:disabled { opacity: .7; cursor: default; }
+.pill-salir { background: transparent !important; color: #fff !important; border-color: rgba(255,255,255,.4) !important; box-shadow: none !important; }
+.pill-salir:hover { background: rgba(255,255,255,.15) !important; color: #fff !important; }
 </style>
 </head>
 <body>
@@ -281,14 +295,9 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const corto = v => { const n = Math.round(v || 0); return `${n < 0 ? '−' : ''}$ ${Math.abs(n).toLocaleString('es-AR')}`; };   // montos exactos (sin redondear a millones)
 const pct = (a, b) => b ? (a / b * 100).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%' : '—';
 const nomMes = p => { const [y, m] = String(p).split('-'); return { mes: MESES[+m - 1], anio: y }; };
-const RUTA_K = (location.pathname.match(/\/socios\/([^/?#]+)/) || [])[1] || '';
-// Sin código en la dirección (/socios), el portal usa este, así el link queda simplemente /socios.
-// Para cerrarlo: borrar este código de la tabla portal_socios en Supabase.
-const CLAVE_PORTAL = 'WE0z4gfpCp';
-const K_QUERY = new URLSearchParams(location.search).get('k') || '';
-const CLAVE = RUTA_K ? decodeURIComponent(RUTA_K) : (K_QUERY || CLAVE_PORTAL);
-// La dirección del portal: /socios/CODIGO (corta) o socios.html?k=CODIGO (la de siempre)
-const urlPortal = i => (RUTA_K || !K_QUERY) ? `${location.pathname}${i ? `?i=${encodeURIComponent(i)}` : ''}` : `${location.pathname}?k=${encodeURIComponent(CLAVE)}${i ? `&i=${encodeURIComponent(i)}` : ''}`;
+// Acceso con usuario y contraseña (compartidos). La sesión queda guardada 30 días en el dispositivo.
+const SES_KEY = 'sbs_portal_sesion';
+const urlPortal = i => `${location.pathname}${i ? `?i=${encodeURIComponent(i)}` : ''}`;
 let LISTA = [];
 function estado(t, s) { $('app').innerHTML = `<div class="estado"><b>${esc(t)}</b><span>${esc(s || '')}</span></div>`; }
 // Totales de cada informe: los mensuales/anuales traen "totales"; las proyecciones, "T"
@@ -327,7 +336,7 @@ function dibujar() {
   const prox = proyVigente(proy), tp = prox ? totales(prox) : null;
   $('app').innerHTML = `
   <header><a class="marca" href="#top"><span class="logo-c"><img src="/logo-sbs.jpg" onerror="this.onerror=null;this.src=LOGO;this.parentNode.classList.add('viejo')" alt="SBS"></span><span>Show Business Solutions</span></a>
-    <nav class="pills">${res.length || anios.length ? '<a class="pill" href="#resultados">Resultados</a>' : ''}${proy.length ? '<a class="pill" href="#proyecciones">Proyecciones</a>' : ''}</nav></header>
+    <nav class="pills">${res.length || anios.length ? '<a class="pill" href="#resultados">Resultados</a>' : ''}${proy.length ? '<a class="pill" href="#proyecciones">Proyecciones</a>' : ''}<button class="pill pill-salir" onclick="salir()" title="Cerrar sesión en este dispositivo">Salir</button></nav></header>
   <div class="hero" id="top">
     <h1>${palabras('¿Cómo', 0)} <b>${palabras('nos va', .12)}</b><br>${palabras('en el', .35)} <em>${palabras('Movistar Arena?', .55)}</em></h1>
     <p class="sub rv" style="--d:.7s">Lo que ya pasó y lo que viene: los resultados de cada mes y las proyecciones de los próximos, con cuánto se le factura al Arena, cuánto cuesta el personal y cuánto queda para SBS.</p>
@@ -630,21 +639,45 @@ function intro() {
   window.finIntro = () => { cancelAnimationFrame(raf); ov.style.transition = 'opacity .4s'; ov.style.opacity = '0'; setTimeout(() => ov.remove(), 400); try { localStorage.setItem('sbs_portal_intro', '1'); } catch {} };
   mostrar(); raf = requestAnimationFrame(tick);
 }
-(async function () {
+const SB = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+function pantallaLogin(msg) {
+  document.querySelectorAll('.intro').forEach(x => x.remove());
+  $('app').innerHTML = `<div class="login">
+    <form class="login-c" onsubmit="entrar(event)">
+      <span class="logo-c logo-l"><img src="/logo-sbs.jpg" onerror="this.onerror=null;this.src=LOGO;this.parentNode.classList.add('viejo')" alt="SBS"></span>
+      <div class="mono" style="margin-top:18px">Show Business Solutions</div>
+      <h1 class="login-t">Portal de <b>socios</b></h1>
+      <p class="login-s">Resultados y proyecciones del <b>Movistar Arena</b>.</p>
+      <label>Usuario<input id="lg-u" autocomplete="username" required autofocus></label>
+      <label>Contraseña<input id="lg-p" type="password" autocomplete="current-password" required></label>
+      <div class="login-e" id="lg-e">${msg ? esc(msg) : ''}</div>
+      <button class="btn-n login-b" id="lg-b" type="submit">Entrar →</button>
+    </form></div>`;
+  setTimeout(() => $('lg-u')?.focus(), 50);
+}
+window.entrar = async function (e) {
+  e.preventDefault();
+  const b = $('lg-b'); b.disabled = true; b.textContent = 'Entrando…'; $('lg-e').textContent = '';
+  const { data, error } = await SB.rpc('portal_login', { p_usuario: $('lg-u').value.trim(), p_clave: $('lg-p').value });
+  if (error || !data) { b.disabled = false; b.textContent = 'Entrar →'; $('lg-e').textContent = /incorrect/i.test(error?.message || '') ? 'Usuario o contraseña incorrectos.' : 'No se pudo entrar. Probá de nuevo en un rato.'; $('lg-p').value = ''; $('lg-p').focus(); return; }
+  try { localStorage.setItem(SES_KEY, data); } catch {}
+  cargar(data);
+};
+window.salir = function () { try { localStorage.removeItem(SES_KEY); } catch {} cerrarFicha(); $('visor').classList.remove('on'); document.body.style.overflow = ''; history.replaceState(null, '', urlPortal()); pantallaLogin(); };
+async function cargar(ses) {
+  estado('Cargando…');
   try {
-    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const { data, error } = await sb.rpc('get_portal_informes', { p_clave: CLAVE });
-    if (error) return estado('No se pudo abrir el portal', /no v[aá]lido/i.test(error.message || '') ? 'El link no es válido o está incompleto. Pedí el link actualizado.' : 'Probá de nuevo en un rato.');
+    const { data, error } = await SB.rpc('portal_informes', { p_sesion: ses });
+    if (error) { try { localStorage.removeItem(SES_KEY); } catch {} return pantallaLogin(/sesi/i.test(error.message || '') ? 'Tu sesión venció. Volvé a entrar.' : ''); }
     LISTA = (data || []).filter(x => x.token);
     if (!LISTA.length) return estado('Todavía no hay informes publicados', 'Cuando se publique el primero, va a aparecer acá.');
-    // los números de cada tarjeta salen del propio informe publicado
-    await Promise.all(LISTA.map(async x => { try { const r = await sb.rpc('get_informe', { p_token: x.token }); x.data = r.data?.data || null; } catch {} }));
     dibujar(); ajustarNumeros(); animarEntrada();
     const pedido = new URLSearchParams(location.search).get('i');
     if (pedido && LISTA.some(x => x.token === pedido)) abrir(pedido);
     else { let visto = false; try { visto = !!localStorage.getItem('sbs_portal_intro'); } catch {} if (!visto) intro(); }
   } catch (e) { estado('No se pudo abrir el portal', 'Probá de nuevo en un rato.'); }
-})();
+}
+(function () { let ses = null; try { ses = localStorage.getItem(SES_KEY); } catch {} ses ? cargar(ses) : pantallaLogin(); })();
 
 </script>
 </body>
