@@ -261,6 +261,9 @@ h2 { text-shadow: 0 2px 0 rgba(26,58,110,.12); }
   background: radial-gradient(circle at 50% 50%, #e6e6e6 0 19.6px, rgba(255,255,255,.95) 20px 21px, transparent 21.5px); filter: drop-shadow(0 2px 0 rgba(0,0,0,.28)); }   /* aro blanco de 1 px */
 .logo-c img { position: absolute; width: 100%; height: 100%; left: 0; top: 0; max-width: none; border-radius: 0; box-shadow: none; background: none; }
 .logo-c.viejo { background: none; } .logo-c.viejo img { border-radius: 9px; box-shadow: 0 0 0 2px #fff; }
+
+.ley.ley-t { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 12px 28px; }
+.ley.ley-t span small { display: block; font-size: 12px; color: var(--mut); margin-top: 1px; }
 </style>
 </head>
 <body>
@@ -382,10 +385,12 @@ const PAL = { navy: '#1a3a6e', cel: '#3b82d6', cel2: '#7ab0ec', cel3: '#b9d4f4',
 const fmtM = v => corto(v);
 const money0 = v => '$ ' + Math.round(v || 0).toLocaleString('es-AR');
 function cap(n, t1, t2, cuerpo) { return `<section class="cap rv"><div class="cap-n"><span>${String(n).padStart(2, '0')}</span>${esc(t1)}</div><h2>${t2}</h2>${cuerpo}</section>`; }
-function pila(partes, base) {   // partes: [{l, v, c}]
+function pila(partes, base, op = {}) {   // partes: [{l, v, c, lc?, tasa?}]
   partes = partes.filter(p => p.v > 0);   // lo que es $0 no se muestra
   return `<div class="pila" data-base="${base}">${partes.map((p, k) => { const w = base ? Math.max(0, p.v / base * 100) : 0; const et = p.lc || p.l; return `<div data-v="${p.v}" style="--w:${w}%;--d:${(k * .15).toFixed(2)}s;background:${p.c}" title="${esc(p.l)}: ${money0(p.v)}">${w >= Math.max(8, et.length * 0.85) ? esc(et) : ''}</div>`; }).join('')}</div>
-    <div class="ley">${partes.map(p => `<div><i style="background:${p.c}"></i><span>${esc(p.l)}</span><b>${fmtM(p.v)}</b><em>${pct(p.v, base)}</em></div>`).join('')}</div>`;
+    <div class="ley${op.tasas ? ' ley-t' : ''}">${partes.map(p => op.tasas
+      ? `<div><i style="background:${p.c}"></i><span>${esc(p.l)}<small>${esc(p.tasa || '')}</small></span><b>${fmtM(p.v)}</b></div>`
+      : `<div><i style="background:${p.c}"></i><span>${esc(p.l)}</span><b>${fmtM(p.v)}</b><em>${pct(p.v, base)}</em></div>`).join('')}</div>`;
 }
 function barras(filas, { max, valor, sub, cls } = {}) {   // filas: [{l, sub, v, extra}]
   const m = max || Math.max(1, ...filas.map(f => Math.abs(f.v)));
@@ -412,9 +417,7 @@ function capExtra(n, filas, { cp, pIIGG, resultado, proy }) {   // filas: [{i, n
       <div class="cuenta cuenta-x">
         <div><span>Pagado a back-ups y coordinación<small>lo que se les transfirió (neto)</small></span><b>${money0(tN)}</b></div>
         <div class="mas"><span>+ Cargas sociales (${cp}%)<small>aportes y contribuciones que paga SBS</small></span><b>${money0(tR - tN)}</b></div>
-        <div class="subt"><span>= Costo real del extra<small>lo que le costó a SBS</small></span><b>${money0(tR)}</b></div>
-        <div class="menos"><span>− Ganancias que se deja de pagar (${pIIGG}%)<small>este costo baja la ganancia sobre la que se paga el impuesto</small></span><b>− ${money0(ahorro)}</b></div>
-        <div class="tot"><span>= Impacto en el resultado neto<small>${pct(impacto, resultado + impacto)} de lo que ${proy ? 'dejarían' : 'habrían dejado'} los shows sin este costo</small></span><b class="negx">${money0(impacto)}</b></div>
+        <div class="tot"><span>= Costo real del extra<small>lo que le costó a SBS · equivale al ${pct(tR, resultado)} del resultado neto</small></span><b class="negx">${money0(tR)}</b></div>
       </div>
     </div>
     <div class="vidrio" style="margin-top:14px"><h4 style="margin:0 0 6px;font-size:13px;font-weight:600;color:var(--cel)">Por concepto</h4><div class="scroll-x"><table class="tabla-x">
@@ -448,9 +451,17 @@ function lecturaResultados(x) {
         <div class="kpi"><b>${pct(T.neto, T.ventas)}</b><span class="mono">Margen</span></div><div class="kpi"><b>${T.staff || '—'}</b><span class="mono">Puestos facturados</span></div></div>
       ${pila([{ l: 'Egresos', v: egr, c: PAL.navy }, { l: 'Resultado neto', lc: 'Resultado', v: Math.max(0, T.neto), c: PAL.cel }], T.ventas)}</div>`);
   // 02 A dónde fue cada peso
-  const partes = [{ l: 'Liquidaciones al personal', lc: 'Personal', v: T.personal || 0, c: PAL.navy }, { l: 'Cargas sociales', lc: 'Cargas sociales', v: T.totCargas || 0, c: PAL.cel }, { l: 'Impuestos sobre ventas', lc: 'Imp. ventas', v: T.totImp || 0, c: PAL.cel2 },
-    ...(T.fijos ? [{ l: 'Costos fijos', lc: 'Fijos', v: T.fijos, c: PAL.gris2 }] : []), { l: 'Impuesto a las Ganancias', lc: 'Imp. Ganancias', v: T.iigg?.monto || 0, c: PAL.gris }];
-  h += cap(2, 'Los egresos', 'A dónde fue <b>cada peso</b>', `<div class="vidrio">${pila(partes, egr)}</div><p class="nota">El porcentaje de cada parte es sobre el total de egresos (${money0(egr)}).</p>`);
+  const E = d.estructura || {}, nf = v => String(Math.round(v * 10) / 10).replace('.', ',');
+  const pCargas = (E.cargas || []).reduce((a, c) => a + (+c.pct || 0), 0);
+  const imps = (E.impuestos || []).filter(x => (x.nombre || '').trim() && +x.pct), pImp = imps.reduce((a, c) => a + (+c.pct || 0), 0);
+  const pGan = +(T.iigg?.pct ?? E.iigg ?? 0);
+  const partes = [
+    { l: 'Liquidaciones al personal', lc: 'Personal', tasa: 'lo pagado a la gente', v: T.personal || 0, c: PAL.navy },
+    { l: 'Cargas sociales', lc: 'Cargas sociales', tasa: `${nf(pCargas)}% de lo pagado al personal`, v: T.totCargas || 0, c: PAL.cel },
+    { l: 'Impuestos sobre ventas', lc: 'Imp. ventas', tasa: `${nf(pImp)}% de lo facturado${imps.length > 1 ? ` (${imps.map(x => `${x.nombre} ${nf(+x.pct)}%`).join(' + ')})` : ''}`, v: T.totImp || 0, c: PAL.cel2 },
+    ...(T.fijos ? [{ l: 'Costos fijos', lc: 'Fijos', tasa: 'del período', v: T.fijos, c: PAL.gris2 }] : []),
+    { l: 'Impuesto a las Ganancias', lc: 'Imp. Ganancias', tasa: `${nf(pGan)}% del resultado antes de Ganancias`, v: T.iigg?.monto || 0, c: PAL.gris }];
+  h += cap(2, 'Los egresos', 'A dónde fue <b>cada peso</b>', `<div class="vidrio">${pila(partes, egr, { tasas: true })}</div><p class="nota">Cada concepto con su tasa. El total de egresos es ${money0(egr)}.</p>`);
   // 03 Por área
   const areas = (d.porArea || []).filter(a => a.ventas);
   let n = 3;
