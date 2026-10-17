@@ -267,15 +267,22 @@ h2 { text-shadow: 0 2px 0 rgba(26,58,110,.12); }
 
 /* pantalla de inicio de sesión */
 .login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 18px; }
-.login-c { width: 100%; max-width: 420px; background: rgba(255,255,255,.62); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,.85); border-radius: 28px; padding: 32px 30px 28px; box-shadow: 0 20px 50px rgba(26,58,110,.14); display: flex; flex-direction: column; }
-.logo-l { width: 64px !important; height: 64px !important; background: radial-gradient(circle at 50% 50%, #e6e6e6 0 28.4px, rgba(255,255,255,.95) 29px 30px, transparent 30.5px) !important; }
-.login-t { font-size: 40px !important; margin: 4px 0 6px !important; line-height: 1.05; }
-.login-s { color: #3d4744; font-size: 14.5px; margin: 0 0 22px; }
-.login-c label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; margin-bottom: 14px; }
-.login-c input { font: inherit; font-size: 15px; font-weight: 500; padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(0,0,0,.12); background: rgba(255,255,255,.9); outline: none; transition: border-color .2s, box-shadow .2s; }
-.login-c input:focus { border-color: var(--cel); box-shadow: 0 0 0 3px rgba(59,130,214,.18); }
-.login-e { min-height: 20px; color: var(--neg); font-size: 13px; font-weight: 500; margin: -4px 0 8px; }
-.login-b { width: 100%; padding: 14px; font-size: 15px; } .login-b:disabled { opacity: .7; cursor: default; }
+.login-c { width: 100%; max-width: 400px; background: rgba(255,255,255,.66); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); border: 1px solid rgba(255,255,255,.9); border-radius: 30px; padding: 36px 30px 24px; box-shadow: 0 24px 60px rgba(26,58,110,.16); display: flex; flex-direction: column; animation: subir .6s cubic-bezier(.2,.8,.2,1); }
+.login-h { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 26px; }
+.logo-l { width: 76px !important; height: 76px !important; background: radial-gradient(circle at 50% 50%, #e6e6e6 0 33.8px, rgba(255,255,255,.95) 34.4px 35.6px, transparent 36.2px) !important; filter: drop-shadow(0 6px 14px rgba(26,58,110,.22)) !important; margin-bottom: 18px; }
+.logo-l.viejo { background: none !important; }
+.login-m { font-size: 12px; font-weight: 600; letter-spacing: .06em; color: var(--mut); text-transform: uppercase; }
+.login-t { font-size: 38px !important; margin: 6px 0 6px !important; line-height: 1.05; text-shadow: 0 3px 0 rgba(26,58,110,.12); }
+.login-s { color: #3d4744; font-size: 14px; margin: 0; }
+.login-f { position: relative; display: block; margin-bottom: 12px; }
+.login-i { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #8a97a5; display: flex; pointer-events: none; transition: color .2s; }
+.login-f input { width: 100%; font: inherit; font-size: 15px; font-weight: 500; padding: 14px 16px 14px 44px; border-radius: 16px; border: 1px solid rgba(0,0,0,.1); background: rgba(255,255,255,.92); outline: none; transition: border-color .2s, box-shadow .2s; }
+.login-f input::placeholder { color: #9aa3ab; font-weight: 400; }
+.login-f input:focus { border-color: var(--cel); box-shadow: 0 0 0 4px rgba(59,130,214,.16); }
+.login-f:focus-within .login-i { color: var(--cel); }
+.login-e { min-height: 20px; color: var(--neg); font-size: 13px; font-weight: 500; text-align: center; margin: 2px 0 8px; }
+.login-b { width: 100%; padding: 15px; font-size: 15px; border-radius: 16px; box-shadow: 0 3px 0 rgba(26,58,110,.3); } .login-b:disabled { opacity: .7; cursor: default; }
+.login-pie { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px; font-size: 11.5px; color: var(--mut); margin-top: 18px; text-align: center; }
 .pill-salir { background: transparent !important; color: #fff !important; border-color: rgba(255,255,255,.4) !important; box-shadow: none !important; }
 .pill-salir:hover { background: rgba(255,255,255,.15) !important; color: #fff !important; }
 </style>
@@ -644,14 +651,17 @@ function pantallaLogin(msg) {
   document.querySelectorAll('.intro').forEach(x => x.remove());
   $('app').innerHTML = `<div class="login">
     <form class="login-c" onsubmit="entrar(event)">
-      <span class="logo-c logo-l"><img src="/logo-sbs.jpg" onerror="this.onerror=null;this.src=LOGO;this.parentNode.classList.add('viejo')" alt="SBS"></span>
-      <div class="mono" style="margin-top:18px">Show Business Solutions</div>
-      <h1 class="login-t">Portal de <b>socios</b></h1>
-      <p class="login-s">Resultados y proyecciones del <b>Movistar Arena</b>.</p>
-      <label>Usuario<input id="lg-u" autocomplete="username" required autofocus></label>
-      <label>Contraseña<input id="lg-p" type="password" autocomplete="current-password" required></label>
+      <div class="login-h">
+        <span class="logo-c logo-l"><img src="/logo-sbs.jpg" onerror="this.onerror=null;this.src=LOGO;this.parentNode.classList.add('viejo')" alt="SBS"></span>
+        <div class="login-m">Show Business Solutions</div>
+        <h1 class="login-t">Portal de <b>socios</b></h1>
+        <p class="login-s">Resultados y proyecciones del <b>Movistar Arena</b></p>
+      </div>
+      <label class="login-f"><span class="login-i"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><input id="lg-u" placeholder="Usuario" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+      <label class="login-f"><span class="login-i"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span><input id="lg-p" type="password" placeholder="Contraseña" autocomplete="current-password" required></label>
       <div class="login-e" id="lg-e">${msg ? esc(msg) : ''}</div>
       <button class="btn-n login-b" id="lg-b" type="submit">Entrar →</button>
+      <div class="login-pie"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> Acceso exclusivo para socios · Conexión cifrada</div>
     </form></div>`;
   setTimeout(() => $('lg-u')?.focus(), 50);
 }
