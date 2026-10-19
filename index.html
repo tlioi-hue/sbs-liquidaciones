@@ -5340,10 +5340,11 @@ function proyectarShow(ev, refs, tar, E, fijosShow, esc, sup = SUP_DEF) {
   if (aj.ref && aj.ref !== 'auto' && aj.ref !== 'prom') {
     usados = refs.filter(x => x.ev.id === aj.ref); if (usados.length) base = `Elegido: ${usados[0].ev.nombre}`;
   }
+  let deBanda = usados.length > 0;   // elegido a mano o historial de la misma banda
   if (!usados.length && aj.ref !== 'prom') {
     const bn = baseNombre(ev.nombre);
     usados = bn ? refs.filter(x => x.base === bn) : [];
-    if (usados.length) base = `${usados.length} show${usados.length > 1 ? 's' : ''} de ${ev.nombre.replace(/[#nº°]*\s*\d+\s*$/i, '').trim()}`;
+    if (usados.length) { deBanda = true; base = `${usados.length} show${usados.length > 1 ? 's' : ''} de ${ev.nombre.replace(/[#nº°]*\s*\d+\s*$/i, '').trim()}`; }
   }
   if (!usados.length) { usados = refs; base = refs.length ? `Promedio de ${refs.length} shows` : ''; }
   if (!usados.length) return { ev, fISO, error: 'No hay shows facturados para tomar de referencia' };
@@ -5351,7 +5352,8 @@ function proyectarShow(ev, refs, tar, E, fijosShow, esc, sup = SUP_DEF) {
   const comp = {}; TAR_CATS.filter(c => c !== 'CARGAS').forEach(c => { const v = usados.reduce((a, x) => a + (x.comp[c] || 0), 0) / usados.length; if (v) comp[c] = v; });
   const totRef = Object.values(comp).reduce((a, b) => a + b, 0);
   const num = v => v !== '' && v != null && !isNaN(+v);
-  const salaBase = num(aj.pedido) ? +aj.pedido : num(sup.puestos) ? +sup.puestos : Math.round(totRef);
+  // Puestos: lo ajustado en el show > el historial de la banda (si ya tocó) > el supuesto del mes > el promedio
+  const salaBase = num(aj.pedido) ? +aj.pedido : deBanda ? Math.round(totRef) : num(sup.puestos) ? +sup.puestos : Math.round(totRef);
   const sala = Math.max(0, Math.round(salaBase * (ESCENARIOS[esc]?.pedido ?? 1)));
   const k = totRef ? sala / totRef : 0;
   const ent = Object.entries(comp).map(([c, v]) => [c, Math.floor(v * k), v * k - Math.floor(v * k)]);
@@ -5451,7 +5453,7 @@ function tarjetasProy(periodo, refs) {
       <div style="font-weight:600;margin-bottom:4px">Supuestos por show</div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Se aplican a cada show proyectado. Vacío = el promedio de los ${H.n} shows ya facturados.</div>
       <div class="sup-grid">
-        <label>Puestos de sala ${inp('puestos', H.sala)}<small>orientadores, cortatickets, supervisores, recepción (promedio: ${H.sala})</small></label>
+        <label>Puestos de sala ${inp('puestos', H.sala)}<small>para las bandas que no tocaron antes (las que ya tocaron usan su historial) · promedio: ${H.sala}</small></label>
         <label>Cargas / stagehands ${inp('cargas', 2)}<small>se facturan en el pedido</small></label>
         <label>Coordinadores ${inp('coord', 1)}<small>a cargo de SBS, no se factura</small></label>
         <label>Back-ups ${inp('backups', 2)}<small>por show, por encima del pedido, no se facturan (promedio histórico: ${String(H.backups).replace('.', ',')})</small></label>
@@ -6317,8 +6319,49 @@ function hojaXLSX(aoa, monedaCols = [], anchos = [], decimales = false) {
 }
 const combinar = (ws, rangos) => { ws['!merges'] = (ws['!merges'] || []).concat(rangos.map(([r1, c1, r2, c2]) => ({ s: { r: r1, c: c1 }, e: { r: r2, c: c2 } }))); return ws; };
 function libroXLSX(hojas, archivo) { const wb = XLSX.utils.book_new(); hojas.forEach(([n, ws]) => XLSX.utils.book_append_sheet(wb, ws, n.slice(0, 31))); XLSX.writeFile(wb, archivo); }
-// ── Excel para administración: mismo formato que las planillas modelo (Montserrat 8, encabezado en negrita, todo centrado) ──
-const XL_FONT = { name: 'Montserrat', size: 8 };
+// ── Excel para administración: mismo formato que las planillas modelo (Poppins 8, encabezado en negrita, todo centrado) ──
+
+// ══════════════════════════════════════════════
+// TODOS LOS EXCEL EN POPPINS: los que se arman con SheetJS (que no permite elegir fuente) se pasan
+// a ExcelJS al descargar, con Poppins en todas las celdas. Se conservan valores, formatos de número,
+// anchos de columna y celdas combinadas.
+// ══════════════════════════════════════════════
+const XL_FUENTE_GRAL = { name: 'Poppins', size: 10 };
+async function xlsxEnPoppins(wbS, archivo) {
+  const wb = new ExcelJS.Workbook();
+  for (const nombre of wbS.SheetNames) {
+    const wsS = wbS.Sheets[nombre], ws = wb.addWorksheet(nombre.slice(0, 31));
+    if (wsS['!ref']) {
+      const R = XLSX.utils.decode_range(wsS['!ref']);
+      for (let r = R.s.r; r <= R.e.r; r++) for (let c = R.s.c; c <= R.e.c; c++) {
+        const c0 = wsS[XLSX.utils.encode_cell({ r, c })], cell = ws.getCell(r + 1, c + 1);
+        cell.font = { ...XL_FUENTE_GRAL };
+        if (!c0) continue;
+        if (c0.f) cell.value = { formula: c0.f, result: c0.v };
+        else if (c0.t === 'd') cell.value = c0.v instanceof Date ? c0.v : new Date(c0.v);
+        else if (c0.t === 'n' || c0.t === 'b') cell.value = c0.v;
+        else cell.value = c0.v == null ? '' : String(c0.v);
+        if (c0.z && c0.z !== 'General') cell.numFmt = c0.z;
+      }
+      (wsS['!cols'] || []).forEach((col, i) => { if (col && (col.wch || col.width)) ws.getColumn(i + 1).width = col.wch || col.width; });
+      (wsS['!merges'] || []).forEach(m => { try { ws.mergeCells(m.s.r + 1, m.s.c + 1, m.e.r + 1, m.e.c + 1); } catch {} });
+    }
+  }
+  const buf = await wb.xlsx.writeBuffer();
+  const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+  const a = document.createElement('a'); a.href = url; a.download = archivo; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+(function () {
+  if (typeof XLSX === 'undefined' || typeof ExcelJS === 'undefined' || XLSX.__poppins) return;
+  const original = XLSX.writeFile; XLSX.__poppins = true;
+  XLSX.writeFile = function (wb, archivo, op) {
+    if (!/\.xlsx$/i.test(archivo || '')) return original.call(XLSX, wb, archivo, op);   // otros formatos, sin cambios
+    xlsxEnPoppins(wb, archivo).catch(e => { console.warn('Excel en Poppins: se usa el método anterior', e); original.call(XLSX, wb, archivo, op); });
+  };
+})();
+
+const XL_FONT = { name: 'Poppins', size: 8 };
 const XL_COLS_LIQ = ['CUIL', 'Apellido y nombre', 'CBU', 'Lugar', 'Período', 'Días trabajados', 'Posición', 'Total ($)'];
 function xlHoja(wb, nombre, anchos) {
   const ws = wb.addWorksheet(nombre.slice(0, 31));
@@ -6966,7 +7009,7 @@ window.descargarFacturaXLSX = async function() {
     // Estética calcada de la planilla de facturación de SBS (Google Sheets verde)
     ws.columns = [{ width: 18 }, { width: 32 }, { width: 18 }, { width: 22 }, { width: 23 }, { width: 20 }];
     ws.pageSetup = { paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
-    const F = 'Arial', FS = 9;
+    const F = 'Poppins', FS = 9;
     const VERDE_TIT = 'FFA8E4BC';   // título
     const VERDE_SUB = 'FF7DD197';   // subtotales y total
     const fillOf = argb => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
