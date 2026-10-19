@@ -2470,8 +2470,10 @@ window.mvConfirmar = async function() {
   toast(`${ids.length} show${ids.length !== 1 ? 's' : ''} pasado${ids.length !== 1 ? 's' : ''} a ${qD.nombre}`, 'ok'); render();
 };
 
+// Shows de una quincena siempre por fecha (si coinciden, por nombre; sin fecha, al final)
+const porFechaShow = (a, b) => (showFechaISO(a) || '9999').localeCompare(showFechaISO(b) || '9999') || String(a.nombre || '').localeCompare(String(b.nombre || ''));
 function renderQCard(q, isRRHH) {
-  const shows = APP.eventos.filter(e => e.area === 'Movistar Arena' && e.quincena_id === q.id);
+  const shows = APP.eventos.filter(e => e.area === 'Movistar Arena' && e.quincena_id === q.id).sort(porFechaShow);
   const totalJornadas = shows.reduce((s, ev) => (ev.fechas||[]).reduce((ss,f)=>(f.presentismo||[]).length+ss, 0)+s, 0);
   const liqs  = APP.liquidaciones.filter(l => l.quincena_id === q.id);
 
@@ -2739,7 +2741,7 @@ window.exportShowArenaPreview = function(evId) {
 // ── CIERRE QUINCENAL ──
 window.previaCierre = function(qId, definitivo) {
   const q     = APP.quincenas.find(x => x.id === qId);
-  const shows = APP.eventos.filter(e => e.area === 'Movistar Arena' && e.quincena_id === qId);
+  const shows = APP.eventos.filter(e => e.area === 'Movistar Arena' && e.quincena_id === qId).sort(porFechaShow);
 
   const jornadas = [];
   shows.forEach(ev => {
@@ -3538,7 +3540,7 @@ window.actualizarShows = function() {
   const selFecha = document.getElementById('sel-fecha');
   if (!selShow) return;
   if (!qId) { selShow.innerHTML = '<option value="">— elegir quincena primero —</option>'; return; }
-  const shows = APP.eventos.filter(e => e.quincena_id === qId && e.area === 'Movistar Arena');
+  const shows = APP.eventos.filter(e => e.quincena_id === qId && e.area === 'Movistar Arena').sort(porFechaShow);
   selShow.innerHTML = `<option value="">— elegir show —</option>` +
     shows.map(s => `<option value="${s.id}">${s.nombre}${s.fecha?' · '+s.fecha:''}</option>`).join('');
   selShow.onchange = function() { recalcularDOIsiCorresponde(); };
