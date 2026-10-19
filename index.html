@@ -2472,6 +2472,10 @@ window.mvConfirmar = async function() {
 
 // Shows de una quincena siempre por fecha (si coinciden, por nombre; sin fecha, al final)
 const porFechaShow = (a, b) => (showFechaISO(a) || '9999').localeCompare(showFechaISO(b) || '9999') || String(a.nombre || '').localeCompare(String(b.nombre || ''));
+// Personas a las que efectivamente se les liquida: con al menos una jornada o un monto liquidado mayor a cero
+const pidFijo = p => p.personaId || p.persona_id || p.id;
+const personasALiquidar = (pres, liqs = []) => (pres || []).filter(p => ((+p.jornadas || 0) + (+p.jornadasFinde || 0)) > 0
+  || liqs.some(l => l.persona_id && l.persona_id === pidFijo(p) && (+l.total || 0) > 0)).length;
 function renderQCard(q, isRRHH) {
   const shows = APP.eventos.filter(e => e.area === 'Movistar Arena' && e.quincena_id === q.id).sort(porFechaShow);
   const totalJornadas = shows.reduce((s, ev) => (ev.fechas||[]).reduce((ss,f)=>(f.presentismo||[]).length+ss, 0)+s, 0);
@@ -4300,8 +4304,8 @@ function renderMesFijo(mes, isRRHH) {
     <div style="display:flex;gap:13px;font-size:11.5px;margin-bottom:12px;flex-wrap:wrap">
       ${LUGARES_FIJOS.map(l => {
         const liqL = liqMes.filter(liq => liq.lugar_fijo === l.id);
-        const pres = mes.presentes?.[l.id] || [];
-        return `<span><strong>${l.nombre}:</strong> ${pres.length} personas · ${fmt(liqL.reduce((s,x)=>s+(x.total||0),0))}</span>`;
+        const pres = mes.presentes?.[l.id] || [], nP = personasALiquidar(pres, liqL);
+        return `<span><strong>${l.nombre}:</strong> ${nP} persona${nP !== 1 ? 's' : ''} · ${fmt(liqL.reduce((s,x)=>s+(x.total||0),0))}</span>`;
       }).join('')}
     </div>
     <div style="margin-bottom:11px">
@@ -8071,7 +8075,7 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
 
   showModal(`<div class="modal modal-lg">
     <div class="modal-t">${lugar.nombre} — ${mes.nombre}</div>
-    <div class="modal-s">${pres.length} personas · ${pres.reduce((s,p)=>s+(p.jornadas||0)+(p.jornadasFinde||0),0)} jornadas totales</div>
+    <div class="modal-s">${(n => `${n} persona${n !== 1 ? 's' : ''}`)(personasALiquidar(pres, APP.liquidaciones.filter(x => x.area === 'Servicios Fijos' && x.mes_id === mesId && x.lugar_fijo === lugarId)))} · ${pres.reduce((s,p)=>s+(p.jornadas||0)+(p.jornadasFinde||0),0)} jornadas totales${(() => { const sin = pres.length - personasALiquidar(pres, APP.liquidaciones.filter(x => x.area === 'Servicios Fijos' && x.mes_id === mesId && x.lugar_fijo === lugarId)); return sin > 0 ? ` · <span style="color:var(--text2)">${sin} sin jornadas este mes</span>` : ''; })()}</div>
     ${faltantes.length ? `<div class="alert alert-warn" style="padding:8px 12px">
       <i class="ti ti-alert-triangle"></i>
       <div><strong>Falta${faltantes.length>1?'n':''} en el tarifario:</strong> ${faltantes.join(' · ')}.
