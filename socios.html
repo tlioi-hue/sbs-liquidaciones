@@ -306,6 +306,8 @@ h2 { text-shadow: 0 2px 0 rgba(26,58,110,.12); }
 
 .dpos { color: var(--ok); font-weight: 600; } .dneg { color: #d32f2f; font-weight: 600; } .fl { vertical-align: -2px; margin-right: 1px; }
 .f-proy { font-size: 13px; color: #3d4744; background: #e8f0fa; border-radius: 12px; padding: 8px 12px; margin: -6px 0 6px; }
+
+.tabla-x.desv th:first-child, .tabla-x.desv td:first-child { width: 42%; }
 </style>
 </head>
 <body>
@@ -637,6 +639,34 @@ function staffShow(x) {
     <div><span>Coordinación</span><b>${x.co}</b><small>${x.co ? `a cargo de SBS · ${fmtM(x.coCosto)} costo real` : 'no hubo'}</small></div>
     <div class="tot"><span>Total de personas</span><b>${tot}</b><small>${x.fact ?? 0} facturados + ${x.bk + x.co} que no se facturan</small></div></div>`;
 }
+
+// Por qué la diferencia entre lo proyectado y lo real (misma cuenta que en la app)
+function desgloseDesvio(po, r) {
+  const n = v => Math.round(+v || 0);
+  const bkR = n(r.backups?.monto), coR = n(r.coordinador?.monto), pedidoR = n(r.personal) - bkR - coR;
+  const filas = [
+    { c: 'Ingresos facturados', p: n(po.ingresos), r: n(r.ventas), signo: 1, nota: `${po.puestos ?? '—'} → ${r.staff ?? r.facturables ?? '—'} puestos` },
+    { c: 'Personal del pedido', p: n(po.costoPedido), r: pedidoR, signo: -1 },
+    { c: 'Back-ups', p: n(po.costoBackups), r: bkR, signo: -1, nota: `${po.backups ?? '—'} → ${r.backups?.cant ?? 0}` },
+    { c: 'Coordinación', p: n(po.costoCoord), r: coR, signo: -1, nota: `${po.coords ?? '—'} → ${r.coordinador?.cant ?? 0}` },
+    { c: 'Cargas sociales', p: n(po.cargasSoc), r: n(r.cargas), signo: -1 },
+    { c: 'Impuestos sobre ventas', p: n(po.impuestos), r: n(r.impuestos), signo: -1 },
+    { c: 'Impuesto a las Ganancias', p: n(po.iigg), r: n(r.iigg), signo: -1 },
+  ].map(x => ({ ...x, efecto: x.signo * (x.r - x.p) }));
+  const total = n(r.neto) - n(po.neto), suma = filas.reduce((a, x) => a + x.efecto, 0);
+  return { filas, total, otros: total - suma, completo: po.costoPedido != null };
+}
+function htmlDesvio(po, r) {
+  const D = desgloseDesvio(po, r); if (!D.completo) return '';
+  const sg = v => `<span class="${v >= 0 ? 'dpos' : 'dneg'}">${v >= 0 ? '+' : '−'} ${money0(Math.abs(v))}</span>`;
+  return `<h4>Por qué la diferencia</h4><div class="scroll-x"><table class="tabla-x desv">
+    <thead><tr><th>Concepto</th><th>Proyectado</th><th>Real</th><th>Efecto</th></tr></thead>
+    <tbody>${D.filas.map(x => `<tr><td>${esc(x.c)}${x.nota ? `<small>${esc(x.nota)}</small>` : ''}</td><td>${money0(x.p)}</td><td>${money0(x.r)}</td><td>${sg(x.efecto)}</td></tr>`).join('')}
+    ${Math.abs(D.otros) > 1 ? `<tr><td>Otros<small>costos fijos, redondeos</small></td><td></td><td></td><td>${sg(D.otros)}</td></tr>` : ''}</tbody>
+    <tfoot><tr><td>Resultado</td><td>${money0(po.neto)}</td><td>${money0(r.neto)}</td><td>${sg(D.total)}</td></tr></tfoot></table></div>
+    <p class="nota" style="margin-top:8px">Los ingresos suman al resultado; los costos restan. Cada efecto es la diferencia entre lo real y lo proyectado.</p>`;
+}
+
 window.fichaShow = function (i) {
   const x = LEC; if (!x) return; const d = x.data || {}; let esProy = x.tipo === 'proy', s = (d.shows || [])[i]; if (!s) return;
   const yaFacturado = esProy && s.estado === 'real' && s.detalle;
@@ -650,6 +680,7 @@ window.fichaShow = function (i) {
     h += `<div class="f-sub">${s.staff || s.facturables || 0} puestos facturados al Arena${s.estimado ? ' · el costo de personal es estimado hasta que se liquide la quincena' : ''}</div>
       <div class="grande"><b class="${s.neto < 0 ? 'neg' : ''}">${corto(s.neto)}</b><span>resultado neto · ${pct(s.neto, s.ventas)} de margen</span></div>
       ${proyPrevia ? `<div class="f-proy">Proyectado antes del show: <b>${money0(proyPrevia.neto)}</b>${proyPrevia.puestos ? ` (${proyPrevia.puestos} puestos)` : ''} · <span class="${s.neto - proyPrevia.neto >= 0 ? 'dpos' : 'dneg'}">${FLECHA(s.neto - proyPrevia.neto >= 0)} ${money0(Math.abs(s.neto - proyPrevia.neto))}</span> respecto de lo proyectado</div>` : ''}
+      ${proyPrevia ? htmlDesvio(proyPrevia, s) : ''}
       <h4>La cuenta del show</h4><div class="cuenta">
         <div><span>Ingresos (sin IVA)</span><b>${money0(s.ventas)}</b></div>
         <div class="menos"><span>− Personal</span><b>${money0(s.personal)}</b></div>
