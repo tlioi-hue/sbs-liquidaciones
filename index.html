@@ -2582,7 +2582,11 @@ window.saveShowQ = async function(qId) {
 };
 
 window.delShowArena = async function(id) {
-  if (!confirm('¿Eliminar show?')) return;
+  const facs = (APP.facturaciones || []).filter(f => f.evento_id === id);
+  const msg = facs.length
+    ? `¿Eliminar show?\n\nAtención: este show tiene facturación cargada (${fmt(facs.reduce((a, f) => a + (+f.total || 0), 0))} sin IVA). Si lo borrás, esa facturación queda sin show y deja de contar en los informes hasta que la reasignes desde Facturación.\n\nSi lo vas a volver a crear, conviene editarlo en lugar de borrarlo.`
+    : '¿Eliminar show?';
+  if (!confirm(msg)) return;
   loading(true); await sb.from('eventos').delete().eq('id', id); loading(false);
   toast('Show eliminado'); await go('arena');
 };
@@ -4320,7 +4324,7 @@ function renderMesFijo(mes, isRRHH) {
             <span class="chip ${chipClaseArea(l.nombre)}" style="font-weight:600">${l.nombre}</span>
             <span style="font-size:11px;color:var(--text2)"> · ${l.posiciones.join(', ')}</span>
           </div>
-          <span class="pill">${pres.length} personas</span>
+          <span class="pill">${(n => `${n} persona${n !== 1 ? 's' : ''}`)(personasALiquidar(pres, liqL))}</span>
           <span class="pill">${pres.reduce((s,p)=>s+(p.jornadas||0),0)} jornadas</span>
           <span class="fb ${estadoChip}">${estadoTxt}</span>
           <div style="display:flex;gap:5px;flex-shrink:0">
@@ -4564,6 +4568,47 @@ async function pgFacturacion(el, ac) {
   }
   el.innerHTML = renderFacturaPreviewHTML(d);
 }
+
+// ══════════════════════════════════════════════
+// FACTURACIONES SIN SHOW (el show se borró): aviso en Facturación y reasignación a otro show
+// ══════════════════════════════════════════════
+const normNom = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z]/g, '');
+function factHuerfanas() { return (APP.facturaciones || []).filter(f => f.evento_id && !APP.eventos.some(e => e.id === f.evento_id)); }
+function candidatosFact(f) {
+  const nom = normNom(f.detalle?.show || f.detalle?.evento || f.detalle?.nombre || '');
+  return APP.eventos.filter(e => e.area === 'Movistar Arena').map(e => {
+    const n = normNom(e.nombre), sinFact = !(APP.facturaciones || []).some(x => x.evento_id === e.id);
+    const parecido = nom && n && (n.includes(nom) || nom.includes(n.replace(/\d+$/, ''))) ? 2 : 0;
+    return { e, puntaje: parecido + (sinFact ? 1 : 0), sinFact };
+  }).sort((a, b) => b.puntaje - a.puntaje || String(showFechaISO(b.e)).localeCompare(String(showFechaISO(a.e))));
+}
+function avisoFactHuerfanas(el) {
+  if (window._facturaDraft) return;
+  const hs = factHuerfanas(); if (!hs.length) return;
+  const div = document.createElement('div');
+  div.className = 'alert alert-warn'; div.style.marginBottom = '14px';
+  div.innerHTML = `<div style="font-weight:600;margin-bottom:6px"><i class="ti ti-unlink"></i> ${hs.length} facturación${hs.length !== 1 ? 'es quedaron' : ' quedó'} sin show</div>
+    <div style="font-size:12.5px;margin-bottom:8px">El show al que estaba${hs.length !== 1 ? 'n' : ''} asociada${hs.length !== 1 ? 's' : ''} se borró, así que no cuenta${hs.length !== 1 ? 'n' : ''} en los informes ni en la proyección. Asigná${hs.length !== 1 ? 'las' : 'la'} al show que corresponde.</div>
+    ${hs.map(f => { const c = candidatosFact(f);
+      return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 0;border-top:1px solid rgba(0,0,0,.08)">
+        <span style="flex:1;min-width:220px;font-size:12.5px"><b>${esc2(f.detalle?.show || 'Sin nombre')}</b> · ${fmt(f.total || 0)} sin IVA${f.cant_staff ? ` · ${f.cant_staff} puestos` : ''}${f.detalle?.fecha ? ` · factura del ${esc2(f.detalle.fecha)}` : ''}</span>
+        <select id="fh-${f.id}" style="width:auto;min-width:240px">${c.map(x => `<option value="${x.e.id}">${esc2(x.e.nombre)} · ${showFechaISO(x.e) ? fd(showFechaISO(x.e)) : 'sin fecha'}${x.sinFact ? '' : ' (ya tiene facturación)'}</option>`).join('')}</select>
+        <button class="btn btn-sm btn-primary" onclick="reasignarFact('${f.id}')">Asignar</button></div>`; }).join('')}`;
+  el.insertBefore(div, el.children[1] || null);
+}
+window.reasignarFact = async function(facId) {
+  const f = (APP.facturaciones || []).find(x => x.id === facId), evId = document.getElementById('fh-' + facId)?.value, ev = APP.eventos.find(e => e.id === evId);
+  if (!f || !ev) return;
+  const ya = (APP.facturaciones || []).some(x => x.evento_id === ev.id);
+  if (!confirm(`¿Asignar la facturación de ${f.detalle?.show || 'este show'} (${fmt(f.total || 0)}) a "${ev.nombre}" del ${showFechaISO(ev) ? fd(showFechaISO(ev)) : 'sin fecha'}?${ya ? '\n\nAtención: ese show ya tiene otra facturación; quedaría con dos.' : ''}`)) return;
+  loading(true);
+  const { error } = await sb.from('facturaciones').update({ evento_id: ev.id, quincena_id: ev.quincena_id || f.quincena_id, detalle: { ...(f.detalle || {}), verQ: ev.quincena_id || f.detalle?.verQ } }).eq('id', f.id);
+  if (error) { loading(false); toast('No se pudo asignar: ' + error.message, 'err'); return; }
+  await fetchAll(); loading(false); toast(`Facturación asignada a ${ev.nombre}`, 'ok'); render();
+};
+// Después de dibujar Facturación, mostrar el aviso si hace falta
+const _pgFacturacionOrig = pgFacturacion;
+pgFacturacion = function (el, ac) { const r = _pgFacturacionOrig(el, ac); const fin = () => { try { avisoFactHuerfanas(el); } catch (e) { console.warn(e); } }; return r && r.then ? r.then(v => (fin(), v)) : (fin(), r); };
 function mesLabel(k) {
   if (!k || k === '—') return 'Sin fecha';
   const [y, m] = k.split('-');
@@ -8089,6 +8134,7 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
         <th style="padding:6px 10px;text-align:center">${cl ? cl[0] : 'Jornadas'}</th>
         ${cl ? `<th style="padding:6px 10px;text-align:center">${cl[1]}</th>` : ''}
         <th style="padding:6px 10px;text-align:right">Subtotal</th>
+        ${!lugarCerrado ? '<th style="width:34px"></th>' : ''}
       </tr></thead><tbody>
       ${pres.map((p, idx) => {
         const liq = liqs.find(l => l.persona_id === p.personaId);
@@ -8119,12 +8165,13 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
           <td style="padding:6px 10px;text-align:right;font-weight:600">${
             editaLiq ? `<input type="number" id="liq-total-${liq.id}" value="${sub}" min="0" style="width:110px;font-weight:600;text-align:right" onchange="editarLiquidacion('${liq.id}','total',this.value)">` :
             fmt(sub)}</td>
+          ${!lugarCerrado ? `<td style="padding:6px 4px;text-align:center"><button class="btn btn-sm btn-danger" title="Quitar de este mes" onclick="quitarPersonaFijo('${mesId}','${lugarId}',${idx})"><i class="ti ti-trash"></i></button></td>` : ''}
         </tr>`;
       }).join('')}
       </tbody><tfoot><tr style="border-top:2px solid var(--border);font-weight:700">
         <td colspan="${cl?5:4}" style="padding:8px 10px">Total</td>
         <td style="padding:8px 10px;text-align:right">${fmt(liqs.length ? liqs.reduce((s,l)=>s+(l.total||0),0) : pres.reduce((s,p)=>s+calcSubtotalFijo(p.posicion,p.jornadas||0,p.jornadasFinde||0,lugar.nombre),0))}</td>
-      </tr></tfoot>
+      ${!lugarCerrado ? '<td></td>' : ''}</tr></tfoot>
       </table>
     </div>
     <div class="modal-f">
@@ -8295,6 +8342,28 @@ window.recalcularLiqsFijo = async function(mesId, lugarId) {
 
 // Edita un campo de una persona en los presentes cargados (antes de liquidar).
 // Se identifica por índice y no por apellido, porque puede haber apellidos repetidos.
+
+// Quitar a una persona de la planilla de un lugar en un mes (no se borra del personal).
+// Si ya tenía una liquidación de ese mes y lugar, se borra también.
+window.quitarPersonaFijo = async function(mesId, lugarId, idx) {
+  const meses = getMesesFijos(), mes = meses.find(m => m.id === mesId), lista = mes?.presentes?.[lugarId];
+  const p = lista?.[idx]; if (!p) return;
+  if (mes.cerrado || mes.cerradoPorLugar?.[lugarId]) { alert('El lugar ya está cerrado para este mes.'); return; }
+  const liq = APP.liquidaciones.find(l => l.area === 'Servicios Fijos' && l.mes_id === mesId && l.lugar_fijo === lugarId && l.persona_id && l.persona_id === p.personaId);
+  const nombre = `${p.apellido || ''}, ${p.nombre || ''}`.replace(/^, |, $/g, '');
+  if (!confirm(`¿Quitar a ${nombre} de ${mes.nombre}?\n\nSale de la planilla de este lugar para este mes${liq ? ' y se borra su liquidación' : ''}. No se elimina del personal.`)) return;
+  if (liq) {
+    const { error } = await sb.from('liquidaciones').delete().eq('id', liq.id);
+    if (error) { toast('No se pudo borrar la liquidación: ' + error.message, 'err'); return; }
+    APP.liquidaciones = APP.liquidaciones.filter(l => l.id !== liq.id);
+  }
+  lista.splice(idx, 1);
+  saveMesesFijos(meses);
+  toast(`${nombre} quitada de ${mes.nombre}`, 'ok');
+  render();
+  if (lista.length) verDetalleLugarFijo(mesId, lugarId); else closeModal();
+};
+
 window.editarPresenteFijo = async function(mesId, lugarId, idx, campo, valor) {
   const meses = getMesesFijos();
   const mes = meses.find(m => m.id === mesId);
