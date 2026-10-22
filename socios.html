@@ -580,22 +580,7 @@ function lecturaProy(x) {
       <div class="kpis"><div class="kpi"><b>${corto(T.ingresos)}</b><span class="mono">Ingresos estimados</span></div><div class="kpi"><b>${corto(T.egresos)}</b><span class="mono">Egresos estimados</span></div>
         <div class="kpi"><b>${pct(T.neto, T.ingresos)}</b><span class="mono">Margen</span></div><div class="kpi"><b>${sh.length}</b><span class="mono">Shows confirmados</span></div></div>
       ${pila([{ l: 'Egresos', v: T.egresos, c: PAL.navy }, { l: 'Resultado', v: Math.max(0, T.neto), c: PAL.cel }], T.ingresos)}</div>`);
-  // Proyectado vs real: shows ya facturados con proyección previa
-  const comp = sh.filter(x => x.estado === 'real' && x.proyOriginal && x.proyOriginal.neto != null);
   let n = 2;
-  if (comp.length) {
-    const pr = comp.reduce((a, x) => a + (+x.proyOriginal.neto || 0), 0), re = comp.reduce((a, x) => a + (+x.neto || 0), 0), dif = re - pr, pDesv = pr ? dif / pr * 100 : 0;
-    const dentro = comp.filter(x => Math.abs((x.neto - x.proyOriginal.neto) / (x.proyOriginal.neto || 1)) <= 0.05).length;
-    const txtP = `${pDesv >= 0 ? '+' : '−'}${Math.abs(pDesv).toLocaleString('es-AR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
-    h += cap(n++, 'Proyectado vs. real', 'Cuánto <b>acertamos</b>', `<div class="vidrio">
-      <div class="grande"><b class="${pDesv < 0 ? 'rojo' : ''}">${txtP}</b><span>desvío del resultado real respecto de lo proyectado, en los ${comp.length} show${comp.length !== 1 ? 's' : ''} ya facturado${comp.length !== 1 ? 's' : ''}</span></div>
-      <div class="kpis"><div class="kpi"><b>${comp.length}</b><span class="mono">Shows comparados</span></div><div class="kpi"><b>${corto(pr)}</b><span class="mono">Resultado proyectado</span></div>
-        <div class="kpi"><b>${corto(re)}</b><span class="mono">Resultado real</span></div><div class="kpi"><b>${dentro} de ${comp.length}</b><span class="mono">Dentro del ±5%</span></div></div>
-      ${pila([{ l: 'Proyectado', v: pr, c: PAL.cel3, tip: `<div class="tip-t">Lo que proyectamos</div>${comp.map(x => `<div class="tip-r"><span>${esc(x.nombre)}</span><b>${money0(x.proyOriginal.neto)}</b></div>`).join('')}<div class="tip-r tot"><span>= Proyectado</span><b>${money0(pr)}</b></div>` },
-              { l: 'Real', v: re, c: PAL.navy, tip: `<div class="tip-t">Lo que dejaron</div>${comp.map(x => `<div class="tip-r"><span>${esc(x.nombre)}</span><b>${money0(x.neto)}</b></div>`).join('')}<div class="tip-r tot"><span>= Real</span><b>${money0(re)}</b></div>` }], Math.max(pr, re))}
-      </div>
-      <p class="nota">Cada show se proyectó antes de facturarse, con el historial de la banda (o el promedio de los shows anteriores), los supuestos del mes y el tarifario. La diferencia muestra cuánto se apartó cada uno de lo esperado.</p>`);
-  }
   h += cap(n++, 'Supuestos', 'Cómo se estima <b>cada show</b>', `<div class="supg">
       <div class="vidrio"><span>Puestos de sala</span><b>${sup.puestos ?? '—'}</b><small>${sup.puestosProm ? `promedio de ${sup.nRefs} shows` : 'fijado para el mes'}</small></div>
       <div class="vidrio"><span>Cargas</span><b>${sup.cargas ?? 2}</b><small>por show, se facturan</small></div>
