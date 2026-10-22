@@ -5604,7 +5604,12 @@ async function htmlProyeccion(meses) {
       <td style="text-align:right">${fmt(f.ingresos)}</td><td style="text-align:right">${fmt(f.egresos)}</td>
       <td style="text-align:right;font-weight:600;color:${col(f.neto)}">${fmt(f.neto)}</td><td style="text-align:center">${String(mg(f.neto, f.ingresos)).replace('.', ',')}%</td></tr>`;
     const aj = proyAjustes()[f.ev.id] || {}, g = guardPorId[f.ev.id];
-    const vsGuard = f.real ? (() => { const po = g?.proyOriginal || (g && g.estado !== 'real' ? g : null) || (f.retro ? { ...f.retro, reconstruida: true } : null);
+    const poRef = f.real ? (g?.proyOriginal || (g && g.estado !== 'real' ? g : null) || (f.retro ? { ...f.retro, reconstruida: true } : null)) : null;
+    const flechaN = (d, vs, u) => d === 0 ? `<div style="font-size:11px;color:var(--text2)" title="Igual que lo proyectado">= proy.</div>` : `<div style="font-size:11px;color:${d > 0 ? '#1a7a3e' : '#d32f2f'}" title="Proyectado: ${vs}${u}"><i class="ti ti-arrow-${d > 0 ? 'up' : 'down'}-right"></i> ${d > 0 ? '+' : '−'}${Math.abs(d)} vs ${vs}</div>`;
+    const salaReal = f.real ? (f.inf?.facturables ?? f.pedido) : null;
+    const vsPuestos = f.real && poRef && poRef.puestos != null && salaReal != null ? flechaN(salaReal - poRef.puestos, poRef.puestos, ' puestos de sala') : '';
+    const vsBackups = f.real && poRef && poRef.backups != null ? flechaN((f.backups || 0) - poRef.backups, poRef.backups, ' back-ups') : '';
+    const vsGuard = f.real ? (() => { const po = poRef;
       if (!po) return `<div style="font-size:11px;color:var(--text2)" title="No hay shows anteriores para reconstruir la proyección">sin proyección previa</div>`;
       const d = f.neto - po.neto, origen = po.reconstruida ? `Proyección reconstruida (${po.base || 'historial previo'})` : `Proyectado${po.guardadaEl ? ' el ' + fd(po.guardadaEl) : ''}`;
       return `<div style="font-size:11px;color:${d >= 0 ? '#1a7a3e' : '#d32f2f'};cursor:pointer;text-decoration:underline dotted" onclick="event.stopPropagation();verDesvioShow('${f.ev.id}')" title="${origen}: ${fmt(po.neto)} (${po.puestos ?? '—'} puestos). Tocá para ver por qué">${d >= 0 ? '<i class="ti ti-arrow-up-right"></i>' : '<i class="ti ti-arrow-down-right"></i>'} ${fmt(Math.abs(d))} vs proyectado${po.reconstruida ? ' <span title="Reconstruida con el historial previo a la fecha del show">~</span>' : ''}</div>`; })() : '';
@@ -5614,8 +5619,8 @@ async function htmlProyeccion(meses) {
         ${f.faltan?.length ? `<div style="font-size:11px;color:#b45309">Sin valor en tarifario: ${f.faltan.join(', ')}</div>` : ''}</td>
       <td>${f.real ? '<span class="badge bs" style="font-size:10px">Real</span>' : '<span class="badge bi" style="font-size:10px">Proyectado</span>'}</td>
       <td>${f.proyectado ? opcRef(f.ev) : '<span style="color:var(--text2);font-size:12px">—</span>'}</td>
-      <td style="text-align:center">${f.proyectado ? `<input type="number" min="0" value="${aj.pedido ?? ''}" placeholder="${f.pedidoBase}" style="width:62px;text-align:center" onclick="event.stopPropagation()" onchange="setProyAjuste('${f.ev.id}','pedido',this.value);render()">` : f.pedido}</td>
-      <td style="text-align:center">${f.proyectado ? `<input type="number" min="0" value="${aj.backups ?? ''}" placeholder="${f.backups}" style="width:54px;text-align:center" onclick="event.stopPropagation()" onchange="setProyAjuste('${f.ev.id}','backups',this.value);render()">` : f.backups}${f.backups ? `<div class="cx">${fmt(costoLaboral(f.costoBackups || 0))}</div>` : ''}</td>
+      <td style="text-align:center">${f.proyectado ? `<input type="number" min="0" value="${aj.pedido ?? ''}" placeholder="${f.pedidoBase}" style="width:62px;text-align:center" onclick="event.stopPropagation()" onchange="setProyAjuste('${f.ev.id}','pedido',this.value);render()">` : `${f.pedido}${vsPuestos}`}</td>
+      <td style="text-align:center">${f.proyectado ? `<input type="number" min="0" value="${aj.backups ?? ''}" placeholder="${f.backups}" style="width:54px;text-align:center" onclick="event.stopPropagation()" onchange="setProyAjuste('${f.ev.id}','backups',this.value);render()">` : f.backups}${f.backups ? `<div class="cx">${fmt(costoLaboral(f.costoBackups || 0))}</div>` : ''}${vsBackups}</td>
       <td style="text-align:center">${f.coords || '—'}${f.coords ? `<div class="cx">${fmt(costoLaboral(f.costoCoord || 0))}</div>` : ''}</td>
       <td style="text-align:right">${fmt(f.ingresos)}</td><td style="text-align:right">${fmt(f.egresos)}</td>
       <td style="text-align:right;font-weight:600;color:${col(f.neto)}">${fmt(f.neto)}${vsGuard}</td>
