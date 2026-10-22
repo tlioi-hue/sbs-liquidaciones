@@ -5441,7 +5441,12 @@ function proyMes(periodo, esc) {
   const refs = refsDisponibles(), fijosShow = (+E.fijosMes || 0) / (evs.length || 1);
   const filas = evs.map(ev => {
     const r = realPorId[ev.id];
-    if (r) return { ev, fISO: r.fecha, real: true, estimado: r.estimado, pedido: r.staff, backups: r.backups?.cant || 0, costoBackups: r.backups?.monto || 0, coords: r.coordinador?.cant || 0, costoCoord: r.coordinador?.monto || 0, ingresos: r.ventas, egresos: r.ventas - r.neto, neto: r.neto, inf: r };   // inf: el show tal como sale en el informe (detalle completo)
+    if (r) {
+      // Proyección reconstruida: lo que se habría proyectado antes de facturarse, con los shows facturados hasta esa fecha
+      let retro = null;
+      if (tar) { const p = proyectarShow(ev, refs.filter(x => x.fISO && r.fecha && x.fISO < r.fecha && x.ev.id !== ev.id), tar, E, fijosShow, esc, sup); if (!p.error) retro = { ingresos: p.ingresos, egresos: p.egresos, neto: p.neto, puestos: p.sala, base: p.base }; }
+      return { ev, fISO: r.fecha, real: true, estimado: r.estimado, pedido: r.staff, backups: r.backups?.cant || 0, costoBackups: r.backups?.monto || 0, coords: r.coordinador?.cant || 0, costoCoord: r.coordinador?.monto || 0, ingresos: r.ventas, egresos: r.ventas - r.neto, neto: r.neto, inf: r, retro };   // inf: el show tal como sale en el informe (detalle completo)
+    }
     if (!tar) return { ev, fISO: showFechaISO(ev), error: 'Falta el tarifario de este mes' };
     return proyectarShow(ev, refs, tar, E, fijosShow, esc, sup);
   });
@@ -5599,9 +5604,10 @@ async function htmlProyeccion(meses) {
       <td style="text-align:right">${fmt(f.ingresos)}</td><td style="text-align:right">${fmt(f.egresos)}</td>
       <td style="text-align:right;font-weight:600;color:${col(f.neto)}">${fmt(f.neto)}</td><td style="text-align:center">${String(mg(f.neto, f.ingresos)).replace('.', ',')}%</td></tr>`;
     const aj = proyAjustes()[f.ev.id] || {}, g = guardPorId[f.ev.id];
-    const vsGuard = f.real && g ? (() => { const po = g.proyOriginal || (g.estado !== 'real' ? g : null);
-      if (!po) return `<div style="font-size:11px;color:var(--text2)" title="Este show ya estaba facturado cuando se guardó la proyección">sin proyección previa</div>`;
-      const d = f.neto - po.neto; return `<div style="font-size:11px;color:${col(d)}" title="Proyectado${po.guardadaEl ? ' el ' + fd(po.guardadaEl) : ''}: ${fmt(po.neto)} (${po.puestos ?? '—'} puestos)">${d >= 0 ? '▲' : '▼'} ${fmt(Math.abs(d))} vs proyectado</div>`; })() : '';
+    const vsGuard = f.real ? (() => { const po = g?.proyOriginal || (g && g.estado !== 'real' ? g : null) || (f.retro ? { ...f.retro, reconstruida: true } : null);
+      if (!po) return `<div style="font-size:11px;color:var(--text2)" title="No hay shows anteriores para reconstruir la proyección">sin proyección previa</div>`;
+      const d = f.neto - po.neto, origen = po.reconstruida ? `Proyección reconstruida (${po.base || 'historial previo'})` : `Proyectado${po.guardadaEl ? ' el ' + fd(po.guardadaEl) : ''}`;
+      return `<div style="font-size:11px;color:${col(d)}" title="${origen}: ${fmt(po.neto)} (${po.puestos ?? '—'} puestos)">${d >= 0 ? '▲' : '▼'} ${fmt(Math.abs(d))} vs proyectado${po.reconstruida ? ' <span title="Reconstruida con el historial previo a la fecha del show">~</span>' : ''}</div>`; })() : '';
     return `<tr class="${f.proyectado ? 'clic' : ''}" ${f.proyectado ? `onclick="verProyShow('${f.ev.id}')" title="Ver cómo se calculó"` : ''}>
       <td style="white-space:nowrap">${fd(f.fISO)}</td>
       <td><strong>${f.ev.nombre}</strong><div style="font-size:11px;color:var(--text2)">${f.real ? (f.estimado ? 'real · costo estimado' : 'real') : f.base}</div>
@@ -5697,6 +5703,7 @@ function congelarProyeccion(nuevo, anterior) {
     if (x.estado === 'real') {
       if (a?.proyOriginal) x.proyOriginal = a.proyOriginal;
       else if (a && a.estado !== 'real') x.proyOriginal = { ingresos: a.ingresos, egresos: a.egresos, neto: a.neto, puestos: a.puestos, guardadaEl: anterior?.guardadaEl || null };
+      else if (x.proyRetro) x.proyOriginal = { ...x.proyRetro };   // sin registro previo: la proyección reconstruida
     } else {
       x.proyOriginal = { ingresos: x.ingresos, egresos: x.egresos, neto: x.neto, puestos: x.puestos, guardadaEl: new Date().toISOString().slice(0, 10) };
     }
@@ -6792,6 +6799,7 @@ function buildProyInforme(periodo) {
     nombre: f.ev.nombre, fecha: f.fISO, estado: f.real ? 'real' : 'proyectado', base: f.real ? 'ya facturado' : (f.base || ''),
     evId: f.ev.id, puestos: f.real ? (f.pedido || 0) : (f.sala || 0), cargas: f.real ? null : (f.cargas || 0), backups: f.backups || 0, coords: f.coords || 0,
     costoBackups: Math.round(f.costoBackups || 0), costoCoord: Math.round(f.costoCoord || 0),
+    proyRetro: f.real && f.retro ? { ingresos: Math.round(f.retro.ingresos), egresos: Math.round(f.retro.egresos), neto: Math.round(f.retro.neto), puestos: f.retro.puestos, base: f.retro.base, reconstruida: true } : null,
     // shows ya facturados: el detalle completo, como en el informe (cuenta, staff, zonas, posiciones)
     detalle: f.real && f.inf ? (({ ventas, personal, cargas, impuestos, fijos, iigg, neto, staff, facturables, presentes, cargasAparte, backups, coordinador, zonas, posiciones, estimado }) =>
       ({ ventas, personal, cargas, impuestos, fijos, iigg, neto, staff, facturables, presentes, cargasAparte, backups, coordinador, zonas, posiciones, estimado }))(f.inf) : null,
