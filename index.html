@@ -5607,7 +5607,7 @@ async function htmlProyeccion(meses) {
     const vsGuard = f.real ? (() => { const po = g?.proyOriginal || (g && g.estado !== 'real' ? g : null) || (f.retro ? { ...f.retro, reconstruida: true } : null);
       if (!po) return `<div style="font-size:11px;color:var(--text2)" title="No hay shows anteriores para reconstruir la proyección">sin proyección previa</div>`;
       const d = f.neto - po.neto, origen = po.reconstruida ? `Proyección reconstruida (${po.base || 'historial previo'})` : `Proyectado${po.guardadaEl ? ' el ' + fd(po.guardadaEl) : ''}`;
-      return `<div style="font-size:11px;color:${col(d)}" title="${origen}: ${fmt(po.neto)} (${po.puestos ?? '—'} puestos)">${d >= 0 ? '▲' : '▼'} ${fmt(Math.abs(d))} vs proyectado${po.reconstruida ? ' <span title="Reconstruida con el historial previo a la fecha del show">~</span>' : ''}</div>`; })() : '';
+      return `<div style="font-size:11px;color:${d >= 0 ? '#1a7a3e' : '#d32f2f'}" title="${origen}: ${fmt(po.neto)} (${po.puestos ?? '—'} puestos)">${d >= 0 ? '<i class="ti ti-arrow-up-right"></i>' : '<i class="ti ti-arrow-down-right"></i>'} ${fmt(Math.abs(d))} vs proyectado${po.reconstruida ? ' <span title="Reconstruida con el historial previo a la fecha del show">~</span>' : ''}</div>`; })() : '';
     return `<tr class="${f.proyectado ? 'clic' : ''}" ${f.proyectado ? `onclick="verProyShow('${f.ev.id}')" title="Ver cómo se calculó"` : ''}>
       <td style="white-space:nowrap">${fd(f.fISO)}</td>
       <td><strong>${f.ev.nombre}</strong><div style="font-size:11px;color:var(--text2)">${f.real ? (f.estimado ? 'real · costo estimado' : 'real') : f.base}</div>
