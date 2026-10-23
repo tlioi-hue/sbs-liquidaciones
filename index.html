@@ -4524,7 +4524,11 @@ async function pgFacturacion(el, ac) {
     const mesNeto = facs.filter(f => f.periodo === nowKey).reduce((s, f) => s + (f.total || 0), 0);
     const grupos = {};
     facs.forEach(f => { (grupos[f.periodo || '—'] = grupos[f.periodo || '—'] || []).push(f); });
-    const periodos = Object.keys(grupos).sort().reverse();
+    // meses cerrados (anteriores al actual): se pueden ocultar, como las quincenas en Orientadores
+    const mostrarCerrados = localStorage.getItem('fact_mostrar_cerrados') === 'si';
+    const todosPeriodos = Object.keys(grupos).sort().reverse();
+    const cerrados = todosPeriodos.filter(pk => pk !== '—' && pk < nowKey);
+    const periodos = mostrarCerrados ? todosPeriodos : todosPeriodos.filter(pk => !cerrados.includes(pk));
     el.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
         <div><h2 style="margin:0">Facturación · Movistar Arena</h2>
@@ -4542,6 +4546,8 @@ async function pgFacturacion(el, ac) {
         <div class="metric"><div class="metric-l">${mesLabel(nowKey)} (sin IVA)</div><div class="metric-v" style="font-size:17px">${fmt(mesNeto)}</div><div class="metric-s">con IVA ${fmt(mesTot)}</div></div>
         <div class="metric"><div class="metric-l">Shows facturados</div><div class="metric-v">${facs.length}</div></div>
       </div>
+      ${cerrados.length ? `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+        <button class="btn btn-sm" onclick="toggleCerradosFact()"><i class="ti ti-${mostrarCerrados ? 'eye-off' : 'eye'}"></i> ${mostrarCerrados ? 'Ocultar' : 'Mostrar'} meses cerrados (${cerrados.length})</button></div>` : ''}
       ${periodos.map(pk => {
         const arr = grupos[pk].slice().sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
         const subt = arr.reduce((s, f) => s + (f.total || 0), 0), subtIva = arr.reduce((s, f) => s + (f.total_iva || 0), 0);
@@ -7104,6 +7110,12 @@ window.guardarFacturacion = async function() {
   } catch (e) { loading(false); toast('No se pudo guardar: ' + e.message, 'err'); }
 };
 
+
+window.toggleCerradosFact = function() {
+  localStorage.setItem('fact_mostrar_cerrados', localStorage.getItem('fact_mostrar_cerrados') === 'si' ? 'no' : 'si');
+  render();
+};
+
 window.descargarFacturacionGuardada = async function(id) {
   const f = APP.facturaciones.find(x => x.id === id); if (!f || !f.detalle) return;
   const prev = window._facturaDraft;
@@ -7168,14 +7180,16 @@ window.descargarFacturaXLSX = async function() {
     put(r, 4, 'Valor por 6 horas', { bold: true });
     put(r, 5, 'TOTAL', { bold: true });
     r++;
+    const filasItems = [], filasSub = [];   // para que subtotales y total sean fórmulas
     const fila = (label, it, labelBold = true) => {
       if (label !== null) put(r, 1, label, { bold: labelBold });
       put(r, 2, it.recurso);
       put(r, 3, it.cant || 0);
       put(r, 4, it.valor || 0, { bold: true, fmt: MON });
-      put(r, 5, (it.cant || 0) * (it.valor || 0), { bold: true, fmt: MON });
-      r++;
+      put(r, 5, { formula: `C${r}*D${r}`, result: (it.cant || 0) * (it.valor || 0) }, { bold: true, fmt: MON });
+      filasItems.push(r); r++;
     };
+
     const escribirZona = (items, zonaLabel) => {
       const r0 = r;
       items.forEach(it => fila(zonaLabel ? null : '', it));
@@ -7188,9 +7202,12 @@ window.descargarFacturaXLSX = async function() {
       }
     };
     const subtotal = (cant, tot) => {
+      const desde = filasSub.length ? filasSub[filasSub.length - 1] + 1 : 4, hasta = r - 1;   // filas de este bloque
+      const rango = c => hasta >= desde ? `${c}${desde}:${c}${hasta}` : null;
       put(r, 1, 'Subtotal', { bold: true, fill: VERDE_SUB }); put(r, 2, '', { fill: VERDE_SUB });
-      put(r, 3, cant, { bold: true, fill: VERDE_SUB }); put(r, 4, '', { fill: VERDE_SUB });
-      put(r, 5, tot, { bold: true, fill: VERDE_SUB, fmt: MON2 }); r++;
+      put(r, 3, rango('C') ? { formula: `SUM(${rango('C')})`, result: cant } : cant, { bold: true, fill: VERDE_SUB }); put(r, 4, '', { fill: VERDE_SUB });
+      put(r, 5, rango('E') ? { formula: `SUM(${rango('E')})`, result: tot } : tot, { bold: true, fill: VERDE_SUB, fmt: MON2 });
+      filasSub.push(r); r++;
     };
     // Zonas regulares + Subtotal
     d.secciones.filter(s => !['PREMIUM', 'Personal'].includes(s.zona)).forEach(s => escribirZona(s.items, s.zona));
@@ -7206,9 +7223,11 @@ window.descargarFacturaXLSX = async function() {
     ws.mergeCells(r, 1, r, 2);
     put(r, 1, 'TOTAL DIA SHOW', { bold: true, fill: VERDE_SUB });
     ws.getCell(r, 2).border = B;
-    put(r, 3, T.cantTotal, { bold: true, fill: VERDE_SUB }); put(r, 4, '', { fill: VERDE_SUB });
-    put(r, 5, T.total, { bold: true, fill: VERDE_SUB, fmt: MON2 });
-    put(r, 6, Math.round(T.total * FACT_IVA * 100) / 100, { bold: true, fill: VERDE_SUB, fmt: MON2 });
+    const filasPers = filasItems.filter(x => x > (filasSub[filasSub.length - 1] || 0));   // renglones de Personal (después del último subtotal)
+    const partes = c => [...filasSub.map(x => `${c}${x}`), ...filasPers.map(x => `${c}${x}`)].join(',');
+    put(r, 3, partes('C') ? { formula: `SUM(${partes('C')})`, result: T.cantTotal } : T.cantTotal, { bold: true, fill: VERDE_SUB }); put(r, 4, '', { fill: VERDE_SUB });
+    put(r, 5, partes('E') ? { formula: `SUM(${partes('E')})`, result: T.total } : T.total, { bold: true, fill: VERDE_SUB, fmt: MON2 });
+    put(r, 6, { formula: `ROUND(E${r}*${FACT_IVA},2)`, result: Math.round(T.total * FACT_IVA * 100) / 100 }, { bold: true, fill: VERDE_SUB, fmt: MON2 });
 
     const buf = await wb.xlsx.writeBuffer();
     const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
