@@ -1095,7 +1095,7 @@ function datosDB(mes) {   // Externos por evento y Servicios Fijos por lugar, de
   const tE = evs.reduce((a, x) => ({ neto: a.neto + x.neto, costo: a.costo + x.costo }), { neto: 0, costo: 0 });
   // Servicios Fijos: por lugar (meses liquidados en el período)
   const mesesF = getMesesFijos().filter(m => !per || mesYM(m) === per);
-  const fijos = (typeof LUGARES_FIJOS !== 'undefined' ? LUGARES_FIJOS : []).map(l => {
+  const fijos = (typeof LUGARES_FIJOS !== 'undefined' ? LUGARES_FIJOS : []).filter(l => lugarVigente(l, per)).map(l => {
     const L = (APP.liquidaciones || []).filter(x => x.area === 'Servicios Fijos' && x.lugar_fijo === l.id && mesesF.some(m => m.id === x.mes_id));
     const nM = new Set(L.map(x => x.mes_id)).size, neto = L.reduce((a, x) => a + (x.total || 0), 0);
     return { nombre: l.nombre, nM, pers: new Set(L.map(x => x.persona_id)).size, neto, costo: costoLaboral(neto) }; });
@@ -1132,7 +1132,8 @@ function gColumnas(meses) {   // meses: [{label, fact, costo, dif}]
       <div class="gcol-l" title="${x.nombre || ''}">${x.label}</div>${meses.length <= 12 ? `<div class="gcol-v">${$M(x.fact)}</div>` : ''}</div>`).join('')}</div>
     <div class="g-ley"><span><i style="background:${G_COL.fact}"></i>Facturado</span><span><i style="background:${G_COL.costo}"></i>Costo real</span><span style="margin-left:auto">% = margen</span></div>`;
 }
-const COL_AREAS = { 'Movistar Arena': '#2f3a35', 'Externos': '#d08a3c', 'Ecoparque': '#4d9a63', 'Teatro Colón': '#8b6fc4', 'Campo de Polo': '#d0607e', 'Teatro San Martín': '#3e9aa5' };
+// Mismos colores que las etiquetas de cada área (chips), en un tono medio para que se lean en los gráficos
+const COL_AREAS = { 'Movistar Arena': '#2f5b9e', 'Externos': '#c9842a', 'Ecoparque': '#2f8a4c', 'Teatro Colón': '#7a4fc0', 'Campo de Polo': '#b83a7a', 'Teatro San Martín': '#1f8a7e', 'Servicios Fijos': '#6b6b6b' };
 function graficosDB(mes) {
   const per = mes || null, A = fvlPorArea(per), D = datosDB(mes);
   const pag = [{ nombre: 'Movistar Arena', v: A.tot.neto, color: COL_AREAS['Movistar Arena'] }, { nombre: 'Externos', v: D.tE.neto, color: COL_AREAS.Externos },
@@ -1376,7 +1377,7 @@ window.modalPersona = function(id) {
       <label class="fl">Lugar (Servicios Fijos)</label>
       <select id="plugar" onchange="refreshPosicionesPersona()">
         <option value="">— seleccionar —</option>
-        ${LUGARES_FIJOS.map(l => `<option value="${l.id}" ${p?.lugar_fijo===l.id?'selected':''}>${l.nombre}</option>`).join('')}
+        ${LUGARES_FIJOS.filter(l => !l.hasta || p?.lugar_fijo === l.id).map(l => `<option value="${l.id}" ${p?.lugar_fijo===l.id?'selected':''}>${l.nombre}${l.hasta ? ' (dado de baja)' : ''}</option>`).join('')}
       </select>
     </div>
     <div class="fr">
@@ -4291,8 +4292,12 @@ const LUGARES_FIJOS = [
   { id: 'ecoparque',     nombre: 'Ecoparque',       posiciones: ['Orientador', 'Supervisor'] },
   { id: 'teatro-colon',  nombre: 'Teatro Colón',    posiciones: ['Boletero', 'Supervisor'] },
   { id: 'campo-de-polo', nombre: 'Campo de Polo',   posiciones: ['Franquero'] },
-  { id: 'teatro-san-martin', nombre: 'Teatro San Martín', posiciones: ['Boletero'] },
+  { id: 'teatro-san-martin', nombre: 'Teatro San Martín', posiciones: ['Boletero'], hasta: '2026-09' },   // servicio terminado: vigente hasta septiembre de 2026
 ];
+// Lugares vigentes en un período (año-mes). Un lugar dado de baja se sigue mostrando en los meses anteriores a su baja
+// y, por las dudas, en cualquier mes que tenga gente cargada en él.
+const lugarVigente = (l, per) => !l.hasta || !per || per <= l.hasta;
+const lugaresFijosMes = mes => LUGARES_FIJOS.filter(l => lugarVigente(l, mesYM(mes)) || (mes?.presentes?.[l.id] || []).length);
 
 // Lugares fijos que usan tarifa diferencial por duración de jornada (6hs vs 8hs).
 // Para estos, la verificación/liquidación muestra dos columnas (6hs y 8hs), el dropdown
@@ -4373,7 +4378,7 @@ async function pgFijos(el, ac) {
 
   el.innerHTML = `
     <div class="grid4" style="margin-bottom:18px">
-      ${LUGARES_FIJOS.map(l => `<div class="metric"><div class="metric-l">${l.nombre}</div><div class="metric-v" style="font-size:17px">${fmt(APP.liquidaciones.filter(x=>x.area==='Servicios Fijos'&&x.lugar_fijo===l.id).reduce((s,x)=>s+(x.total||0),0))}</div><div class="metric-s">Total liquidado</div></div>`).join('')}
+      ${LUGARES_FIJOS.filter(l => !l.hasta || mesActual() <= l.hasta).map(l => `<div class="metric"><div class="metric-l">${l.nombre}</div><div class="metric-v" style="font-size:17px">${fmt(APP.liquidaciones.filter(x=>x.area==='Servicios Fijos'&&x.lugar_fijo===l.id).reduce((s,x)=>s+(x.total||0),0))}</div><div class="metric-s">Total liquidado</div></div>`).join('')}
       <div class="metric"><div class="metric-l">Total general</div><div class="metric-v" style="font-size:17px">${fmt(totalLiq)}</div><div class="metric-s">${meses.length} mes${meses.length!==1?'es':''} · ${APP.personal.filter(p=>p.area==='Servicios Fijos').length} ${(APP.personal.filter(p=>p.area==='Servicios Fijos').length) === 1 ? 'persona' : 'personas'}</div></div>
     </div>
     ${cerradosCount ? `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
@@ -4422,14 +4427,14 @@ function renderMesFijo(mes, isRRHH) {
       </div>
     </div>
     <div style="display:flex;gap:13px;font-size:11.5px;margin-bottom:12px;flex-wrap:wrap">
-      ${LUGARES_FIJOS.map(l => {
+      ${lugaresFijosMes(mes).map(l => {
         const liqL = liqMes.filter(liq => liq.lugar_fijo === l.id);
         const pres = mes.presentes?.[l.id] || [], nP = personasALiquidar(pres, liqL);
         return `<span><strong>${l.nombre}:</strong> ${nP} persona${nP !== 1 ? 's' : ''} · ${fmt(liqL.reduce((s,x)=>s+(x.total||0),0))}</span>`;
       }).join('')}
     </div>
     <div style="margin-bottom:11px">
-      ${LUGARES_FIJOS.map(l => {
+      ${lugaresFijosMes(mes).map(l => {
         const pres = mes.presentes?.[l.id] || [];
         const liqL = liqMes.filter(liq => liq.lugar_fijo === l.id);
         const lugarCerrado = !!(mes.cerradoPorLugar?.[l.id]);
@@ -5376,7 +5381,7 @@ function liquidadoOtrasAreas(periodo) {
   const ext = liqs.filter(l => l.area === 'Externos' && mesDe(l.periodo) === periodo).reduce((a, l) => a + (l.total || 0), 0);
   const mesesF = getMesesFijos().filter(m => !periodo || mesYM(m) === periodo).map(m => m.id);
   const out = [{ nombre: 'Externos', neto: ext }];
-  (typeof LUGARES_FIJOS !== 'undefined' ? LUGARES_FIJOS : []).forEach(l => out.push({ nombre: l.nombre,
+  (typeof LUGARES_FIJOS !== 'undefined' ? LUGARES_FIJOS : []).filter(l => lugarVigente(l, periodo)).forEach(l => out.push({ nombre: l.nombre,
     neto: liqs.filter(x => x.area === 'Servicios Fijos' && x.lugar_fijo === l.id && mesesF.includes(x.mes_id)).reduce((a, x) => a + (x.total || 0), 0) }));
   return out.map(x => ({ ...x, costo: costoLaboral(x.neto) }));
 }
