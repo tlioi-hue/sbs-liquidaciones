@@ -471,7 +471,7 @@ body::before { content: ''; position: fixed; inset: 0; z-index: -1;
 .sb-sec { color: var(--text3); letter-spacing: .9px; }
 .sb-item { border-radius: 10px; margin: 1px 8px; padding: 7px 11px; color: #334155; transition: background .15s, color .15s, transform .15s; }
 .sb-item:hover { background: rgba(255,255,255,.6); color: var(--text); }
-.sb-item.active { background: linear-gradient(180deg, #2b2f36, #15181d); color: #fff; font-weight: 500; box-shadow: 0 4px 12px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.12); }
+.sb-item.active { background: rgba(17,24,39,.62); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: #fff; font-weight: 500; box-shadow: 0 3px 10px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.12); }
 .sb-item.active i { color: #fff; }
 .sb-bottom { border-top: 1px solid rgba(17,24,39,.06); }
 .sb-user { border-radius: 10px; } .sb-user:hover { background: rgba(255,255,255,.55); }
@@ -551,6 +551,12 @@ input:focus, select:focus, textarea:focus { border-color: rgba(17,24,39,.45); bo
 #login-page > div:last-child { color: #666 !important; }   /* Ramallo 4608 · CABA */
 #login-page .login-err { background: rgba(253,236,236,.9); }
 
+
+.fact-mes > summary::-webkit-details-marker { display: none; }
+.fact-mes[open] > summary .fm-ch { transform: rotate(90deg); }
+.fact-mes > summary:hover { background: rgba(255,255,255,.45); }
+.fact-mes[open] > summary { border-bottom: 1px solid rgba(17,24,39,.07); }
+
 /* barras de desplazamiento finas */
 * { scrollbar-width: thin; scrollbar-color: rgba(17,24,39,.22) transparent; }
 *::-webkit-scrollbar { width: 9px; height: 9px; } *::-webkit-scrollbar-thumb { background: rgba(17,24,39,.22); border-radius: 9px; border: 2px solid transparent; background-clip: padding-box; } *::-webkit-scrollbar-track { background: transparent; }
@@ -614,7 +620,7 @@ input:focus, select:focus, textarea:focus { border-color: rgba(17,24,39,.45); bo
         <div class="sb-sec">Análisis</div>
         <div class="sb-item" onclick="go('rentabilidad')" id="n-rentabilidad"><i class="ti ti-chart-bar"></i> Facturación vs Liquidación</div>
         <div class="sb-item" onclick="go('informes')" id="n-informes"><i class="ti ti-presentation-analytics"></i> Informes a socios</div>
-        <div class="sb-item" onclick="go('proyecciones')" id="n-proyecciones"><i class="ti ti-crystal-ball"></i> Proyecciones</div>
+        <div class="sb-item" onclick="go('proyecciones')" id="n-proyecciones"><i class="ti ti-trending-up"></i> Proyecciones</div>
       </div>
       <div class="sb-bottom">
         <div class="sb-user">
@@ -4672,9 +4678,10 @@ async function pgFacturacion(el, ac) {
       ${periodos.map(pk => {
         const arr = grupos[pk].slice().sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
         const subt = arr.reduce((s, f) => s + (f.total || 0), 0), subtIva = arr.reduce((s, f) => s + (f.total_iva || 0), 0);
-        return `<div class="card" style="padding:0;margin-bottom:14px;overflow:hidden">
-          <div style="display:flex;justify-content:space-between;padding:10px 14px;background:var(--card2);font-weight:600">
-            <span>${mesLabel(pk)}</span><span>${fmt(subt)} <span style="color:var(--text2);font-size:12px;font-weight:500">sin IVA · ${fmt(subtIva)} con IVA</span></span></div>
+        return `<details class="card fact-mes" style="padding:0;margin-bottom:14px;overflow:hidden" ${(window._factAbiertos || {})[pk] ? 'open' : ''} ontoggle="(window._factAbiertos = window._factAbiertos || {})['${pk}'] = this.open">
+          <summary style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;font-weight:600;cursor:pointer;list-style:none;gap:10px">
+            <span><i class="ti ti-chevron-right fm-ch" style="margin-right:6px;transition:transform .15s"></i>${mesLabel(pk)} <span style="color:var(--text2);font-size:12px;font-weight:500">· ${arr.length} show${arr.length !== 1 ? 's' : ''}</span></span>
+            <span>${fmt(subt)} <span style="color:var(--text2);font-size:12px;font-weight:500">sin IVA · ${fmt(subtIva)} con IVA</span></span></summary>
           <table class="tbl"><tbody>
           ${arr.map(f => `<tr>
             <td><strong>${f.show}</strong> <span style="color:var(--text2);font-size:12px">· ${f.fecha || ''}</span>${f.presentes != null && f.presentes !== f.cant_staff ? ` <span class="badge bw" style="font-size:10px" title="pedido ${f.cant_staff} vs presentes ${f.presentes}">≠ presentes</span>` : ''}</td>
@@ -4683,7 +4690,7 @@ async function pgFacturacion(el, ac) {
               <button class="btn btn-sm" title="Descargar Excel" onclick="descargarFacturacionGuardada('${f.id}')"><i class="ti ti-download"></i></button>
               <button class="btn btn-sm btn-danger" title="Borrar" onclick="borrarFacturacion('${f.id}')"><i class="ti ti-trash"></i></button>
             </td></tr>`).join('')}
-          </tbody></table></div>`;
+          </tbody></table></details>`;
       }).join('')}
       ` : `
       <div style="border:2px dashed var(--border);border-radius:12px;padding:40px;text-align:center;background:var(--card)">
@@ -5613,7 +5620,7 @@ async function pgProyecciones(el, ac) {
   const meses = mesesProyectables();
   if (!S_PROY.mes || !meses.includes(S_PROY.mes)) S_PROY.mes = mesActual();   // abre en el mes en curso
   const tabs = `<div style="display:flex;gap:6px;margin-bottom:14px">
-      <button class="btn ${S_PROY.tab === 'proy' ? 'btn-primary' : ''}" onclick="S_PROY.tab='proy';render()"><i class="ti ti-crystal-ball"></i> Proyección</button>
+      <button class="btn ${S_PROY.tab === 'proy' ? 'btn-primary' : ''}" onclick="S_PROY.tab='proy';render()"><i class="ti ti-trending-up"></i> Proyección</button>
       <button class="btn ${S_PROY.tab === 'tar' ? 'btn-primary' : ''}" onclick="S_PROY.tab='tar';render()"><i class="ti ti-table"></i> Tarifario mensual</button></div>`;
   const cab = `<div style="margin-bottom:12px"><h2 style="margin:0">Proyecciones · Movistar Arena</h2>
     <div style="color:var(--text2);font-size:13px">Qué podemos esperar de los shows confirmados, con el historial de cada banda y el tarifario del mes.</div></div>`;
@@ -5804,7 +5811,7 @@ window.verProyShow = function(evId) {
   const P = proyMes(S_PROY.mes, 'base'), f = P.filas.find(x => x.ev.id === evId); if (!f || !f.proyectado) return;
   const E = getEstructura();
   showModal(`<div class="modal" style="max-width:780px">
-    <div class="modal-t"><i class="ti ti-crystal-ball"></i> ${f.ev.nombre} · ${fd(f.fISO)}</div>
+    <div class="modal-t"><i class="ti ti-trending-up"></i> ${f.ev.nombre} · ${fd(f.fISO)}</div>
     <div class="modal-s">Proyección basada en ${f.base.charAt(0).toLowerCase() + f.base.slice(1)}. Tarifario ${P.tar.origen === 'cargado' ? 'cargado' : 'estimado'} de ${mesLabel(S_PROY.mes).toLowerCase()}.</div>
     <table class="tbl" style="margin:10px 0"><thead><tr><th>Renglón</th><th style="text-align:center">Puestos</th><th style="text-align:right">Venta x día</th><th style="text-align:right">Ingreso</th><th style="text-align:right">Sueldo neto</th><th style="text-align:right">Costo</th></tr></thead><tbody>
       ${f.lineas.map(l => `<tr><td>${TAR_LBL(l.cat)}</td><td style="text-align:center">${l.cant}</td><td style="text-align:right">${fmt(l.venta)}</td><td style="text-align:right">${fmt(l.cant * l.venta)}</td><td style="text-align:right">${fmt(l.sueldo)}</td><td style="text-align:right">${fmt(l.cant * l.sueldo)}</td></tr>`).join('')}
