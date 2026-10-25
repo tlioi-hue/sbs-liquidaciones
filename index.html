@@ -453,18 +453,17 @@ table.stf-t { width: 100%; } table.stf-t td, table.stf-t th { padding: 6px 8px; 
   --red: #b4232c; --red-bg: #fdecec;
   --purple: #4b4f6b; --purple-bg: #eeeff6;
   --radius: 11px; --radius-lg: 18px;
-  --shadow: 0 10px 30px rgba(26,58,110,.07), 0 1px 2px rgba(26,58,110,.05);
+  --shadow: 0 10px 30px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
   --glass: rgba(255,255,255,.58); --glass-b: rgba(255,255,255,.75); --blur: blur(22px) saturate(170%);
 }
-html { background: #e9eef6; }
+html { background: #ececec; }
 body { background: transparent; color: var(--text); }
 body::before { content: ''; position: fixed; inset: 0; z-index: -1;
   background:
-    radial-gradient(60% 55% at 8% 8%, rgba(139,188,242,.55), transparent 60%),
-    radial-gradient(50% 45% at 92% 12%, rgba(196,181,253,.45), transparent 60%),
-    radial-gradient(55% 50% at 50% 100%, rgba(167,219,232,.5), transparent 60%),
-    radial-gradient(40% 40% at 85% 80%, rgba(253,224,171,.35), transparent 60%),
-    linear-gradient(160deg, #f4f7fb 0%, #e9eef6 50%, #edf1f8 100%); }
+    radial-gradient(70% 60% at 10% 0%, rgba(255,255,255,.9), transparent 60%),
+    radial-gradient(60% 50% at 95% 100%, rgba(255,255,255,.7), transparent 60%),
+    radial-gradient(50% 45% at 80% 10%, rgba(0,0,0,.035), transparent 60%),
+    linear-gradient(160deg, #f7f7f8 0%, #ececee 55%, #e6e6e8 100%); }
 
 /* barra lateral: vidrio */
 .sb { background: rgba(255,255,255,.46); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border-right: 1px solid rgba(255,255,255,.65); box-shadow: 1px 0 0 rgba(17,24,39,.04); }
@@ -528,14 +527,14 @@ input:focus, select:focus, textarea:focus { border-color: #3f86e0; box-shadow: 0
 .mo { background: rgba(30,41,59,.28); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
 .modal { background: rgba(255,255,255,.86); -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%); border: 1px solid rgba(255,255,255,.9); border-radius: 20px; box-shadow: 0 30px 80px rgba(15,23,42,.28), 0 2px 6px rgba(15,23,42,.08); padding: 24px; }
 .modal-t { font-weight: 600; letter-spacing: -.2px; }
-.loading-overlay { background: rgba(233,238,246,.55); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.loading-overlay { background: rgba(236,236,238,.55); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .loading-box { border-radius: 18px; }
 .toast { background: rgba(31,41,55,.9); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-radius: 12px; box-shadow: 0 10px 30px rgba(17,24,39,.25); }
 .toast.ok { background: rgba(31,122,63,.92); } .toast.err { background: rgba(180,35,44,.92); }
 
 /* inicio de sesión */
 .login-wrap { background: transparent; }
-.login-card { background: rgba(255,255,255,.62); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border: 1px solid rgba(255,255,255,.85); border-radius: 22px; box-shadow: 0 24px 60px rgba(26,58,110,.16); }
+.login-card { background: rgba(255,255,255,.62); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border: 1px solid rgba(255,255,255,.85); border-radius: 22px; box-shadow: 0 24px 60px rgba(0,0,0,.12); }
 .login-logo { color: var(--text); } .login-sub { color: var(--text2); }
 .login-card input { background: rgba(255,255,255,.85); color: var(--text); }
 .login-card label, .login-card .fl { color: var(--text2); }
