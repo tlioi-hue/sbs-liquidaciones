@@ -1828,7 +1828,7 @@ function renderEvExt(ev, isRRHH) {
               <span class="fb ${st==='o'?'fb-o':st==='p'?'fb-p':'fb-c'}">${
                 st==='o'?'sin liquidar':st==='p'?'falta liquidar':'liquidada'}</span>
               <div style="display:flex;gap:5px;flex-shrink:0">
-                <button class="btn btn-sm" onclick="S_STAFF.sel=new Set();verFechaExt('${ev.id}','${f.id}')" title="Armar staff: posición y valor"><i class="ti ti-users"></i></button>
+                <button class="btn btn-sm" onclick="S_STAFF.sel=new Set();verFechaExt('${ev.id}','${f.id}')" title="Ver la fecha: presentes, posición y valor (editables)"><i class="ti ti-eye"></i></button>
                 ${isRRHH ? `<button class="btn btn-sm" onclick="importarFechaCtx('${ev.id}','${f.id}','ext')" title="Subir planilla"><i class="ti ti-file-upload"></i></button>` : ''}
                 ${isRRHH ? `<button class="btn btn-sm" onclick="window._apx=null;agregarPresentesExt('${ev.id}','${f.id}')" title="Agregar personas"><i class="ti ti-user-plus"></i></button>` : ''}
                 ${isRRHH && pres.length && (st === 'o' || st === 'p') ? `<button class="btn btn-sm btn-success" onclick="liquidarFechaExt('${ev.id}','${f.id}')"><i class="ti ti-receipt"></i> Liquidar</button>` : ''}
@@ -2130,7 +2130,8 @@ window.verFechaExt = function(evId, fechaId) {
   const posOpts = posicionesExt().map(x => `<option value="${esc2(x)}">`).join('');
   showModal(`<div class="modal modal-lg">
     <div class="modal-t">${esc2(ev.nombre)} — ${fd(f.fecha)}</div>
-    <div class="modal-s">${filas.length} presente${filas.length !== 1 ? 's' : ''} · <strong>${fmt(total)}</strong>${sinValor ? ` · <span style="color:#b45309">${sinValor} sin posición ni valor</span>` : ''}${liqs.length ? ` · ${liqs.length} liquidado${liqs.length !== 1 ? 's' : ''}` : ''}</div>
+    <div class="modal-s">${filas.length} presente${filas.length !== 1 ? 's' : ''} · <strong>${fmt(total)}</strong>${sinValor ? ` · <span style="color:#b45309">${sinValor} sin posición ni valor</span>` : ''}${liqs.length ? ` · ${liqs.length} liquidado${liqs.length !== 1 ? 's' : ''}` : ''}
+      <span style="color:var(--text2)" title="Al importar la planilla, entran solo los marcados con P; los A no se guardan">· solo los que tuvieron P en la planilla</span></div>
     <datalist id="pos-ext">${posOpts}</datalist>
     ${rrhh ? `<div class="stf-bar">
       <button class="btn btn-sm" onclick="agregarPresentesExt('${evId}','${fechaId}')"><i class="ti ti-user-plus"></i> Agregar personas</button>
@@ -3499,7 +3500,7 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
 
     const nom  = String(row[cN]||'').trim();
     const cuil = String(row[cC]||'').replace(/\D/g, '');
-    const pres = String(row[cP]||'').trim().toUpperCase() === 'P';
+    const pres = String(row[cP]||'').trim().toUpperCase() === 'P';   // solo P = presente; A, vacío u otra cosa = ausente
     const tel  = String(row[cT]||'').trim();
 
     // Formato 1: col A es número (fila normal de orientadores/staff).
