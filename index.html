@@ -6928,7 +6928,7 @@ async function pgInformes(el, ac) {
   const clavePortal = (portal || []).map(x => x.clave).sort((a, b) => a.length - b.length)[0] || null;
   const urlPortal = clavePortal ? `${location.origin}/socios` : null;   // el portal trae su código incorporado: el link es solo /socios
   const cab = `<div style="margin-bottom:12px"><h2 style="margin:0">Informes a socios</h2>
-      <div style="color:var(--text2);font-size:12.5px">Lo que ves abajo es exactamente el informe que reciben los socios. Elegí el mes o el año y publicalo.</div></div>`;
+      <div style="color:var(--text2);font-size:12.5px">Elegí el mes o el año, publicalo y mandales a los socios el link del portal. "Abrir en pestaña" muestra el informe tal como lo ven ellos.</div></div>`;
   if (!APP.infPeriodo) {
     el.innerHTML = cab + `<div class="empty-state"><i class="ti ti-presentation-analytics"></i><p>Todavía no hay shows facturados desde el ${fd(RENT_DESDE)}. Guardá facturaciones en "Facturación Movistar Arena" para armar el primer informe.</p></div>`;
     return;
@@ -6975,44 +6975,23 @@ async function pgInformes(el, ac) {
     </div>
     <div class="card" style="margin-bottom:14px">
       <div style="font-size:13px;font-weight:600;margin-bottom:4px"><i class="ti ti-door-enter"></i> Portal de socios</div>
-      ${urlPortal ? `<div style="font-size:12px;color:var(--text2);margin-bottom:8px">El link general abre el portal; los links de cada informe abren el portal directamente en ese informe.</div>
-        <div style="display:flex;gap:6px;margin-bottom:10px"><input value="${urlPortal}" readonly style="flex:1;font-size:11.5px" onclick="this.select()">
-          <button class="btn btn-sm" onclick="copiarTexto('${urlPortal}','Link del portal copiado')"><i class="ti ti-copy"></i> Copiar</button>
-          <button class="btn btn-sm" onclick="window.open('${urlPortal}','_blank')" title="Abrir el portal"><i class="ti ti-external-link"></i></button></div>
-        ${(() => {
-          // los links de este mes (o año): el informe elegido arriba y, si es un mes, su proyección
-          const propios = (pubsAll || []).filter(x => (x.tipo === APP.infTipo && x.periodo === APP.infPeriodo) || (APP.infTipo === 'mes' && x.tipo === 'proy' && x.periodo === APP.infPeriodo))
-            .sort((a, b) => (a.tipo === 'proy') - (b.tipo === 'proy'));
-          const fila = x => { const u = `${urlPortal}?i=${encodeURIComponent(x.token)}`, nom = x.tipo === 'mes' ? mesLabel(x.periodo) : x.tipo === 'proy' ? 'Proyección ' + mesLabel(x.periodo).toLowerCase() : 'Año ' + x.periodo;
-            return `<div class="inf-link"><span class="chip ${x.tipo === 'proy' ? 'chip-fijos' : 'chip-arena'}">${x.tipo === 'proy' ? 'Proyección' : x.tipo === 'anio' ? 'Anual' : 'Mes'}</span><b>${nom}</b><input value="${u}" readonly onclick="this.select()">
-              <button class="btn btn-sm" onclick="copiarTexto('${u}','Link de ${nom} copiado')" title="Copiar el link directo"><i class="ti ti-copy"></i></button><button class="btn btn-sm" onclick="window.open('${u}','_blank')" title="Abrir en el portal"><i class="ti ti-external-link"></i></button></div>`; };
-          const titulo = APP.infTipo === 'mes' ? mesLabel(APP.infPeriodo) : 'Año ' + APP.infPeriodo;
-          return propios.length
-            ? `<div style="font-size:12px;font-weight:600;margin:4px 0 6px">${titulo} en el portal</div><div class="inf-links">${propios.map(fila).join('')}</div>`
-            : `<div style="font-size:12px;color:var(--text2)">${titulo} todavía no está publicado. Cuando lo publiques, acá va a aparecer su link directo.</div>`;
-        })()}`
-      : `<div style="font-size:12px;color:var(--text2)">Para activarlo, falta un paso en Supabase (te pasé el SQL). Después vas a ver acá el link fijo para mandarles a los socios.</div>`}
-    </div>
-    <details class="card mes-pleg" style="padding:0;overflow:hidden;margin-bottom:14px" ${window._infPreview ? 'open' : ''} ontoggle="window._infPreview = this.open">
-      <summary><span><i class="ti ti-chevron-right fm-ch" style="margin-right:6px;transition:transform .15s"></i>Ver el informe <span style="color:var(--text2);font-size:12px;font-weight:500">· vista previa con todos los números</span></span></summary>
-      <iframe id="inf-frame" src="informe.html?preview=1&embed=1&t=${Date.now()}" allow="fullscreen" style="width:100%;height:78vh;min-height:560px;border:0;display:block;background:#f4f5f4" title="Informe a socios"></iframe>
-    </details>
-    <div>
-      <details class="card mes-pleg" style="padding:0;overflow:hidden" ${window._infPubs ? 'open' : ''} ontoggle="window._infPubs = this.open">
-        <summary><span><i class="ti ti-chevron-right fm-ch" style="margin-right:6px;transition:transform .15s"></i>Todos los publicados <span style="color:var(--text2);font-size:12px;font-weight:500">· ${(pubsAll || []).length} informe${(pubsAll || []).length !== 1 ? 's' : ''} y proyecciones</span></span></summary>
-        <div class="mp-in">
-        ${ePub ? `<div class="alert alert-warn" style="margin:0"><i class="ti ti-database-off"></i> Falta crear la tabla <strong>informes</strong> en Supabase para publicar.</div>`
-          : !(pubsAll || []).length ? '<div style="font-size:12.5px;color:var(--text2)">Todavía no publicaste ninguno.</div>'
-          : [...(pubsAll || [])].sort((a, b) => (a.tipo === 'proy') - (b.tipo === 'proy') || String(b.periodo).localeCompare(String(a.periodo))).map(x => `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
-              <div><div style="font-size:12.5px;font-weight:500">${x.tipo === 'mes' ? mesLabel(x.periodo) : x.tipo === 'proy' ? 'Proyección ' + mesLabel(x.periodo).toLowerCase() : 'Año ' + x.periodo}${x.tipo === 'proy' ? ' <span class="badge bi" style="font-size:10px">proyección</span>' : ''}</div>
-                <div style="font-size:11px;color:var(--text2)">actualizado ${new Date(x.updated_at).toLocaleDateString('es-AR')}</div></div>
-              <div style="white-space:nowrap">
-                ${x.tipo !== 'proy' ? `<button class="btn btn-sm" title="Ver en la app" onclick="APP.infTipo='${x.tipo}';APP.infPeriodo='${x.periodo}';render()"><i class="ti ti-eye"></i></button>
-                <button class="btn btn-sm" title="Link y mail" onclick="abrirLinkInforme('${x.id}')"><i class="ti ti-link"></i></button>` : ''}
-                <button class="btn btn-sm" title="Abrir el publicado" onclick="window.open(informeUrl('${x.token}'),'_blank')"><i class="ti ti-external-link"></i></button>
-                <button class="btn btn-sm btn-danger" title="Borrar: deja de verse en el portal" onclick="borrarInforme('${x.id}', '${x.tipo === 'mes' ? mesLabel(x.periodo) : x.tipo === 'proy' ? 'la proyección de ' + mesLabel(x.periodo).toLowerCase() : 'el informe anual ' + x.periodo}')"><i class="ti ti-trash"></i></button>
-              </div></div>`).join('')}
-        </div></details>
+      ${urlPortal ? (() => {
+        const fila = x => { const u = `${urlPortal}?i=${encodeURIComponent(x.token)}`, nom = x.tipo === 'mes' ? mesLabel(x.periodo) : x.tipo === 'proy' ? 'Proyección ' + mesLabel(x.periodo).toLowerCase() : 'Año ' + x.periodo;
+          return `<div class="inf-link"><span class="chip ${x.tipo === 'proy' ? 'chip-fijos' : 'chip-arena'}">${x.tipo === 'proy' ? 'Proyección' : x.tipo === 'anio' ? 'Anual' : 'Mes'}</span><b>${nom}</b><input value="${u}" readonly onclick="this.select()">
+            <button class="btn btn-sm" onclick="copiarTexto('${u}','Link de ${nom} copiado')" title="Copiar el link directo"><i class="ti ti-copy"></i></button><button class="btn btn-sm" onclick="window.open('${u}','_blank')" title="Abrir en el portal"><i class="ti ti-external-link"></i></button>
+            <button class="btn btn-sm btn-danger" title="Borrar: deja de verse en el portal" onclick="borrarInforme('${x.id}', '${nom}')"><i class="ti ti-trash"></i></button></div>`; };
+        const esAnual = APP.infTipo === 'anio', titulo = esAnual ? 'Año ' + APP.infPeriodo : mesLabel(APP.infPeriodo);
+        // en cada mes: su informe y su proyección; en Anual: el anual y todo lo publicado
+        const propios = esAnual
+          ? [...(pubsAll || [])].sort((a, b) => (a.tipo === 'proy') - (b.tipo === 'proy') || (a.tipo === 'anio' ? -1 : 0) || String(b.periodo).localeCompare(String(a.periodo)))
+          : (pubsAll || []).filter(x => (x.tipo === 'mes' && x.periodo === APP.infPeriodo) || (x.tipo === 'proy' && x.periodo === APP.infPeriodo)).sort((a, b) => (a.tipo === 'proy') - (b.tipo === 'proy'));
+        return `<div style="font-size:12px;color:var(--text2);margin-bottom:8px">Link general del portal (abre la portada):</div>
+          <div style="display:flex;gap:6px;margin-bottom:12px"><input value="${urlPortal}" readonly style="flex:1;font-size:11.5px" onclick="this.select()">
+            <button class="btn btn-sm" onclick="copiarTexto('${urlPortal}','Link del portal copiado')"><i class="ti ti-copy"></i> Copiar</button>
+            <button class="btn btn-sm" onclick="window.open('${urlPortal}','_blank')" title="Abrir el portal"><i class="ti ti-external-link"></i></button></div>
+          <div style="font-size:12px;font-weight:600;margin:4px 0 6px">${esAnual ? 'Todo lo publicado' : titulo + ' en el portal'} <span style="color:var(--text2);font-weight:500">· ${esAnual ? 'links directos de cada informe y proyección' : 'links directos que abren el portal en este informe'}</span></div>
+          ${propios.length ? `<div class="inf-links">${propios.map(fila).join('')}</div>` : `<div style="font-size:12px;color:var(--text2)">${titulo} todavía no está publicado. Cuando lo publiques, acá va a aparecer su link directo.</div>`}`;
+      })() : `<div style="font-size:12px;color:var(--text2)">Para activarlo, falta un paso en Supabase (te pasé el SQL). Después vas a ver acá el link fijo para mandarles a los socios.</div>`}
     </div>`;
 }
 
