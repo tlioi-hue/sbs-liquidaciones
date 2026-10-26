@@ -3578,6 +3578,10 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
 function pgVerificar(el, ac) {
   const d    = APP.draft;
   const filas = d.filas;
+  if (d.modo === 'ext') {   // que se note que es Externos: título y menú
+    const t = document.getElementById('topbar-t'); if (t) t.textContent = `Externos · ${d.nombre}${d.fecha ? ' · ' + fd(d.fecha) : ''}`;
+    document.querySelectorAll('.sb-item').forEach(e => e.classList.remove('active')); document.getElementById('n-externos')?.classList.add('active');
+  }
   const secs  = [...new Set(filas.map(f => f.posicion))];
 
   ac.innerHTML = `
