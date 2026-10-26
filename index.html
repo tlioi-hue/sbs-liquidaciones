@@ -1743,7 +1743,8 @@ async function pgExternos(el, ac) {
   const totalLiquidado = liqExt.reduce((s,l) => s+(l.total||0), 0);
   const fechasPend = evs.reduce((s,e) => s + (e.fechas||[]).filter(f=>(f.presentismo||[]).length && !liqsF(e.id,f.id).length).length, 0);
 
-  if (isRRHH) ac.innerHTML = `<button class="btn btn-primary" onclick="modalNuevoEv()"><i class="ti ti-plus"></i> Nuevo evento</button>`;
+  if (isRRHH) ac.innerHTML = `<button class="btn" onclick="importarPlanillaExt()" title="Subir una planilla de presentes a un evento de Externos"><i class="ti ti-file-upload"></i> Importar planilla</button>
+    <button class="btn btn-primary" onclick="modalNuevoEv()"><i class="ti ti-plus"></i> Nuevo evento</button>`;
 
   const mostrarFinalizados = localStorage.getItem('ext_mostrar_finalizados') !== 'no';
   const finalizadosCount = evs.filter(e => eventoPagado(e)).length;
@@ -2113,22 +2114,9 @@ window.setMontoExt = async function(evId, fechaId, personaId, valor) {
 // EXTERNOS · ARMAR STAFF POR FECHA: presentes del padrón, posición y valor en forma masiva, consolidado por evento
 // ══════════════════════════════════════════════
 const S_STAFF = { sel: new Set() };
-const posicionesExt = () => [...new Set((APP.tarifario || []).filter(t => t.area === 'Externos').map(t => t.posicion))].sort((a, b) => a.localeCompare(b, 'es'));
-async function asegurarPosicionExt(pos, monto) {
-  // Si la posición no está en el tarifario de Externos, se crea con el valor indicado
-  pos = String(pos || '').trim(); if (!pos || getTarifa(pos, 'Externos')) return true;
-  let v = monto;
-  if (v === null || v === undefined || v === '' || isNaN(+v)) {
-    const r = prompt(`La posición "${pos}" no está en el tarifario de Externos.\n\n¿Con qué valor por jornada la creo?`);
-    if (r === null) return false; v = +String(r).replace(/[^\d]/g, '');
-    if (!v) { toast('Valor inválido: no se creó la posición', 'err'); return false; }
-  }
-  const { data, error } = await sb.from('tarifario').insert({ posicion: pos, area: 'Externos', monto: +v }).select().single();
-  if (error) { toast('No se pudo crear la posición: ' + error.message, 'err'); return false; }
-  APP.tarifario.push(data || { id: uid(), posicion: pos, area: 'Externos', monto: +v });
-  toast(`Posición "${pos}" creada en el tarifario (${fmt(+v)})`, 'ok');
-  return true;
-}
+// Posiciones de Externos: las que ya se usaron en los eventos (Externos no usa el tarifario)
+const posicionesExt = () => [...new Set(APP.eventos.filter(e => e.area === 'Externos').flatMap(e => (e.fechas || []).flatMap(f => (f.presentismo || []).map(p => p.posicion))).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+async function asegurarPosicionExt(pos, monto) { return true; }   // Externos no crea posiciones en el tarifario: el valor va con cada persona
 function presFecha(evId, fechaId) { return (getEvento(evId)?.fechas || []).find(x => x.id === fechaId); }
 
 window.verFechaExt = function(evId, fechaId) {
@@ -3174,8 +3162,13 @@ async function pgImportar(el, ac) {
       <div class="step-sep"></div>
       <div class="step"><div class="step-num">3</div><span>Confirmar</span></div>
     </div>
-    <div class="alert alert-info"><i class="ti ti-info-circle"></i>
-      Para vincular directamente a un show o fecha, subí desde Externos o Arena. Este importador es de carga rápida.
+    <div class="card" style="margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:6px">¿De qué área es la planilla?</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <span class="chip chip-arena" style="padding:6px 12px">Movistar Arena: subila acá abajo</span>
+        <button class="btn btn-sm" onclick="importarPlanillaExt()"><i class="ti ti-file-upload"></i> Externos: elegir evento y fecha</button>
+      </div>
+      <div style="font-size:11.5px;color:var(--text2);margin-top:8px">En Externos las posiciones quedan como vienen en la planilla y el valor se asigna a mano; en el Arena se usa el tarifario.</div>
     </div>
     <div class="card">
       <div class="drop-zone" id="dz" onclick="document.getElementById('fi').click()">
@@ -3193,6 +3186,21 @@ async function pgImportar(el, ac) {
     dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dov'); handleFileCtx(e.dataTransfer.files[0], null, null, 'arena'); });
   }
 }
+
+
+// Importar una planilla a Externos eligiendo evento y fecha (entra en modo Externos: posición de la planilla y valor manual)
+window.importarPlanillaExt = async function () {
+  await fetchAll();
+  const evs = APP.eventos.filter(e => e.area === 'Externos' && (e.fechas || []).length).sort((a, b) => String(showFechaISO(b) || '').localeCompare(String(showFechaISO(a) || '')));
+  if (!evs.length) { alert('Primero creá el evento en Externos (con su fecha) y después importá la planilla.'); return; }
+  const opsFechas = ev => (ev.fechas || []).slice().sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))).map(f => `<option value="${f.id}">${fd(f.fecha)}${f.nombre ? ' · ' + esc2(f.nombre) : ''}</option>`).join('');
+  showModal(`<div class="modal">
+    <div class="modal-t"><i class="ti ti-file-upload"></i> Importar planilla a Externos</div>
+    <div class="modal-s">La planilla se importa a una fecha de un evento. Las posiciones quedan como vienen en la planilla y el valor lo asignás vos.</div>
+    <label class="fl">Evento</label><select id="ie-ev" onchange="document.getElementById('ie-f').innerHTML = (${JSON.stringify(Object.fromEntries(evs.map(e => [e.id, opsFechas(e)])))})[this.value]">${evs.map(e => `<option value="${e.id}">${esc2(e.nombre)}${showFechaISO(e) ? ' · ' + fd(showFechaISO(e)) : ''}</option>`).join('')}</select>
+    <label class="fl" style="margin-top:10px">Fecha</label><select id="ie-f">${opsFechas(evs[0])}</select>
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="(() => { const e = document.getElementById('ie-ev').value, f = document.getElementById('ie-f').value; closeModal(); importarFechaCtx(e, f, 'ext'); })()">Elegir archivo</button></div></div>`);
+};
 
 window.importarFechaCtx = async function(evId, fechaId, modo) {
   await fetchAll();
