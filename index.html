@@ -577,6 +577,14 @@ tr.p-grupo .pg-ch { display: inline-block; margin-right: 6px; transition: transf
 
 .val-falta { border-color: #e0a44c !important; background: rgba(253,241,223,.8) !important; }
 
+
+.tx-step { display: inline-flex; align-items: center; gap: 2px; background: rgba(255,255,255,.6); border: 1px solid rgba(17,24,39,.1); border-radius: 10px; padding: 2px; }
+.tx-step button { width: 28px; height: 28px; border: 0; border-radius: 8px; background: transparent; font-size: 17px; font-weight: 600; line-height: 1; cursor: pointer; color: var(--text); user-select: none; }
+.tx-step button:hover { background: rgba(17,24,39,.08); } .tx-step button:active { background: rgba(17,24,39,.16); transform: scale(.94); }
+.tx-step span { min-width: 26px; text-align: center; font-weight: 700; font-size: 14px; }
+.tx-step span.cero { color: #b9c0c7; font-weight: 500; }
+.tx-step span.pulso { animation: txpulso .25s ease; } @keyframes txpulso { 50% { transform: scale(1.25); } }
+
 /* barras de desplazamiento finas */
 * { scrollbar-width: thin; scrollbar-color: rgba(17,24,39,.22) transparent; }
 *::-webkit-scrollbar { width: 9px; height: 9px; } *::-webkit-scrollbar-thumb { background: rgba(17,24,39,.22); border-radius: 9px; border: 2px solid transparent; background-clip: padding-box; } *::-webkit-scrollbar-track { background: transparent; }
@@ -3458,12 +3466,25 @@ window.verTurnosExt = function () {
           <div style="display:flex;gap:4px;align-items:center;justify-content:center;margin-top:4px"><input type="number" min="0" value="${c.valor ?? ''}" placeholder="$ por turno" ${dis} style="width:96px;text-align:right" onchange="txCol('${c.id}','valor',this.value)">${cerrado ? '' : `<button class="btn btn-sm btn-danger" title="Quitar este tipo de turno" onclick="txQuitarCol('${c.id}')"><i class="ti ti-x"></i></button>`}</div></th>`).join('')}
         <th style="text-align:right">Turnos</th><th style="text-align:right">Total</th><th></th></tr></thead><tbody>
       ${filas.length ? filas.map(f => { const t = turnosTot(d, f); return `<tr><td>${cerrado ? '' : `<input type="checkbox" style="width:auto" ${sel.has(f.pid) ? 'checked' : ''} onchange="this.checked?TX.abierto.sel.add('${f.pid}'):TX.abierto.sel.delete('${f.pid}');verTurnosExt()">`}</td><td>${esc2(nom(f.pid))}</td>
-        ${d.cols.map(c => `<td style="text-align:center"><input type="number" min="0" step="1" value="${f.t?.[c.id] || ''}" ${dis} style="width:70px;text-align:center" onchange="txCelda('${f.pid}','${c.id}',this.value)"></td>`).join('')}
-        <td style="text-align:right;font-weight:600">${t.n}</td><td style="text-align:right;font-weight:600">${fmt(t.$)}</td><td>${cerrado ? '' : `<button class="btn btn-sm btn-danger" title="Quitar" onclick="txQuitar('${f.pid}')"><i class="ti ti-trash"></i></button>`}</td></tr>`; }).join('')
+        ${d.cols.map(c => `<td style="text-align:center">${cerrado ? (f.t?.[c.id] || '') : `<div class="tx-step"><button type="button" onclick="txSumar('${f.pid}','${c.id}',-1)" title="Restar un turno">−</button><span id="txc-${f.pid}-${c.id}" class="${+f.t?.[c.id] ? '' : 'cero'}">${f.t?.[c.id] || 0}</span><button type="button" onclick="txSumar('${f.pid}','${c.id}',1)" title="Sumar un turno">+</button></div>`}</td>`).join('')}
+        <td style="text-align:right;font-weight:600" id="txn-${f.pid}">${t.n}</td><td style="text-align:right;font-weight:600" id="txm-${f.pid}">${fmt(t.$)}</td><td>${cerrado ? '' : `<button class="btn btn-sm btn-danger" title="Quitar" onclick="txQuitar('${f.pid}')"><i class="ti ti-trash"></i></button>`}</td></tr>`; }).join('')
       : `<tr><td colspan="${d.cols.length + 5}" style="text-align:center;color:var(--text2);padding:18px">Buscá personas en el padrón o pegá una lista.${d.cols.length ? '' : ' Después agregá los tipos de turno (por ejemplo "Operador 9 hs").'}</td></tr>`}
-      </tbody><tfoot><tr style="font-weight:700"><td></td><td>Total · ${d.filas.length} persona${d.filas.length !== 1 ? 's' : ''}</td>${d.cols.map(c => `<td style="text-align:center">${totCol(c)} <span style="font-weight:400;color:var(--text2);font-size:11.5px">${c.valor ? fmt(totCol(c) * c.valor) : ''}</span></td>`).join('')}<td style="text-align:right">${totalN}</td><td style="text-align:right">${fmt(total)}</td><td></td></tr></tfoot></table></div>
+      </tbody><tfoot><tr style="font-weight:700"><td></td><td>Total · ${d.filas.length} persona${d.filas.length !== 1 ? 's' : ''}</td>${d.cols.map(c => `<td style="text-align:center" id="txcol-${c.id}">${totCol(c)} <span style="font-weight:400;color:var(--text2);font-size:11.5px">${c.valor ? fmt(totCol(c) * c.valor) : ''}</span></td>`).join('')}<td style="text-align:right" id="txtot-n">${totalN}</td><td style="text-align:right" id="txtot-m">${fmt(total)}</td><td></td></tr></tfoot></table></div>
     <div class="modal-f"><button class="btn" onclick="closeModal();render()">Cerrar</button>
       ${cerrado ? '' : `<button class="btn btn-primary" onclick="txAplicar()" title="Vuelca los totales al evento (fecha &quot;Turnos&quot;) para liquidar"><i class="ti ti-arrow-right"></i> Pasar a la liquidación</button>`}</div></div>`);
+};
+
+// + / − de a un turno: actualiza la celda y los totales en el lugar (sin redibujar la tabla)
+window.txSumar = function (pid, cid, delta) {
+  const d = TX.abierto.d, f = d.filas.find(x => x.pid === pid); if (!f) return;
+  f.t = f.t || {}; const n = Math.max(0, (+f.t[cid] || 0) + delta); if (n) f.t[cid] = n; else delete f.t[cid];
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.innerHTML = v; };
+  const cel = document.getElementById(`txc-${pid}-${cid}`); if (cel) { cel.textContent = n; cel.classList.toggle('cero', !n); cel.classList.remove('pulso'); void cel.offsetWidth; cel.classList.add('pulso'); }
+  const t = turnosTot(d, f); set(`txn-${pid}`, t.n); set(`txm-${pid}`, fmt(t.$));
+  const c = d.cols.find(x => x.id === cid), tc = d.filas.reduce((a, x) => a + (+x.t?.[cid] || 0), 0);
+  set(`txcol-${cid}`, `${tc} <span style="font-weight:400;color:var(--text2);font-size:11.5px">${c?.valor ? fmt(tc * c.valor) : ''}</span>`);
+  set('txtot-n', d.filas.reduce((a, x) => a + turnosTot(d, x).n, 0)); set('txtot-m', fmt(d.filas.reduce((a, x) => a + turnosTot(d, x).$, 0)));
+  turnosGuardarPronto();
 };
 window.txCelda = (pid, cid, v) => { const f = TX.abierto.d.filas.find(x => x.pid === pid); if (!f) return; f.t = f.t || {}; const n = v === '' ? 0 : Math.max(0, Math.round(+v)); if (n) f.t[cid] = n; else delete f.t[cid]; turnosGuardarPronto(); verTurnosExt(); };
 window.txCol = (cid, campo, v) => { const c = TX.abierto.d.cols.find(x => x.id === cid); if (!c) return; c[campo] = campo === 'valor' ? (v === '' ? null : Math.round(+v)) : String(v).trim(); turnosGuardarPronto(); verTurnosExt(); };
