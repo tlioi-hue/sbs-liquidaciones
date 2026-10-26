@@ -3634,8 +3634,10 @@ function pgVerificar(el, ac) {
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
         <div><div style="font-size:13px;font-weight:600"><i class="ti ti-wand"></i> Asignar posición y valor a los seleccionados</div>
           <div style="font-size:11.5px;color:var(--text2)">Tocá los nombres para seleccionar, o la casilla de una sección para tomar a todos los de esa posición. El valor es por persona y por jornada: nada se toma del tarifario, lo asignás vos.</div></div>
-        <div style="display:flex;gap:6px;align-items:center"><span id="ext-nsel" style="font-size:12px;color:var(--text2)">0 seleccionados</span>
-          <button class="btn btn-sm" onclick="extSelTodos(true)">Todos</button><button class="btn btn-sm" onclick="extSelTodos(false)">Ninguno</button></div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span id="ext-nsel" style="font-size:12px;color:var(--text2)">0 seleccionados</span>
+          <button class="btn btn-sm" onclick="extSelTodos(true)">Todos</button><button class="btn btn-sm" onclick="extSelTodos(false)">Ninguno</button>
+          <span id="ext-total" style="font-size:12.5px;margin-left:8px"></span>
+          <button class="btn btn-sm" onclick="extPrevisualizar()" title="Ver cómo va la liquidación con lo asignado"><i class="ti ti-eye"></i> Ver liquidación</button></div>
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <input id="ext-pos" list="ext-pos-lista" placeholder="Posición (ej. Acomodador)" style="width:230px"><datalist id="ext-pos-lista">${posicionesExt().map(p => `<option value="${esc2(p)}">`).join('')}</datalist>
@@ -3712,7 +3714,7 @@ function renderSeccionesVerificar() {
                   const enTarifario = tarifasArea.some(t => t.posicion === f.posicion);
                   const extraOpt = !enTarifario ? `<option value="${f.posicion}" selected>${f.posicion}</option>` : '';
                   const tarF = d.modo === 'ext' ? getTarifa(f.posicion, 'Externos') : null;
-                  return `<tr id="fr-${f._id}" class="${f.sel?'sel':f.presente?'':'ausente'}" ${d.modo === 'ext' ? `onclick="extClicFila(event,'${f._id}')"` : ''}>
+                  return `<tr id="fr-${f._id}" data-sec="${esc2(sec)}" class="${f.sel?'sel':f.presente?'':'ausente'}" ${d.modo === 'ext' ? `onclick="extClicFila(event,'${f._id}')"` : ''}>
                   <td class="tdc" style="text-align:center">
                     <input type="checkbox" class="chk" ${f.sel?'checked':''} onchange="selFila('${f._id}',this.checked)">
                   </td>
@@ -3724,7 +3726,7 @@ function renderSeccionesVerificar() {
                   <td><input value="${f.cuil}"     onchange="editF('${f._id}','cuil',this.value)" style="font-family:monospace"></td>
                   ${d.modo === 'ext'
                     ? `<td><input id="pos-${f._id}" value="${esc2(f.posicion)}" list="ext-pos-lista" onchange="editF('${f._id}','posicion',this.value)"></td>
-                       <td style="text-align:right"><input type="number" min="0" step="1" id="val-${f._id}" value="${f.monto ?? ''}" placeholder="sin valor" class="${f.monto === null || f.monto === undefined || f.monto === '' ? 'val-falta' : ''}" style="width:110px;text-align:right" onchange="editF('${f._id}','monto',this.value === '' ? null : Math.round(+this.value));this.classList.toggle('val-falta', this.value === '')"></td>`
+                       <td style="text-align:right"><input type="number" min="0" step="1" id="val-${f._id}" value="${f.monto ?? ''}" placeholder="sin valor" class="${f.monto === null || f.monto === undefined || f.monto === '' ? 'val-falta' : ''}" style="width:110px;text-align:right" onchange="editF('${f._id}','monto',this.value === '' ? null : Math.round(+this.value));this.classList.toggle('val-falta', this.value === '');extRefrescarTotal()"></td>`
                     : `<td><select id="pos-${f._id}" onchange="editF('${f._id}','posicion',this.value)">${extraOpt}${posOpts}</select></td>`}
                   <td>${f.cuil.length !== 11 ? '<span class="badge bd" style="font-size:10px" title="CUIL incorrecto — debe tener 11 dígitos">⚠ CUIL inválido</span>' : f.esNuevo ? '<span class="badge bn" style="font-size:10px">nuevo</span>' : '<span class="badge bs" style="font-size:10px">registrado</span>'}</td>
                 </tr>`;}).join('')}
@@ -3838,9 +3840,9 @@ window.selFila = function(fid, val) {
 };
 
 window.selSec = function(sec, checked) {
-  // Si todos están seleccionados y el checkbox se destilda → deseleccionar todos
-  // Si alguno no está → seleccionar todos
-  APP.draft.filas.filter(f => f.posicion === sec).forEach(f => {
+  // Selecciona o deselecciona a todos los del bloque de esa sección, aunque ya les hayas cambiado la posición
+  const ids = new Set([...document.querySelectorAll('tr[data-sec]')].filter(tr => tr.dataset.sec === sec).map(tr => tr.id.replace('fr-', '')));
+  APP.draft.filas.filter(f => ids.has(f._id) || (!ids.size && f.posicion === sec)).forEach(f => {
     f.sel = checked;
     const row = document.getElementById('fr-' + f._id);
     if (row) {
@@ -3851,6 +3853,32 @@ window.selSec = function(sec, checked) {
   refreshBulk();
 };
 
+
+
+// Total en vivo y previsualización de la liquidación de Externos (con lo asignado hasta ahora)
+function extResumen() {
+  const pres = (APP.draft?.filas || []).filter(f => f.presente), tiene = f => f.monto !== null && f.monto !== undefined && f.monto !== '';
+  const porPos = {}; pres.forEach(f => { const k = f.posicion || '(sin posición)'; const g = porPos[k] = porPos[k] || { n: 0, conValor: 0, total: 0, valores: new Set() }; g.n++; if (tiene(f)) { g.conValor++; g.total += +f.monto; g.valores.add(+f.monto); } });
+  const total = pres.reduce((a, f) => a + (tiene(f) ? +f.monto : 0), 0), sinValor = pres.filter(f => !tiene(f));
+  return { pres, porPos, total, sinValor };
+}
+function extRefrescarTotal() {
+  const e = document.getElementById('ext-total'); if (!e) return;
+  const R = extResumen();
+  e.innerHTML = `<b>${fmt(R.total)}</b> <span style="color:var(--text2)">en ${R.pres.length} presente${R.pres.length !== 1 ? 's' : ''}</span>${R.sinValor.length ? ` <span style="color:var(--orange)">· ${R.sinValor.length} sin valor</span>` : ''}`;
+}
+window.extPrevisualizar = function () {
+  const R = extResumen(), d = APP.draft;
+  showModal(`<div class="modal modal-lg">
+    <div class="modal-t"><i class="ti ti-eye"></i> Así va la liquidación · ${esc2(d.nombre)}${d.fecha ? ' · ' + fd(d.fecha) : ''}</div>
+    <div class="modal-s">Con los valores asignados hasta ahora. Todavía no se guardó nada: podés cerrar y seguir ajustando.</div>
+    <table class="tbl" style="margin-top:8px"><thead><tr><th>Posición</th><th style="text-align:right">Presentes</th><th style="text-align:right">Valor por jornada</th><th style="text-align:right">Subtotal</th></tr></thead>
+      <tbody>${Object.entries(R.porPos).sort((a, b) => b[1].total - a[1].total).map(([pos, g]) => `<tr><td>${esc2(pos)}${g.conValor < g.n ? `<div style="font-size:11px;color:var(--orange)">${g.n - g.conValor} sin valor</div>` : ''}</td><td style="text-align:right">${g.n}</td>
+        <td style="text-align:right">${g.valores.size === 0 ? '<span style="color:var(--orange)">—</span>' : g.valores.size === 1 ? fmt([...g.valores][0]) : [...g.valores].sort((a, b) => a - b).map(fmt).join(' / ')}</td><td style="text-align:right;font-weight:600">${fmt(g.total)}</td></tr>`).join('')}</tbody>
+      <tfoot><tr style="font-weight:700;border-top:2px solid var(--border)"><td>Total</td><td style="text-align:right">${R.pres.length}</td><td></td><td style="text-align:right">${fmt(R.total)}</td></tr></tfoot></table>
+    ${R.sinValor.length ? `<div class="alert alert-warn" style="margin-top:10px"><i class="ti ti-alert-triangle"></i> ${R.sinValor.length} presente${R.sinValor.length !== 1 ? 's' : ''} sin valor: ${R.sinValor.slice(0, 8).map(f => esc2(f.apellido)).join(', ')}${R.sinValor.length > 8 ? '…' : ''}. Asignales un valor antes de confirmar.</div>` : `<div class="alert alert-ok" style="margin-top:10px"><i class="ti ti-check"></i> Todos los presentes tienen valor. Al confirmar, esto es lo que se va a liquidar.</div>`}
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cerrar</button></div></div>`);
+};
 
 // ── Externos: selección tocando la fila, asignación manual de posición y valor ──
 function extRefrescarSel() { const n = (APP.draft?.filas || []).filter(f => f.sel).length; const e = document.getElementById('ext-nsel'); if (e) e.textContent = `${n} seleccionado${n !== 1 ? 's' : ''}`; }
@@ -3878,11 +3906,12 @@ window.extAplicar = function () {
     if (pos) { f.posicion = pos; const el = document.getElementById('pos-' + f._id); if (el) { if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === pos)) el.insertAdjacentHTML('afterbegin', `<option value="${esc2(pos)}">${esc2(pos)}</option>`); el.value = pos; } }
     if (val !== null) { f.monto = val; const vi = document.getElementById('val-' + f._id); if (vi) { vi.value = val; vi.classList.remove('val-falta'); } }
   });
+  extRefrescarTotal();
   toast(`${sel.length} persona${sel.length !== 1 ? 's' : ''}: ${[pos ? `posición "${pos}"` : '', val !== null ? `valor ${fmt(val)}` : ''].filter(Boolean).join(' y ')}`, 'ok');
 };
 
 function refreshBulk() {
-  extRefrescarSel();
+  extRefrescarSel(); extRefrescarTotal();
   const n   = APP.draft.filas.filter(f => f.sel).length;
   const bar = document.getElementById('bulk-bar'); if (!bar) return;
   const secs = [...new Set(APP.draft.filas.map(f => f.posicion))];
@@ -3954,6 +3983,7 @@ window.togPres  = function(fid) {
   const btn = document.getElementById('tg-' + fid);
   if (row) row.className = f.sel ? 'sel' : f.presente ? '' : 'ausente';
   if (btn) btn.className = 'toggle ' + (f.presente ? 'on' : 'off');
+  extRefrescarTotal();
 };
 window.editF    = (fid, campo, val) => { const f = APP.draft.filas.find(x => x._id === fid); if (f) f[campo] = val; };
 window.cancelarDraft = () => { APP.draft = null; go('importar'); };
