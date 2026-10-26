@@ -1843,6 +1843,7 @@ function renderEvExt(ev, isRRHH) {
     </div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       ${isRRHH ? `<button class="btn btn-sm" onclick="agregarFechaExt('${ev.id}')"><i class="ti ti-calendar-plus"></i> Agregar fecha</button>` : ''}
+      ${isRRHH ? `<button class="btn btn-sm" onclick="importarGrillaExt('${ev.id}')" title="Grilla de Google Sheets en PDF: verde = presente, rojo = ausente"><i class="ti ti-table"></i> Importar grilla</button>` : ''}
       ${liqs.length ? `<button class="btn btn-sm" onclick="verLiqsEv('${ev.id}')"><i class="ti ti-list"></i> Liquidaciones (${liqs.length})</button>` : ''}
       ${fechas.some(f => (f.presentismo || []).length) ? `<button class="btn btn-sm btn-primary" onclick="verConsolidadoExt('${ev.id}')"><i class="ti ti-users-group"></i> Consolidado</button>` : ''}
       ${isRRHH && !evCerrado(ev) && eventoListoParaCerrar(ev) ? `<button class="btn btn-sm btn-success" style="margin-left:auto" onclick="cerrarEventoExt('${ev.id}')" title="Deja el evento cerrado: no se puede editar más"><i class="ti ti-lock"></i> Cerrar definitivamente</button>` : ''}
@@ -3229,6 +3230,173 @@ window.importarPlanillaExt = async function () {
     <label class="fl">Evento</label><select id="ie-ev" onchange="document.getElementById('ie-f').innerHTML = (${JSON.stringify(Object.fromEntries(evs.map(e => [e.id, opsFechas(e)])))})[this.value]">${evs.map(e => `<option value="${e.id}">${esc2(e.nombre)}${showFechaISO(e) ? ' · ' + fd(showFechaISO(e)) : ''}</option>`).join('')}</select>
     <label class="fl" style="margin-top:10px">Fecha</label><select id="ie-f">${opsFechas(evs[0])}</select>
     <div class="modal-f"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="(() => { const e = document.getElementById('ie-ev').value, f = document.getElementById('ie-f').value; closeModal(); importarFechaCtx(e, f, 'ext'); })()">Elegir archivo</button></div></div>`);
+};
+
+// Lee una grilla de Google Sheets en PDF: textos con posición y rectángulos de fondo con su color
+async function leerGrillaPDF(data) {
+  if (typeof pdfjsLib === 'undefined') throw new Error('No se pudo cargar el lector de PDF.');
+  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const pdf = await pdfjsLib.getDocument({ data }).promise;
+  const page = await pdf.getPage(1);
+  const tc = await page.getTextContent();
+  const textos = tc.items.filter(it => String(it.str || '').trim()).map(it => ({ t: it.str, x: it.transform[4], y: it.transform[5], w: it.width || 0, h: Math.abs(it.transform[3]) || 6 }));
+  const ol = await page.getOperatorList(), OPS = pdfjsLib.OPS;
+  const mul = (a, b) => [a[0]*b[0] + a[2]*b[1], a[1]*b[0] + a[3]*b[1], a[0]*b[2] + a[2]*b[3], a[1]*b[2] + a[3]*b[3], a[0]*b[4] + a[2]*b[5] + a[4], a[1]*b[4] + a[3]*b[5] + a[5]];
+  const pt = (m, x, y) => [m[0]*x + m[2]*y + m[4], m[1]*x + m[3]*y + m[5]];
+  const hex = c => { if (typeof c === 'string' && c[0] === '#') return [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16) / 255); return null; };
+  let ctm = [1, 0, 0, 1, 0, 0], fill = [0, 0, 0], pend = []; const pila = [], rects = [];
+  for (let i = 0; i < ol.fnArray.length; i++) {
+    const fn = ol.fnArray[i], a = ol.argsArray[i];
+    if (fn === OPS.save) pila.push({ ctm: ctm.slice(), fill: fill.slice() });
+    else if (fn === OPS.restore) { const s = pila.pop(); if (s) { ctm = s.ctm; fill = s.fill; } }
+    else if (fn === OPS.transform) ctm = mul(ctm, a);
+    else if (fn === OPS.setFillRGBColor) { const c = hex(a?.[0]) || (a && a[2] !== undefined ? [a[0], a[1], a[2]].map(v => +v > 1 ? +v / 255 : +v) : null); if (c) fill = c; }
+    else if (fn === OPS.setFillGray) fill = [a[0], a[0], a[0]];
+    else if (fn === OPS.constructPath) {
+      const ops = a[0], args = a[1]; let k = 0;
+      if (a[2] && a[2].length === 4 && !ops.includes(OPS.rectangle)) {   // celda dibujada con líneas: se usa su caja (xmin, xmax, ymin, ymax)
+        const [x0, x1, y0, y1] = a[2], ps = [pt(ctm, x0, y0), pt(ctm, x1, y1), pt(ctm, x0, y1), pt(ctm, x1, y0)];
+        pend.push({ x0: Math.min(...ps.map(p => p[0])), x1: Math.max(...ps.map(p => p[0])), y0: Math.min(...ps.map(p => p[1])), y1: Math.max(...ps.map(p => p[1])) });
+        continue;
+      }
+      for (const op of ops) {
+        if (op === OPS.rectangle) { const [x, y, w, h] = args.slice(k, k + 4); k += 4; const p1 = pt(ctm, x, y), p2 = pt(ctm, x + w, y + h); pend.push({ x0: Math.min(p1[0], p2[0]), x1: Math.max(p1[0], p2[0]), y0: Math.min(p1[1], p2[1]), y1: Math.max(p1[1], p2[1]) }); }
+        else if (op === OPS.moveTo || op === OPS.lineTo) k += 2; else if (op === OPS.curveTo) k += 6; else if (op === OPS.curveTo2 || op === OPS.curveTo3) k += 4;
+      }
+    }
+    else if (fn === OPS.fill || fn === OPS.eoFill || fn === OPS.fillStroke || fn === OPS.eoFillStroke) { pend.forEach(r => rects.push({ ...r, c: fill.slice() })); pend = []; }
+    else if (fn === OPS.endPath || fn === OPS.stroke || fn === OPS.closeStroke) pend = [];
+  }
+  const fondo = (x, y) => { let best = null; for (const r of rects) { if (r.x1 - r.x0 < 6 || r.y1 - r.y0 < 3) continue; if (x >= r.x0 - .5 && x <= r.x1 + .5 && y >= r.y0 - .5 && y <= r.y1 + .5) { const a = (r.x1 - r.x0) * (r.y1 - r.y0); if (!best || a < best.a) best = { a, c: r.c }; } } return best ? best.c : null; };
+  return textos.map(t => ({ ...t, cx: t.x + t.w / 2, cy: t.y + t.h / 3, color: fondo(t.x + t.w / 2, t.y + t.h / 3) }));
+}
+const tipoColor = c => { if (!c) return 'sin'; const [r, g, b] = c;
+  if (g > .85 && r < .3 && b < .3) return 'verde'; if (r > .85 && g < .3 && b < .3) return 'rojo'; if (r < .15 && g < .15 && b < .15) return 'negro';
+  if (Math.abs(r - g) < .05 && Math.abs(g - b) < .05 && r > .45 && r < .75) return 'gris'; if (g > .85 && r > .75 && b > .7 && g > r) return 'verde claro'; return 'otro'; };
+// Interpreta la grilla: filas = cargos, columnas = fechas, celdas = persona/horario o códigos (1 in situ, B back office, F franco)
+function interpretarGrilla(items, anio) {
+  const fechas = items.filter(i => /^\d{1,2}\/\d{1,2}$/.test(i.t.trim())).sort((a, b) => a.cx - b.cx);
+  if (!fechas.length) return { error: 'No encontré la fila de fechas (ej. 7/10, 8/10…).' };
+  const yFechas = fechas[0].cy;
+  const filasCargo = items.filter(i => /(ENCARGAD|COORDINAD|ASISTENTE|OPERADOR|SUPERVIS|ACREDITAD|ACOMODAD)/i.test(i.t) && i.cx < fechas[0].x - 5).sort((a, b) => b.cy - a.cy);
+  const fechaDe = x => fechas.reduce((m, f) => Math.abs(f.cx - x) < Math.abs(m.cx - x) ? f : m);
+  const cargoDe = y => filasCargo.reduce((m, f) => Math.abs(f.cy - y) < Math.abs(m.cy - y) ? f : m);
+  const iso = lbl => { const [d, m] = lbl.trim().split('/').map(Number); return `${anio}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`; };
+  const titulo = s => s.toLowerCase().replace(/(^|[\s(\-])([a-záéíóúñ])/g, (x, a, b) => a + b.toUpperCase()).replace(/ (De|Del|La|Las|Los|Y|E) /g, m => m.toLowerCase());
+  const turnos = [], ausentes = [], otros = [];
+  for (const it of items) {
+    const t = it.t.trim(); if (!t || it.cy >= yFechas - 1 || it.cx < fechas[0].x - 5 || filasCargo.includes(it)) continue;
+    if (/^SIN\s+ACTIVIDAD$/i.test(t) || /^D[IÍ]A\s+LIBRE$/i.test(t)) continue;
+    const tipo = tipoColor(it.color), f = fechaDe(it.cx), fila = cargoDe(it.cy), cargoTxt = fila.t.trim();
+    if (tipo === 'negro') continue;
+    const m = cargoTxt.match(/^(.*?)\s+-\s+(.+)$/);   // "COORDINADOR DE ACRED - LAUTI ANTICI": la persona está en el nombre del cargo
+    let persona, cargo, horario = '';
+    if (m && /^[1BF]$/i.test(t)) {
+      persona = titulo(m[2]); const cod = t.toUpperCase();
+      if (cod === 'F') { otros.push({ persona, cargo: titulo(m[1]), fecha: iso(f.t), motivo: 'franco' }); continue; }
+      cargo = titulo(m[1]) + (cod === 'B' ? ' (back office)' : ' (in situ)');
+    } else {
+      const hm = t.match(/(\d{1,2}:\d{2})\s*a\s*(\d{1,2}:\d{2})/i); horario = hm ? `${hm[1]} a ${hm[2]}` : '';
+      persona = titulo(t.replace(/[\[\]()]/g, ' ').replace(/\d{1,2}:\d{2}\s*a\s*\d{1,2}:\d{2}/i, ' ').replace(/[-–]/g, ' ').replace(/\s+/g, ' ').trim());
+      cargo = titulo(cargoTxt).replace(/\(9hs\)/i, '(9 hs)').replace(/\(6hs\)/i, '(6 hs)');
+      if (!persona && !horario) continue;
+    }
+    const reg = { persona, cargo, fecha: iso(f.t), horario, color: tipo };
+    if (tipo === 'verde') turnos.push(reg); else if (tipo === 'rojo') ausentes.push(reg); else otros.push({ ...reg, motivo: tipo });
+  }
+  return { turnos, ausentes, otros, fechas: fechas.map(f => iso(f.t)) };
+}
+
+
+// ══════════════════════════════════════════════
+// EXTERNOS · GRILLA DE ACREDITACIONES (PDF de Google Sheets con colores):
+// filas = cargos, columnas = fechas; verde = presente (1 turno), rojo = ausente, gris F = franco, negro = sin servicio.
+// En coordinador/asistente/encargado: 1 = in situ, B = back office. Se cuenta por persona y cargo; el valor es por cargo.
+// ══════════════════════════════════════════════
+const normP = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim();
+const etiquetaPers = p => `${p.apellido}, ${p.nombre}${p.cuil ? ' — ' + p.cuil : ''}`;
+function sugerirPersona(nombre) {
+  const n = normP(nombre); if (!n) return null;
+  const toks = n.split(' ');
+  // coincide el apellido (alguna palabra) y, si la grilla trae también el nombre, que el nombre del padrón empiece igual ("Lauti" → "Lautaro")
+  const cands = APP.personal.filter(p => { const ap = normP(p.apellido).split(' '), no = normP(p.nombre).split(' ');
+    const tAp = toks.filter(t => t.length > 2 && ap.includes(t)); if (!tAp.length) return false;
+    const resto = toks.filter(t => !tAp.includes(t)); return !resto.length || resto.some(t => no.some(w => w.startsWith(t.slice(0, Math.min(4, t.length))))); });
+  const ext = cands.filter(p => areaPersona(p) === 'Externos');
+  const lista = ext.length ? ext : cands;
+  return lista.length === 1 ? lista[0] : null;
+}
+window.importarGrillaExt = function (evId) {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.pdf';
+  inp.onchange = async () => {
+    const file = inp.files[0]; if (!file) return;
+    try {
+      loading(true);
+      const ev = getEvento(evId), anio = +(String(showFechaISO(ev) || ev.fecha || new Date().toISOString()).slice(0, 4)) || new Date().getFullYear();
+      const G = interpretarGrilla(await leerGrillaPDF(new Uint8Array(await file.arrayBuffer())), anio);
+      loading(false);
+      if (G.error) { alert(G.error); return; }
+      if (!G.turnos.length) { alert('No encontré celdas verdes (presentes) en la grilla.'); return; }
+      window._grilla = { evId, G, archivo: file.name, verdeClaro: false, asign: {}, valores: {} };
+      [...new Set(G.turnos.concat(G.otros.filter(o => o.motivo === 'verde claro')).map(t => t.persona))].forEach(n => { const p = sugerirPersona(n); window._grilla.asign[n] = p ? etiquetaPers(p) : ''; });
+      verGrilla();
+    } catch (e) { loading(false); alert('No se pudo leer la grilla: ' + e.message); }
+  };
+  inp.click();
+};
+function turnosGrilla() { const g = window._grilla; return g.G.turnos.concat(g.verdeClaro ? g.G.otros.filter(o => o.motivo === 'verde claro').map(o => ({ ...o, color: 'verde claro' })) : []); }
+window.verGrilla = function () {
+  const g = window._grilla, ev = getEvento(g.evId), T = turnosGrilla();
+  const porCargo = {}; T.forEach(t => { porCargo[t.cargo] = (porCargo[t.cargo] || 0) + 1; });
+  const porPers = {}; T.forEach(t => { const x = porPers[t.persona] = porPers[t.persona] || {}; x[t.cargo] = (x[t.cargo] || 0) + 1; });
+  const total = Object.entries(porCargo).reduce((a, [c, n]) => a + n * (+g.valores[c] || 0), 0);
+  const vc = g.G.otros.filter(o => o.motivo === 'verde claro').length;
+  showModal(`<div class="modal modal-lg">
+    <div class="modal-t"><i class="ti ti-table"></i> Grilla de acreditaciones · ${esc2(ev.nombre)}</div>
+    <div class="modal-s">${esc2(g.archivo)} · <b>${T.length}</b> turnos · ${Object.keys(porPers).length} personas · ${g.G.ausentes.length} ausente${g.G.ausentes.length !== 1 ? 's' : ''} · ${g.G.otros.filter(o => o.motivo === 'franco').length} francos</div>
+    ${vc ? `<label style="display:flex;gap:8px;align-items:center;justify-content:flex-start;font-size:12.5px;margin:6px 0;width:auto"><input type="checkbox" style="width:auto;margin:0" ${g.verdeClaro ? 'checked' : ''} onchange="window._grilla.verdeClaro=this.checked;verGrilla()"> Incluir ${vc} celda${vc !== 1 ? 's' : ''} en verde claro (a confirmar)</label>` : ''}
+    <div style="font-size:13px;font-weight:600;margin:10px 0 6px">Valor por cargo</div>
+    <table class="tbl"><thead><tr><th>Cargo</th><th style="text-align:right">Turnos</th><th style="text-align:right">Valor por turno</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>
+      ${Object.entries(porCargo).map(([c, n]) => `<tr><td>${esc2(c)}</td><td style="text-align:right">${n}</td><td style="text-align:right"><input type="number" min="0" step="1" value="${g.valores[c] ?? ''}" placeholder="$" style="width:120px;text-align:right" onchange="window._grilla.valores['${c.replace(/'/g, "\\'")}']=this.value===''?null:Math.round(+this.value);verGrilla()"></td><td style="text-align:right;font-weight:600">${g.valores[c] ? fmt(n * g.valores[c]) : '<span style="color:var(--orange)">sin valor</span>'}</td></tr>`).join('')}
+    </tbody><tfoot><tr style="font-weight:700"><td>Total</td><td style="text-align:right">${T.length}</td><td></td><td style="text-align:right">${fmt(total)}</td></tr></tfoot></table>
+    <div style="font-size:13px;font-weight:600;margin:14px 0 6px">Personas <span style="font-weight:400;font-size:12px;color:var(--text2)">· la grilla trae solo apellidos: confirmá a quién del padrón corresponde cada uno (los escritos distinto, asignalos a la misma persona)</span></div>
+    <datalist id="gr-padron">${APP.personal.slice().sort((a, b) => String(a.apellido).localeCompare(String(b.apellido), 'es')).map(p => `<option value="${esc2(etiquetaPers(p))}">`).join('')}</datalist>
+    <div style="max-height:34vh;overflow:auto"><table class="tbl"><thead><tr><th>En la grilla</th><th>Turnos</th><th>Persona del padrón</th></tr></thead><tbody>
+      ${Object.entries(porPers).sort((a, b) => a[0].localeCompare(b[0], 'es')).map(([n, cs]) => `<tr><td><b>${esc2(n || '(sin nombre)')}</b></td><td style="font-size:12px">${Object.entries(cs).map(([c, k]) => `${k} · ${esc2(c)}`).join('<br>')}</td>
+        <td><input list="gr-padron" value="${esc2(g.asign[n] || '')}" placeholder="Buscar en el padrón…" style="width:300px;${g.asign[n] ? '' : 'border-color:#e0a44c;background:rgba(253,241,223,.8)'}" onchange="window._grilla.asign['${String(n).replace(/'/g, "\\'")}']=this.value;verGrilla()"></td></tr>`).join('')}
+    </tbody></table></div>
+    ${g.G.ausentes.length ? `<div style="font-size:12px;color:var(--text2);margin-top:8px">Ausentes (rojo, no se cargan): ${g.G.ausentes.map(a => `${esc2(a.persona || 'sin nombre')} ${fd(a.fecha)} · ${esc2(a.cargo)}`).join('; ')}</div>` : ''}
+    <div class="modal-f"><button class="btn" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="confirmarGrilla()"><i class="ti ti-check"></i> Cargar en el evento</button></div></div>`);
+};
+window.confirmarGrilla = async function () {
+  const g = window._grilla, ev = getEvento(g.evId), T = turnosGrilla();
+  const porEtiqueta = Object.fromEntries(APP.personal.map(p => [etiquetaPers(p), p]));
+  const sinAsignar = [...new Set(T.map(t => t.persona))].filter(n => !porEtiqueta[g.asign[n]]);
+  if (sinAsignar.length && !confirm(`${sinAsignar.length} persona${sinAsignar.length !== 1 ? 's' : ''} sin asignar al padrón (${sinAsignar.slice(0, 6).join(', ')}${sinAsignar.length > 6 ? '…' : ''}). Sus turnos no se van a cargar.\n\n¿Seguir igual?`)) return;
+  const sinValor = [...new Set(T.map(t => t.cargo))].filter(c => !g.valores[c]);
+  if (sinValor.length && !confirm(`Hay cargos sin valor (${sinValor.join(', ')}). Esos turnos se cargan sin valor y los completás después en cada fecha.\n\n¿Seguir?`)) return;
+  loading(true);
+  let fechasNuevas = 0, cargados = 0, yaEstaban = 0;
+  try {
+    const porFecha = {}; T.forEach(t => { (porFecha[t.fecha] = porFecha[t.fecha] || []).push(t); });
+    for (const [fecha, ts] of Object.entries(porFecha).sort()) {
+      let f = (ev.fechas || []).find(x => x.fecha === fecha);
+      if (!f) { const { data, error } = await sb.from('fechas').insert({ evento_id: ev.id, fecha, nombre: null }).select().single(); if (error) throw error; f = { ...data, presentismo: [] }; (ev.fechas = ev.fechas || []).push(f); fechasNuevas++; }
+      const ya = new Set((f.presentismo || []).map(p => p.persona_id)), rows = {};
+      for (const t of ts) {
+        const per = porEtiqueta[g.asign[t.persona]]; if (!per) continue;
+        if (ya.has(per.id)) { yaEstaban++; continue; }
+        const v = g.valores[t.cargo] ? +g.valores[t.cargo] : null;
+        if (rows[per.id]) { rows[per.id].posicion += ' + ' + t.cargo; if (v != null) rows[per.id].monto = (rows[per.id].monto || 0) + v; }   // dos turnos el mismo día
+        else rows[per.id] = { fecha_id: f.id, persona_id: per.id, posicion: t.cargo, ...(v != null ? { monto: v } : {}) };
+      }
+      const lista = Object.values(rows);
+      if (lista.length) { const { error } = await sb.from('presentismo').insert(lista); if (error) throw error; cargados += lista.length; }
+    }
+  } catch (e) { loading(false); toast('No se pudo cargar: ' + e.message, 'err'); await fetchAll(); render(); return; }
+  await fetchAll(); loading(false); closeModal();
+  toast(`Grilla cargada: ${cargados} turno${cargados !== 1 ? 's' : ''}${fechasNuevas ? ` en ${fechasNuevas} fecha${fechasNuevas !== 1 ? 's' : ''} nueva${fechasNuevas !== 1 ? 's' : ''}` : ''}${yaEstaban ? ` · ${yaEstaban} ya estaban` : ''}`, 'ok');
+  render();
 };
 
 window.importarFechaCtx = async function(evId, fechaId, modo) {
