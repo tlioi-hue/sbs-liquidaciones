@@ -573,6 +573,8 @@ tr.p-grupo .pg-ch { display: inline-block; margin-right: 6px; transition: transf
 .inf-link { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; background: rgba(255,255,255,.45); }
 .inf-link b { font-size: 12.5px; min-width: 170px; } .inf-link input { flex: 1; font-size: 11px; padding: 5px 8px; }
 
+.sb-grupo { font-weight: 400; color: #334155; }
+
 /* barras de desplazamiento finas */
 * { scrollbar-width: thin; scrollbar-color: rgba(17,24,39,.22) transparent; }
 *::-webkit-scrollbar { width: 9px; height: 9px; } *::-webkit-scrollbar-thumb { background: rgba(17,24,39,.22); border-radius: 9px; border: 2px solid transparent; background-clip: padding-box; } *::-webkit-scrollbar-track { background: transparent; }
@@ -3617,6 +3619,19 @@ function pgVerificar(el, ac) {
         <span style="color:var(--text2)">${filas.filter(f=>!f.presente).length} ausentes</span>
       </div>
     </div>
+    ${d.modo === 'ext' ? `<div class="card" id="ext-asig" style="margin-bottom:13px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <div><div style="font-size:13px;font-weight:600"><i class="ti ti-wand"></i> Asignar posición y valor a los seleccionados</div>
+          <div style="font-size:11.5px;color:var(--text2)">Tocá los nombres para seleccionar, o la casilla de una sección para tomar a todos los de esa posición. El valor es por persona y por jornada; si lo dejás vacío, se usa el del tarifario.</div></div>
+        <div style="display:flex;gap:6px;align-items:center"><span id="ext-nsel" style="font-size:12px;color:var(--text2)">0 seleccionados</span>
+          <button class="btn btn-sm" onclick="extSelTodos(true)">Todos</button><button class="btn btn-sm" onclick="extSelTodos(false)">Ninguno</button></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="ext-pos" list="ext-pos-lista" placeholder="Posición (ej. Acomodador)" style="width:230px"><datalist id="ext-pos-lista">${posicionesExt().map(p => `<option value="${esc2(p)}">`).join('')}</datalist>
+        <input id="ext-val" type="number" min="0" step="1" placeholder="Valor por jornada" style="width:170px">
+        <button class="btn btn-primary" onclick="extAplicar()"><i class="ti ti-check"></i> Aplicar a seleccionados</button>
+        <span style="font-size:11.5px;color:var(--text2)">Podés aplicar solo la posición, solo el valor, o los dos.</span>
+      </div></div>` : ''}
     <div id="bulk-bar"></div>
     ${filas.filter(f => f.esNuevo && f.presente).length ? `
       <div class="alert alert-warn"><i class="ti ti-user-plus"></i>
@@ -3671,7 +3686,7 @@ function renderSeccionesVerificar() {
               <thead><tr>
                 <th style="width:30px"></th>
                 <th style="width:34px;text-align:center">Pres.</th>
-                <th>Apellido</th><th>Nombre</th><th>CUIL</th><th>Posición</th>
+                <th>Apellido</th><th>Nombre</th><th>CUIL</th><th>Posición</th>${d.modo === 'ext' ? '<th style="width:120px;text-align:right">Valor</th>' : ''}
                 <th style="width:78px">Estado</th>
               </tr></thead>
               <tbody>
@@ -3682,7 +3697,8 @@ function renderSeccionesVerificar() {
                   ).join('');
                   const enTarifario = tarifasArea.some(t => t.posicion === f.posicion);
                   const extraOpt = !enTarifario ? `<option value="${f.posicion}" selected>${f.posicion}</option>` : '';
-                  return `<tr id="fr-${f._id}" class="${f.sel?'sel':f.presente?'':'ausente'}">
+                  const tarF = d.modo === 'ext' ? getTarifa(f.posicion, 'Externos') : null;
+                  return `<tr id="fr-${f._id}" class="${f.sel?'sel':f.presente?'':'ausente'}" ${d.modo === 'ext' ? `onclick="extClicFila(event,'${f._id}')"` : ''}>
                   <td class="tdc" style="text-align:center">
                     <input type="checkbox" class="chk" ${f.sel?'checked':''} onchange="selFila('${f._id}',this.checked)">
                   </td>
@@ -3692,7 +3708,8 @@ function renderSeccionesVerificar() {
                   <td><input value="${f.apellido}" onchange="editF('${f._id}','apellido',this.value)"></td>
                   <td><input value="${f.nombre}"   onchange="editF('${f._id}','nombre',this.value)"></td>
                   <td><input value="${f.cuil}"     onchange="editF('${f._id}','cuil',this.value)" style="font-family:monospace"></td>
-                  <td><select id="pos-${f._id}" onchange="editF('${f._id}','posicion',this.value)">${extraOpt}${posOpts}</select></td>
+                  <td><select id="pos-${f._id}" onchange="editF('${f._id}','posicion',this.value);extRefrescarValor('${f._id}')">${extraOpt}${posOpts}</select></td>
+                  ${d.modo === 'ext' ? `<td style="text-align:right"><input type="number" min="0" step="1" id="val-${f._id}" value="${f.monto ?? ''}" placeholder="${tarF ? tarF.monto : 'sin tarifa'}" title="${tarF ? 'Tarifario: ' + fmt(tarF.monto) : 'Sin tarifa para esta posición: poné el valor'}" style="width:110px;text-align:right" onchange="editF('${f._id}','monto',this.value === '' ? null : Math.round(+this.value))"></td>` : ''}
                   <td>${f.cuil.length !== 11 ? '<span class="badge bd" style="font-size:10px" title="CUIL incorrecto — debe tener 11 dígitos">⚠ CUIL inválido</span>' : f.esNuevo ? '<span class="badge bn" style="font-size:10px">nuevo</span>' : '<span class="badge bs" style="font-size:10px">registrado</span>'}</td>
                 </tr>`;}).join('')}
               </tbody>
@@ -3797,6 +3814,7 @@ window.recalcularDOIsiCorresponde = function(turnoForzado) {
 };
 
 window.selFila = function(fid, val) {
+  const f = APP.draft.filas.find(x => x._id === fid); if (!f) return;
   f.sel = val;
   const row = document.getElementById('fr-' + fid);
   if (row) row.className = val ? 'sel' : f.presente ? '' : 'ausente';
@@ -3817,7 +3835,38 @@ window.selSec = function(sec, checked) {
   refreshBulk();
 };
 
+
+// ── Externos: selección tocando la fila, asignación manual de posición y valor ──
+function extRefrescarSel() { const n = (APP.draft?.filas || []).filter(f => f.sel).length; const e = document.getElementById('ext-nsel'); if (e) e.textContent = `${n} seleccionado${n !== 1 ? 's' : ''}`; }
+window.extClicFila = function (ev, fid) {
+  if (ev.target.closest('input, select, button, a, label')) return;
+  const f = APP.draft.filas.find(x => x._id === fid); if (!f) return;
+  selFila(fid, !f.sel); const c = document.querySelector(`#fr-${fid} .chk`); if (c) c.checked = f.sel;
+};
+window.extSelTodos = function (val) {
+  APP.draft.filas.forEach(f => { f.sel = val; const row = document.getElementById('fr-' + f._id); if (row) { row.className = val ? 'sel' : f.presente ? '' : 'ausente'; const c = row.querySelector('.chk'); if (c) c.checked = val; } });
+  document.querySelectorAll('.sec-bar .chk').forEach(c => c.checked = val);
+  refreshBulk(); extRefrescarSel();
+};
+window.extRefrescarValor = function (fid) {
+  const f = APP.draft.filas.find(x => x._id === fid), inp = document.getElementById('val-' + fid); if (!f || !inp) return;
+  const t = getTarifa(f.posicion, 'Externos'); inp.placeholder = t ? t.monto : 'sin tarifa'; inp.title = t ? 'Tarifario: ' + fmt(t.monto) : 'Sin tarifa para esta posición: poné el valor';
+};
+window.extAplicar = function () {
+  const pos = String(document.getElementById('ext-pos')?.value || '').trim(), valTxt = String(document.getElementById('ext-val')?.value || '').trim();
+  const val = valTxt === '' ? null : Math.round(+valTxt);
+  if (!pos && val === null) { toast('Poné una posición, un valor, o los dos', 'err'); return; }
+  if (val !== null && (isNaN(val) || val < 0)) { toast('Valor inválido', 'err'); return; }
+  const sel = APP.draft.filas.filter(f => f.sel); if (!sel.length) { toast('No hay nadie seleccionado: tocá los nombres o la casilla de una sección', 'err'); return; }
+  sel.forEach(f => {
+    if (pos) { f.posicion = pos; const el = document.getElementById('pos-' + f._id); if (el) { if (![...el.options].some(o => o.value === pos)) el.insertAdjacentHTML('afterbegin', `<option value="${esc2(pos)}">${esc2(pos)}</option>`); el.value = pos; } extRefrescarValor(f._id); }
+    if (val !== null) { f.monto = val; const vi = document.getElementById('val-' + f._id); if (vi) vi.value = val; }
+  });
+  toast(`${sel.length} persona${sel.length !== 1 ? 's' : ''}: ${[pos ? `posición "${pos}"` : '', val !== null ? `valor ${fmt(val)}` : ''].filter(Boolean).join(' y ')}`, 'ok');
+};
+
 function refreshBulk() {
+  extRefrescarSel();
   const n   = APP.draft.filas.filter(f => f.sel).length;
   const bar = document.getElementById('bulk-bar'); if (!bar) return;
   const secs = [...new Set(APP.draft.filas.map(f => f.posicion))];
@@ -3980,7 +4029,7 @@ window.confirmarImport = async function() {
         );
       }
       if (persona) {
-        presRows.push({ fecha_id: fechaId, persona_id: persona.id, posicion: fp.posicion });
+        presRows.push({ fecha_id: fechaId, persona_id: persona.id, posicion: fp.posicion, ...(d.modo === 'ext' && fp.monto !== null && fp.monto !== undefined && fp.monto !== '' ? { monto: Math.round(+fp.monto) } : {}) });
       }
     }
 
@@ -5823,14 +5872,14 @@ async function htmlProyeccion(meses) {
       ${kpi('Egresos', fmt(T.egresos), `${String(mg(T.egresos, T.ingresos)).replace('.', ',')}% de los ingresos`)}
       ${kpi('Resultado neto', fmt(T.neto), `margen ${String(mg(T.neto, T.ingresos)).replace('.', ',')}%`, col(T.neto))}
     </div>
-    <details class="card mes-pleg" style="padding:0;overflow:hidden;margin-bottom:12px" ${(S_PROY.abre = S_PROY.abre || { tabla: true })['sup'] ? 'open' : ''} ontoggle="S_PROY.abre['sup'] = this.open">
+    <details class="card mes-pleg" style="padding:0;overflow:hidden;margin-bottom:12px" ${(S_PROY.abre = S_PROY.abre || {})['sup'] ? 'open' : ''} ontoggle="S_PROY.abre['sup'] = this.open">
       <summary><span><i class="ti ti-chevron-right fm-ch" style="margin-right:6px;transition:transform .15s"></i>Supuestos y tarifario <span style="color:var(--text2);font-size:12px;font-weight:500">· puestos, cargas, coordinación, back-ups y los valores del mes</span></span></summary>
       <div class="mp-in">
     ${tarTxt}
     ${S_PROY.guardada ? `<div class="nota-proy"><i class="ti ti-history"></i> Proyección guardada el ${new Date(guard.updated_at).toLocaleDateString('es-AR')}: a medida que los shows se facturan, se compara lo real contra lo proyectado.</div>` : ''}
     ${tarjetasProy(S_PROY.mes, refs)}
       </div></details>
-    <details class="card mes-pleg" style="padding:0;overflow:hidden;margin-bottom:12px" ${(S_PROY.abre = S_PROY.abre || { tabla: true })['tabla'] ? 'open' : ''} ontoggle="S_PROY.abre['tabla'] = this.open">
+    <details class="card mes-pleg" style="padding:0;overflow:hidden;margin-bottom:12px" ${(S_PROY.abre = S_PROY.abre || {})['tabla'] ? 'open' : ''} ontoggle="S_PROY.abre['tabla'] = this.open">
       <summary><span><i class="ti ti-chevron-right fm-ch" style="margin-right:6px;transition:transform .15s"></i>Show por show <span style="color:var(--text2);font-size:12px;font-weight:500">· ${P.filas.filter(f => !f.servicio).length} shows · lo real y lo proyectado</span></span></summary>
       <div class="mp-in">
     <div class="card" style="padding:0;overflow:auto">
@@ -5841,12 +5890,12 @@ async function htmlProyeccion(meses) {
       </table>
     </div>
       </div></details>
-    <details class="card mes-pleg" style="padding:0;overflow:hidden;margin-bottom:12px" ${(S_PROY.abre = S_PROY.abre || { tabla: true })['extra'] ? 'open' : ''} ontoggle="S_PROY.abre['extra'] = this.open">
+    <details class="card mes-pleg" style="padding:0;overflow:hidden;margin-bottom:12px" ${(S_PROY.abre = S_PROY.abre || {})['extra'] ? 'open' : ''} ontoggle="S_PROY.abre['extra'] = this.open">
       <summary><span><i class="ti ti-chevron-right fm-ch" style="margin-right:6px;transition:transform .15s"></i>Costo extra no facturado <span style="color:var(--text2);font-size:12px;font-weight:500">· back-ups y coordinación</span></span></summary>
       <div class="mp-in">
     ${resumenExtraProy(P)}
       </div></details>
-    <details class="card mes-pleg" style="padding:0;overflow:hidden;margin-bottom:12px" ${(S_PROY.abre = S_PROY.abre || { tabla: true })['como'] ? 'open' : ''} ontoggle="S_PROY.abre['como'] = this.open">
+    <details class="card mes-pleg" style="padding:0;overflow:hidden;margin-bottom:12px" ${(S_PROY.abre = S_PROY.abre || {})['como'] ? 'open' : ''} ontoggle="S_PROY.abre['como'] = this.open">
       <summary><span><i class="ti ti-chevron-right fm-ch" style="margin-right:6px;transition:transform .15s"></i>Cómo se proyecta <span style="color:var(--text2);font-size:12px;font-weight:500">· el método, en pocas líneas</span></span></summary>
       <div class="mp-in">
     <div style="color:var(--text2);font-size:11.5px;margin-top:8px">Cómo se proyecta cada show: toma la composición del pedido (orientadores, cortatickets, supervisores, recepciones, cargas) de los shows anteriores de la misma banda, o el promedio de todos si es la primera vez; la valoriza con el tarifario del mes (venta por día y sueldo neto); suma los back-ups según el promedio histórico y un coordinador a cargo de SBS; y aplica la estructura de costos de los informes (cargas sociales, impuestos y Ganancias). Tocá un show proyectado para ver el detalle del cálculo.</div>
@@ -6254,8 +6303,13 @@ function htmlCargas() {
         ${!hist && L.length && !pag ? `<button class="btn btn-sm" onclick="deshacerServ('arena-cargas',${w.n})" title="Deshacer la liquidación"><i class="ti ti-arrow-back-up"></i></button>` : ''}
         <button class="btn btn-sm" onclick="excelCargas(${w.n})" title="Excel de la semana"><i class="ti ti-file-spreadsheet"></i></button></div></div>`; }).join('');
   return `${!sueldo ? `<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i> Falta el valor de "Cargas" en el Tarifario (Movistar Arena). <a href="#" onclick="crearPosServ('CARGAS');return false">Cargarlo</a></div>` : ''}
-    ${kpis}${hist ? '' : panelShowsCargas(periodo)}${grilla}
-    <div class="sv-sec">Liquidación por semana</div><div class="sem-grid">${tarjetas}</div>
+    ${kpis}
+    ${(() => { window._svAbre = window._svAbre || {}; const k = S_SERV.tab + ':' + periodo;
+      const pleg = (id, titulo, sub, inner) => `<details class="card mes-pleg" style="padding:0;overflow:hidden;margin-bottom:12px" ${window._svAbre[k + id] ? 'open' : ''} ontoggle="window._svAbre['${k + id}'] = this.open">
+        <summary><span><i class="ti ti-chevron-right fm-ch" style="margin-right:6px;transition:transform .15s"></i>${titulo} <span style="color:var(--text2);font-size:12px;font-weight:500">· ${sub}</span></span></summary><div class="mp-in">${inner}</div></details>`;
+      return (hist ? '' : pleg('shows', 'Shows del mes', 'lo que pidió el Arena y lo que se facturó', panelShowsCargas(periodo)))
+        + pleg('pres', 'Presentismo', `${d.personas.length} persona${d.personas.length !== 1 ? 's' : ''} · marcá los días trabajados`, grilla)
+        + pleg('liq', 'Liquidación por semana', 'semana por semana, con el Excel para administración', `<div class="sem-grid">${tarjetas}</div>`); })()}
     <details class="sv-help"><summary>¿Cómo se liquida?</summary>Igual que la planilla: por semana de lunes a domingo (la primera y la última, cortadas al mes), días trabajados × sueldo neto por jornada del tarifario.
       Al liquidar, la semana queda registrada y sus días se bloquean; después se marca como pagada. En la grilla, los días con punto tienen show, y el número de abajo se pone naranja si los presentes no coinciden con lo que pidió el Arena.</details>`;
 }
