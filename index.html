@@ -1825,7 +1825,7 @@ function renderEvExt(ev, isRRHH) {
             const st   = stF(ev, f.id);
             return `<div class="fecha-row">
               <div style="flex:1">
-                <span style="font-weight:500">${fd(f.fecha)}</span>
+                <span style="font-weight:500">${f.nombre === 'Turnos' ? '<i class="ti ti-table"></i> Turnos <span style="font-weight:400;color:var(--text2);font-size:12px">(planilla de turnos)</span>' : fd(f.fecha)}</span>
               </div>
               <span class="pill">${pres.length} pres.</span>
               <span class="pill">${fmt(fl.reduce((s,l)=>s+(l.total||0),0))}</span>
@@ -1843,7 +1843,7 @@ function renderEvExt(ev, isRRHH) {
     </div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       ${isRRHH ? `<button class="btn btn-sm" onclick="agregarFechaExt('${ev.id}')"><i class="ti ti-calendar-plus"></i> Agregar fecha</button>` : ''}
-      ${isRRHH ? `<button class="btn btn-sm" onclick="importarGrillaExt('${ev.id}')" title="Grilla de Google Sheets en PDF: verde = presente, rojo = ausente"><i class="ti ti-table"></i> Importar grilla</button>` : ''}
+      <button class="btn btn-sm" onclick="abrirTurnosExt('${ev.id}')" title="Planilla de turnos: personas × tipos de turno, con valor por turno"><i class="ti ti-table"></i> Turnos</button>
       ${liqs.length ? `<button class="btn btn-sm" onclick="verLiqsEv('${ev.id}')"><i class="ti ti-list"></i> Liquidaciones (${liqs.length})</button>` : ''}
       ${fechas.some(f => (f.presentismo || []).length) ? `<button class="btn btn-sm btn-primary" onclick="verConsolidadoExt('${ev.id}')"><i class="ti ti-users-group"></i> Consolidado</button>` : ''}
       ${isRRHH && !evCerrado(ev) && eventoListoParaCerrar(ev) ? `<button class="btn btn-sm btn-success" style="margin-left:auto" onclick="cerrarEventoExt('${ev.id}')" title="Deja el evento cerrado: no se puede editar más"><i class="ti ti-lock"></i> Cerrar definitivamente</button>` : ''}
@@ -2287,20 +2287,21 @@ function consolidadoExt(evId) {
   (ev?.fechas || []).forEach(f => { const liqs = liqsF(evId, f.id);
     (f.presentismo || []).forEach(p => { const liq = liqs.find(l => l.persona_id === p.persona_id), m = liq ? (liq.total || 0) : montoExt(p);
       const x = porP[p.persona_id] = porP[p.persona_id] || { pid: p.persona_id, fechas: [], pos: new Set(), liq: 0, pend: 0, sinValor: 0 };
-      x.fechas.push(f.fecha); if (p.posicion) x.pos.add(p.posicion);
+      if (f.nombre === 'Turnos') { const tr = turnosExtPersona(evId, p.persona_id); x.turnos = (x.turnos || 0) + tr.n; if (tr.n) x.fechasT = true; (tr.pos || []).forEach(v => x.pos.add(v)); }
+      else { x.fechas.push(f.fecha); if (p.posicion) x.pos.add(p.posicion); }
       if (liq) x.liq += m; else if (m == null) x.sinValor++; else x.pend += m; }); });
-  return Object.values(porP).map(x => ({ ...x, per: APP.personal.find(y => y.id === x.pid), total: x.liq + x.pend, fechas: x.fechas.sort() }))
+  return Object.values(porP).map(x => ({ ...x, per: APP.personal.find(y => y.id === x.pid), total: x.liq + x.pend, fechas: x.fechas.sort(), dias: x.fechas.length + (x.turnos || 0) }))
     .sort((a, b) => String(a.per?.apellido || '').localeCompare(String(b.per?.apellido || ''), 'es'));
 }
 window.verConsolidadoExt = function(evId) {
-  const ev = getEvento(evId), C = consolidadoExt(evId), T = C.reduce((a, x) => ({ liq: a.liq + x.liq, pend: a.pend + x.pend, j: a.j + x.fechas.length }), { liq: 0, pend: 0, j: 0 });
+  const ev = getEvento(evId), C = consolidadoExt(evId), T = C.reduce((a, x) => ({ liq: a.liq + x.liq, pend: a.pend + x.pend, j: a.j + x.dias }), { liq: 0, pend: 0, j: 0 });
   const sv = C.reduce((a, x) => a + x.sinValor, 0);
   showModal(`<div class="modal modal-lg">
     <div class="modal-t"><i class="ti ti-users-group"></i> Consolidado · ${esc2(ev.nombre)}</div>
     <div class="modal-s">${C.length} personas · ${T.j} jornadas · <strong>${fmt(T.liq + T.pend)}</strong>${T.pend ? ` (${fmt(T.pend)} todavía sin liquidar)` : ''}${sv ? ` · <span style="color:#b45309">${sv} jornada${sv !== 1 ? 's' : ''} sin valor</span>` : ''}</div>
     <div style="max-height:58vh;overflow:auto"><table class="stf-t"><thead><tr><th>Apellido y nombre</th><th>CUIL</th><th style="text-align:center">Fechas</th><th>Posición</th><th style="text-align:right">Liquidado</th><th style="text-align:right">Sin liquidar</th><th style="text-align:right">Total</th></tr></thead>
     <tbody>${C.map(x => `<tr><td>${x.per ? `${esc2(x.per.apellido)}, ${esc2(x.per.nombre)}` : '?'}</td><td style="font-family:monospace;font-size:11px">${x.per?.cuil || '—'}</td>
-      <td style="text-align:center" title="${x.fechas.map(fd).join(', ')}">${x.fechas.length}</td><td style="font-size:12px">${[...x.pos].map(esc2).join(' · ') || '—'}</td>
+      <td style="text-align:center" title="${x.fechas.map(fd).join(', ')}${x.turnos ? (x.fechas.length ? ' + ' : '') + x.turnos + ' turnos' : ''}">${x.dias}</td><td style="font-size:12px">${[...x.pos].map(esc2).join(' · ') || '—'}</td>
       <td style="text-align:right">${x.liq ? fmt(x.liq) : '—'}</td><td style="text-align:right">${x.pend ? fmt(x.pend) : '—'}</td><td style="text-align:right;font-weight:600">${fmt(x.total)}</td></tr>`).join('')}</tbody>
     <tfoot><tr style="font-weight:700"><td colspan="2">Total</td><td style="text-align:center">${T.j}</td><td></td><td style="text-align:right">${fmt(T.liq)}</td><td style="text-align:right">${fmt(T.pend)}</td><td style="text-align:right">${fmt(T.liq + T.pend)}</td></tr></tfoot></table></div>
     <div class="modal-f"><button class="btn" onclick="closeModal()">Cerrar</button><button class="btn btn-primary" onclick="excelConsolidadoExt('${evId}')"><i class="ti ti-file-spreadsheet"></i> Excel consolidado</button></div></div>`);
@@ -2313,7 +2314,7 @@ window.excelConsolidadoExt = async function(evId) {
   const wb = new ExcelJS.Workbook(), ws = xlHoja(wb, 'Liquidación', { A: 8.89, B: 17.33, C: 16.67, D: 15.89, E: 13, F: 19.67, G: 11.78, H: 9.22 });
   xlFila(ws, XL_COLS_LIQ, { bold: true });
   const rangoDe = fx => { const u = [...new Set(fx)].sort(); return u.length === 1 ? fd(u[0]).slice(0, 5) : u.length === 2 ? `${fd(u[0]).slice(0, 5)} y ${fd(u[1]).slice(0, 5)}` : `${fd(u[0]).slice(0, 5)} a ${fd(u[u.length - 1]).slice(0, 5)}`; };
-  C.forEach(x => xlFila(ws, [x.per?.cuil || '', nomXL(x.per), x.per?.cbu || '', ev.lugar || 'Externos', rangoDe(x.fechas), x.fechas.length, [...x.pos].join(' / '), x.total], { formatos: { 8: '"$"#,##0' } }));   // período: las fechas de cada persona
+  C.forEach(x => xlFila(ws, [x.per?.cuil || '', nomXL(x.per), x.per?.cbu || '', ev.lugar || 'Externos', (x.fechas.length ? rangoDe(x.fechas) : rangoDe((getEvento(evId)?.fechas || []).map(f => f.fecha).filter(Boolean).sort())), x.dias, [...x.pos].join(' / '), x.total], { formatos: { 8: '"$"#,##0' } }));   // período: las fechas de cada persona
   xlFila(ws, ['', '', '', '', '', '', '', C.reduce((a, x) => a + x.total, 0)], { formatos: { 8: '"$"#,##0' } });
   await xlDescargar(wb, `Liquidación ${normExport(ev.nombre).replace(/[\\/:*?"<>|]/g, '-')} - consolidado.xlsx`);
 };
@@ -2333,7 +2334,7 @@ window.liquidarFechaExt = async function(evId, fechaId) {
     if (per && m != null) rows.push({
       persona_id: per.id, persona_nombre:`${per.apellido}, ${per.nombre}`,
       evento_id: evId, fecha_id: fechaId, area:'Externos', posicion: p.posicion || 'Sin posición',
-      periodo: fd(f.fecha), jornadas:1, valor_jornada:m, total:m, estado:'aprobado'
+      periodo: fd(f.fecha), jornadas: f.nombre === 'Turnos' ? (turnosExtPersona(evId, per.id).n || 1) : 1, valor_jornada:m, total:m, estado:'aprobado'
     });
     else if (per) sinTarifa.push(`${per.apellido} (${p.posicion})`);
   });
@@ -2341,9 +2342,9 @@ window.liquidarFechaExt = async function(evId, fechaId) {
   // Si no hay una sola persona con tarifa, avisar en claro en vez de abrir un modal vacío
   if (!rows.length) {
     const faltan = [...new Set(sinLiq.map(p => p.posicion))];
-    alert(`No se puede liquidar: ninguna posición tiene tarifa cargada en Externos.\n\n`
+    alert(`No se puede liquidar: nadie en esta fecha tiene valor asignado.\n\n`
       + `Posiciones de esta fecha:\n${faltan.map(p => '• ' + p).join('\n')}\n\n`
-      + `Cargalas en Tarifario con área Externos y volvé a intentar.`);
+      + `Asigná el valor desde el ojito de la fecha (o en la planilla de Turnos) y volvé a intentar.`);
     return;
   }
 
@@ -3397,6 +3398,122 @@ window.confirmarGrilla = async function () {
   await fetchAll(); loading(false); closeModal();
   toast(`Grilla cargada: ${cargados} turno${cargados !== 1 ? 's' : ''}${fechasNuevas ? ` en ${fechasNuevas} fecha${fechasNuevas !== 1 ? 's' : ''} nueva${fechasNuevas !== 1 ? 's' : ''}` : ''}${yaEstaban ? ` · ${yaEstaban} ya estaban` : ''}`, 'ok');
   render();
+};
+
+
+// ══════════════════════════════════════════════
+// EXTERNOS · CARGA POR TURNOS (como Colón): filas = personas, columnas = tipos de turno con su valor.
+// Se guarda en servicios_arena (id turnosext-<evento>) y se vuelca a una fecha "Turnos" del evento para liquidar.
+// ══════════════════════════════════════════════
+const TX = { abierto: null };
+const turnosReg = evId => (APP.servArena || []).find(x => x.id === `turnosext-${evId}`) || null;
+function turnosData(evId) {
+  const r = turnosReg(evId); if (r) return JSON.parse(JSON.stringify(r.data || {}));
+  // sin datos: arranca con los tipos de turno (y valores) del último evento que los usó
+  const prev = (APP.servArena || []).filter(x => String(x.id).startsWith('turnosext-') && (x.data?.cols || []).length).sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)))[0];
+  return { cols: prev ? prev.data.cols.map(c => ({ id: uid(), nombre: c.nombre, valor: c.valor })) : [], filas: [] };
+}
+function turnosExtPersona(evId, pid) {
+  const d = turnosReg(evId)?.data; if (!d) return { n: 0, pos: [] };
+  const f = (d.filas || []).find(x => x.pid === pid); if (!f) return { n: 0, pos: [] };
+  return { n: (d.cols || []).reduce((a, c) => a + (+f.t?.[c.id] || 0), 0), pos: (d.cols || []).filter(c => +f.t?.[c.id]).map(c => `${c.nombre} ×${f.t[c.id]}`) };
+}
+const turnosTot = (d, f) => (d.cols || []).reduce((a, c) => ({ n: a.n + (+f.t?.[c.id] || 0), $: a.$ + (+f.t?.[c.id] || 0) * (+c.valor || 0) }), { n: 0, $: 0 });
+let _txGuardar = null;
+function turnosGuardarPronto() { clearTimeout(_txGuardar); _txGuardar = setTimeout(turnosGuardar, 700); const e = document.getElementById('tx-est'); if (e) e.textContent = 'Guardando…'; }
+async function turnosGuardar() {
+  const { evId, d } = TX.abierto || {}; if (!evId) return;
+  const ev = getEvento(evId), per = String(showFechaISO(ev) || ev?.fecha || new Date().toISOString()).slice(0, 7);
+  const reg = { id: `turnosext-${evId}`, tipo: 'turnosext', periodo: per, data: d, updated_at: new Date().toISOString() };
+  const { error } = await sb.from('servicios_arena').upsert(reg);
+  const e = document.getElementById('tx-est');
+  if (error) { if (e) e.textContent = 'No se pudo guardar'; toast('No se pudo guardar la planilla de turnos: ' + error.message, 'err'); return; }
+  APP.servArena = APP.servArena || []; const i = APP.servArena.findIndex(x => x.id === reg.id); if (i >= 0) APP.servArena[i] = reg; else APP.servArena.push(reg);
+  if (e) e.textContent = 'Guardado';
+}
+window.abrirTurnosExt = function (evId) { TX.abierto = { evId, d: turnosData(evId), sel: new Set() }; verTurnosExt(); };
+window.verTurnosExt = function () {
+  const { evId, d, sel } = TX.abierto, ev = getEvento(evId), cerrado = evCerrado(ev);
+  const nom = pid => { const p = APP.personal.find(x => x.id === pid); return p ? `${p.apellido}, ${p.nombre}` : '?'; };
+  const filas = d.filas.slice().sort((a, b) => nom(a.pid).localeCompare(nom(b.pid), 'es'));
+  const totCol = c => d.filas.reduce((a, f) => a + (+f.t?.[c.id] || 0), 0);
+  const total = d.filas.reduce((a, f) => a + turnosTot(d, f).$, 0), totalN = d.filas.reduce((a, f) => a + turnosTot(d, f).n, 0);
+  const dis = cerrado ? 'disabled' : '';
+  showModal(`<div class="modal" style="width:min(1200px,96vw);max-width:96vw">
+    <div class="modal-t"><i class="ti ti-table"></i> Turnos · ${esc2(ev.nombre)} <span id="tx-est" style="font-size:11.5px;font-weight:400;color:var(--text2);margin-left:8px">${turnosReg(evId) ? 'Guardado' : ''}</span></div>
+    <div class="modal-s">Agregá a las personas, poné cuántos turnos de cada tipo hizo cada una y el valor por turno arriba de cada columna. Se guarda solo.</div>
+    ${cerrado ? '<div class="alert alert-info"><i class="ti ti-lock"></i> Evento cerrado: solo lectura.</div>' : `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;margin:8px 0">
+      <datalist id="tx-padron">${APP.personal.slice().sort((a, b) => String(a.apellido).localeCompare(String(b.apellido), 'es')).map(p => `<option value="${esc2(etiquetaPers(p))}">`).join('')}</datalist>
+      <input id="tx-busca" list="tx-padron" placeholder="Buscar persona en el padrón…" style="width:320px" onchange="txAgregarUna(this.value)">
+      <button class="btn btn-sm" onclick="txPegar()"><i class="ti ti-clipboard-list"></i> Pegar lista</button>
+      <button class="btn btn-sm" onclick="txNuevaCol()"><i class="ti ti-columns"></i> Agregar tipo de turno</button>
+      ${sel.size ? `<span style="font-size:12px;color:var(--text2);align-self:center">${sel.size} seleccionada${sel.size !== 1 ? 's' : ''} · poner</span>
+        <input id="tx-bn" type="number" min="0" style="width:70px" placeholder="n"><select id="tx-bc" style="width:auto">${d.cols.map(c => `<option value="${c.id}">${esc2(c.nombre)}</option>`).join('')}</select>
+        <button class="btn btn-sm btn-primary" onclick="txMasivo()">Aplicar</button><button class="btn btn-sm" onclick="TX.abierto.sel=new Set();verTurnosExt()">Deseleccionar</button>` : ''}
+    </div>`}
+    <div style="max-height:56vh;overflow:auto"><table class="tbl tx-t"><thead>
+      <tr><th style="width:28px">${cerrado ? '' : `<input type="checkbox" style="width:auto" ${d.filas.length && d.filas.every(f => sel.has(f.pid)) ? 'checked' : ''} onchange="TX.abierto.sel=this.checked?new Set(TX.abierto.d.filas.map(f=>f.pid)):new Set();verTurnosExt()">`}</th><th>Persona</th>
+        ${d.cols.map(c => `<th style="text-align:center;min-width:160px"><input value="${esc2(c.nombre)}" ${dis} title="${esc2(c.nombre)}" style="width:158px;font-weight:600;text-align:center" onchange="txCol('${c.id}','nombre',this.value)">
+          <div style="display:flex;gap:4px;align-items:center;justify-content:center;margin-top:4px"><input type="number" min="0" value="${c.valor ?? ''}" placeholder="$ por turno" ${dis} style="width:96px;text-align:right" onchange="txCol('${c.id}','valor',this.value)">${cerrado ? '' : `<button class="btn btn-sm btn-danger" title="Quitar este tipo de turno" onclick="txQuitarCol('${c.id}')"><i class="ti ti-x"></i></button>`}</div></th>`).join('')}
+        <th style="text-align:right">Turnos</th><th style="text-align:right">Total</th><th></th></tr></thead><tbody>
+      ${filas.length ? filas.map(f => { const t = turnosTot(d, f); return `<tr><td>${cerrado ? '' : `<input type="checkbox" style="width:auto" ${sel.has(f.pid) ? 'checked' : ''} onchange="this.checked?TX.abierto.sel.add('${f.pid}'):TX.abierto.sel.delete('${f.pid}');verTurnosExt()">`}</td><td>${esc2(nom(f.pid))}</td>
+        ${d.cols.map(c => `<td style="text-align:center"><input type="number" min="0" step="1" value="${f.t?.[c.id] || ''}" ${dis} style="width:70px;text-align:center" onchange="txCelda('${f.pid}','${c.id}',this.value)"></td>`).join('')}
+        <td style="text-align:right;font-weight:600">${t.n}</td><td style="text-align:right;font-weight:600">${fmt(t.$)}</td><td>${cerrado ? '' : `<button class="btn btn-sm btn-danger" title="Quitar" onclick="txQuitar('${f.pid}')"><i class="ti ti-trash"></i></button>`}</td></tr>`; }).join('')
+      : `<tr><td colspan="${d.cols.length + 5}" style="text-align:center;color:var(--text2);padding:18px">Buscá personas en el padrón o pegá una lista.${d.cols.length ? '' : ' Después agregá los tipos de turno (por ejemplo "Operador 9 hs").'}</td></tr>`}
+      </tbody><tfoot><tr style="font-weight:700"><td></td><td>Total · ${d.filas.length} persona${d.filas.length !== 1 ? 's' : ''}</td>${d.cols.map(c => `<td style="text-align:center">${totCol(c)} <span style="font-weight:400;color:var(--text2);font-size:11.5px">${c.valor ? fmt(totCol(c) * c.valor) : ''}</span></td>`).join('')}<td style="text-align:right">${totalN}</td><td style="text-align:right">${fmt(total)}</td><td></td></tr></tfoot></table></div>
+    <div class="modal-f"><button class="btn" onclick="closeModal();render()">Cerrar</button>
+      ${cerrado ? '' : `<button class="btn btn-primary" onclick="txAplicar()" title="Vuelca los totales al evento (fecha &quot;Turnos&quot;) para liquidar"><i class="ti ti-arrow-right"></i> Pasar a la liquidación</button>`}</div></div>`);
+};
+window.txCelda = (pid, cid, v) => { const f = TX.abierto.d.filas.find(x => x.pid === pid); if (!f) return; f.t = f.t || {}; const n = v === '' ? 0 : Math.max(0, Math.round(+v)); if (n) f.t[cid] = n; else delete f.t[cid]; turnosGuardarPronto(); verTurnosExt(); };
+window.txCol = (cid, campo, v) => { const c = TX.abierto.d.cols.find(x => x.id === cid); if (!c) return; c[campo] = campo === 'valor' ? (v === '' ? null : Math.round(+v)) : String(v).trim(); turnosGuardarPronto(); verTurnosExt(); };
+window.txNuevaCol = () => { const n = prompt('Nombre del tipo de turno (ej. "Operador 9 hs"):'); if (!n || !n.trim()) return; TX.abierto.d.cols.push({ id: uid(), nombre: n.trim(), valor: null }); turnosGuardarPronto(); verTurnosExt(); };
+window.txQuitarCol = cid => { const d = TX.abierto.d, c = d.cols.find(x => x.id === cid); if (!c) return; const usados = d.filas.filter(f => +f.t?.[cid]).length; if (usados && !confirm(`"${c.nombre}" tiene turnos cargados en ${usados} persona${usados !== 1 ? 's' : ''}. ¿Quitarlo igual?`)) return; d.cols = d.cols.filter(x => x.id !== cid); d.filas.forEach(f => { if (f.t) delete f.t[cid]; }); turnosGuardarPronto(); verTurnosExt(); };
+window.txQuitar = pid => { const d = TX.abierto.d; d.filas = d.filas.filter(f => f.pid !== pid); TX.abierto.sel.delete(pid); turnosGuardarPronto(); verTurnosExt(); };
+window.txAgregarUna = v => { const p = APP.personal.find(x => etiquetaPers(x) === v); if (!p) { if (v) toast('Elegí una persona de la lista', 'err'); return; } const d = TX.abierto.d; if (!d.filas.some(f => f.pid === p.id)) d.filas.push({ pid: p.id, t: {} }); turnosGuardarPronto(); verTurnosExt(); setTimeout(() => document.getElementById('tx-busca')?.focus(), 50); };
+window.txMasivo = () => { const n = Math.max(0, Math.round(+document.getElementById('tx-bn').value || 0)), cid = document.getElementById('tx-bc').value; if (!cid) return; TX.abierto.d.filas.forEach(f => { if (TX.abierto.sel.has(f.pid)) { f.t = f.t || {}; if (n) f.t[cid] = n; else delete f.t[cid]; } }); turnosGuardarPronto(); verTurnosExt(); };
+window.txPegar = () => {
+  const txt = prompt('Pegá CUILs o "Apellido, Nombre" (uno por línea o separados por coma/punto y coma):'); if (!txt) return;
+  const d = TX.abierto.d, noEnc = [], dudas = []; let n = 0;
+  txt.split(/[\n;]+/).map(x => x.trim()).filter(Boolean).forEach(linea => {
+    const cuil = linea.replace(/\D/g, '');
+    let p = cuil.length === 11 ? APP.personal.find(x => String(x.cuil || '').replace(/\D/g, '') === cuil) : null;
+    if (!p) { const q = normP(linea.replace(/\d+/g, ' ')); const c = APP.personal.filter(x => { const full = normP(`${x.apellido} ${x.nombre}`); return q && (full === q || full.startsWith(q) || normP(`${x.nombre} ${x.apellido}`) === q || (q.split(' ').length === 1 && normP(x.apellido) === q)); }); if (c.length === 1) p = c[0]; else if (c.length > 1) dudas.push(linea); else noEnc.push(linea); }
+    if (p && !d.filas.some(f => f.pid === p.id)) { d.filas.push({ pid: p.id, t: {} }); n++; }
+  });
+  turnosGuardarPronto(); verTurnosExt();
+  if (noEnc.length || dudas.length) alert(`Agregadas: ${n}.${dudas.length ? `\n\nCon más de una coincidencia (agregalas con el buscador): ${dudas.join(', ')}` : ''}${noEnc.length ? `\n\nNo encontradas en el padrón: ${noEnc.join(', ')}` : ''}`);
+  else toast(`${n} persona${n !== 1 ? 's' : ''} agregada${n !== 1 ? 's' : ''}`, 'ok');
+};
+// Vuelca los totales a una fecha "Turnos" del evento: una fila por persona con el total ($) y el detalle de turnos como posición
+window.txAplicar = async function () {
+  const { evId, d } = TX.abierto, ev = getEvento(evId);
+  const conTurnos = d.filas.filter(f => turnosTot(d, f).n > 0);
+  if (!conTurnos.length) { toast('Todavía no hay turnos cargados', 'err'); return; }
+  const sinValor = d.cols.filter(c => !c.valor && d.filas.some(f => +f.t?.[c.id]));
+  if (sinValor.length) { alert(`Falta el valor por turno de: ${sinValor.map(c => c.nombre).join(', ')}.`); return; }
+  clearTimeout(_txGuardar); await turnosGuardar();
+  loading(true);
+  try {
+    let f = (ev.fechas || []).find(x => x.nombre === 'Turnos');
+    if (!f) { const fecha = (ev.fechas || []).map(x => x.fecha).filter(Boolean).sort().pop() || showFechaISO(ev) || ev.fecha || new Date().toISOString().slice(0, 10);
+      const { data, error } = await sb.from('fechas').insert({ evento_id: evId, fecha, nombre: 'Turnos' }).select().single(); if (error) throw error; f = { ...data, presentismo: [] }; }
+    const actuales = new Map((f.presentismo || []).map(p => [p.persona_id, p])), liqs = liqsF(evId, f.id);
+    for (const fila of conTurnos) {
+      const t = turnosTot(d, fila), pos = d.cols.filter(c => +fila.t?.[c.id]).map(c => `${c.nombre} ×${fila.t[c.id]}`).join(' + ');
+      if (actuales.has(fila.pid)) { const r = await sb.from('presentismo').update({ posicion: pos, monto: t.$ }).eq('fecha_id', f.id).eq('persona_id', fila.pid); if (r.error) throw r.error; }
+      else { const r = await sb.from('presentismo').insert({ fecha_id: f.id, persona_id: fila.pid, posicion: pos, monto: t.$ }); if (r.error) throw r.error; }
+      const liq = liqs.find(l => l.persona_id === fila.pid);
+      if (liq) await sb.from('liquidaciones').update({ total: t.$, valor_jornada: t.$, jornadas: t.n, posicion: pos }).eq('id', liq.id);
+    }
+    // quienes ya no tienen turnos salen de la fecha (y su liquidación, si la había)
+    for (const [pid] of actuales) if (!conTurnos.some(x => x.pid === pid)) {
+      for (const l of liqs.filter(l => l.persona_id === pid)) await sb.from('liquidaciones').delete().eq('id', l.id);
+      await sb.from('presentismo').delete().eq('fecha_id', f.id).eq('persona_id', pid);
+    }
+  } catch (e) { loading(false); toast('No se pudo pasar a la liquidación: ' + e.message, 'err'); return; }
+  await fetchAll(); loading(false); closeModal(); render();
+  toast(`Turnos pasados a la liquidación: ${conTurnos.length} persona${conTurnos.length !== 1 ? 's' : ''}`, 'ok');
 };
 
 window.importarFechaCtx = async function(evId, fechaId, modo) {
