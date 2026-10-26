@@ -1103,9 +1103,7 @@ async function pgDB(el) {
         </div>
       </div>
     </div>
-    <details class="card mes-pleg" style="padding:0;overflow:hidden;margin-top:14px" ${window._dbNumeros ? 'open' : ''} ontoggle="window._dbNumeros = this.open">
-      <summary><span><i class="ti ti-chevron-right fm-ch" style="margin-right:6px;transition:transform .15s"></i>Resumen en números <span style="color:var(--text2);font-size:12px;font-weight:500">· facturado, costo real, diferencia y pagado por área</span></span></summary>
-      <div class="mp-in">${numerosHTML}</div></details>`;
+`;
 }
 
 function datosDB(mes) {   // Externos por evento y Servicios Fijos por lugar, del mes ('AAAA-MM') o acumulado ('')
@@ -5819,15 +5817,22 @@ async function htmlProyeccion(meses) {
       ${S_PROY.tokenPub ? (() => { const u = `${location.origin}/socios?i=${encodeURIComponent(S_PROY.tokenPub)}`; return `<span class="inf-link" style="padding:4px 8px"><span style="font-size:12px;color:var(--text2)">Link directo en el portal</span><input value="${u}" readonly onclick="this.select()" style="width:260px"><button class="btn btn-sm" onclick="copiarTexto('${u}','Link copiado')" title="Copiar"><i class="ti ti-copy"></i></button><button class="btn btn-sm" onclick="window.open('${u}','_blank')" title="Abrir en el portal"><i class="ti ti-external-link"></i></button></span>`; })() : ''}
       <button class="btn btn-success" onclick="guardarProyeccion()"><i class="ti ti-device-floppy"></i> ${S_PROY.guardada ? 'Actualizar proyección guardada' : 'Guardar proyección'}</button>
     </div>
-    ${tarTxt}
-    ${S_PROY.guardada ? `<div class="nota-proy"><i class="ti ti-history"></i> Proyección guardada el ${new Date(guard.updated_at).toLocaleDateString('es-AR')}: a medida que los shows se facturan, se compara lo real contra lo proyectado.</div>` : ''}
-    ${tarjetasProy(S_PROY.mes, refs)}
     <div class="grid4" style="margin:12px 0">
       ${kpi('Shows del mes', P.filas.filter(f => !f.servicio).length, `${P.reales} real${P.reales !== 1 ? 'es' : ''} · ${P.proyectados} proyectado${P.proyectados !== 1 ? 's' : ''}${P.filas.some(f => f.servicio) ? ' · + mesa de entrada' : ''}`)}
       ${kpi('Ingresos (sin IVA)', fmt(T.ingresos), enCurso ? 'real + proyectado' : 'proyectado')}
       ${kpi('Egresos', fmt(T.egresos), `${String(mg(T.egresos, T.ingresos)).replace('.', ',')}% de los ingresos`)}
       ${kpi('Resultado neto', fmt(T.neto), `margen ${String(mg(T.neto, T.ingresos)).replace('.', ',')}%`, col(T.neto))}
     </div>
+    <details class="card mes-pleg" style="padding:0;overflow:hidden;margin-bottom:12px" ${(S_PROY.abre = S_PROY.abre || { tabla: true })['sup'] ? 'open' : ''} ontoggle="S_PROY.abre['sup'] = this.open">
+      <summary><span><i class="ti ti-chevron-right fm-ch" style="margin-right:6px;transition:transform .15s"></i>Supuestos y tarifario <span style="color:var(--text2);font-size:12px;font-weight:500">· puestos, cargas, coordinación, back-ups y los valores del mes</span></span></summary>
+      <div class="mp-in">
+    ${tarTxt}
+    ${S_PROY.guardada ? `<div class="nota-proy"><i class="ti ti-history"></i> Proyección guardada el ${new Date(guard.updated_at).toLocaleDateString('es-AR')}: a medida que los shows se facturan, se compara lo real contra lo proyectado.</div>` : ''}
+    ${tarjetasProy(S_PROY.mes, refs)}
+      </div></details>
+    <details class="card mes-pleg" style="padding:0;overflow:hidden;margin-bottom:12px" ${(S_PROY.abre = S_PROY.abre || { tabla: true })['tabla'] ? 'open' : ''} ontoggle="S_PROY.abre['tabla'] = this.open">
+      <summary><span><i class="ti ti-chevron-right fm-ch" style="margin-right:6px;transition:transform .15s"></i>Show por show <span style="color:var(--text2);font-size:12px;font-weight:500">· ${P.filas.filter(f => !f.servicio).length} shows · lo real y lo proyectado</span></span></summary>
+      <div class="mp-in">
     <div class="card" style="padding:0;overflow:auto">
       <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th>Estado</th><th>Basado en</th><th style="text-align:center" title="Puestos de sala que se le facturan al Arena (sin cargas). Vacío = el supuesto del mes">Puestos de sala</th><th style="text-align:center" title="Presentes por encima de lo pedido, no facturables">Back-ups</th><th style="text-align:center" title="Coordinador on site, a cargo de SBS: no se factura">Coordinación</th>
         <th style="text-align:right">Ingresos</th><th style="text-align:right">Egresos</th><th style="text-align:right">Resultado</th><th style="text-align:center">Margen</th></tr></thead>
@@ -5835,8 +5840,18 @@ async function htmlProyeccion(meses) {
       ${P.filas.length ? `<tfoot><tr style="background:var(--card2);font-weight:700"><td colspan="7">Total del mes${P.filas.some(f => f.servicio) ? ' (shows + mesa de entrada)' : ''}</td><td style="text-align:right">${fmt(T.ingresos)}</td><td style="text-align:right">${fmt(T.egresos)}</td><td style="text-align:right;color:${col(T.neto)}">${fmt(T.neto)}</td><td style="text-align:center">${String(mg(T.neto, T.ingresos)).replace('.', ',')}%</td></tr></tfoot>` : ''}
       </table>
     </div>
+      </div></details>
+    <details class="card mes-pleg" style="padding:0;overflow:hidden;margin-bottom:12px" ${(S_PROY.abre = S_PROY.abre || { tabla: true })['extra'] ? 'open' : ''} ontoggle="S_PROY.abre['extra'] = this.open">
+      <summary><span><i class="ti ti-chevron-right fm-ch" style="margin-right:6px;transition:transform .15s"></i>Costo extra no facturado <span style="color:var(--text2);font-size:12px;font-weight:500">· back-ups y coordinación</span></span></summary>
+      <div class="mp-in">
     ${resumenExtraProy(P)}
-    <div style="color:var(--text2);font-size:11.5px;margin-top:8px">Cómo se proyecta cada show: toma la composición del pedido (orientadores, cortatickets, supervisores, recepciones, cargas) de los shows anteriores de la misma banda, o el promedio de todos si es la primera vez; la valoriza con el tarifario del mes (venta por día y sueldo neto); suma los back-ups según el promedio histórico y un coordinador a cargo de SBS; y aplica la estructura de costos de los informes (cargas sociales, impuestos y Ganancias). Tocá un show proyectado para ver el detalle del cálculo.</div>`;
+      </div></details>
+    <details class="card mes-pleg" style="padding:0;overflow:hidden;margin-bottom:12px" ${(S_PROY.abre = S_PROY.abre || { tabla: true })['como'] ? 'open' : ''} ontoggle="S_PROY.abre['como'] = this.open">
+      <summary><span><i class="ti ti-chevron-right fm-ch" style="margin-right:6px;transition:transform .15s"></i>Cómo se proyecta <span style="color:var(--text2);font-size:12px;font-weight:500">· el método, en pocas líneas</span></span></summary>
+      <div class="mp-in">
+    <div style="color:var(--text2);font-size:11.5px;margin-top:8px">Cómo se proyecta cada show: toma la composición del pedido (orientadores, cortatickets, supervisores, recepciones, cargas) de los shows anteriores de la misma banda, o el promedio de todos si es la primera vez; la valoriza con el tarifario del mes (venta por día y sueldo neto); suma los back-ups según el promedio histórico y un coordinador a cargo de SBS; y aplica la estructura de costos de los informes (cargas sociales, impuestos y Ganancias). Tocá un show proyectado para ver el detalle del cálculo.</div>
+      </div></details>
+`;
 }
 
 
@@ -6964,9 +6979,18 @@ async function pgInformes(el, ac) {
         <div style="display:flex;gap:6px;margin-bottom:10px"><input value="${urlPortal}" readonly style="flex:1;font-size:11.5px" onclick="this.select()">
           <button class="btn btn-sm" onclick="copiarTexto('${urlPortal}','Link del portal copiado')"><i class="ti ti-copy"></i> Copiar</button>
           <button class="btn btn-sm" onclick="window.open('${urlPortal}','_blank')" title="Abrir el portal"><i class="ti ti-external-link"></i></button></div>
-        ${(pubsAll || []).length ? `<div class="inf-links">${[...(pubsAll || [])].sort((a, b) => (a.tipo === 'proy') - (b.tipo === 'proy') || String(b.periodo).localeCompare(String(a.periodo))).map(x => { const u = `${urlPortal}?i=${encodeURIComponent(x.token)}`, nom = x.tipo === 'mes' ? mesLabel(x.periodo) : x.tipo === 'proy' ? 'Proyección ' + mesLabel(x.periodo).toLowerCase() : 'Año ' + x.periodo;
-          return `<div class="inf-link"><span class="chip ${x.tipo === 'proy' ? 'chip-fijos' : 'chip-arena'}">${x.tipo === 'proy' ? 'Proyección' : x.tipo === 'anio' ? 'Anual' : 'Mes'}</span><b>${nom}</b><input value="${u}" readonly onclick="this.select()">
-            <button class="btn btn-sm" onclick="copiarTexto('${u}','Link de ${nom} copiado')" title="Copiar el link directo"><i class="ti ti-copy"></i></button><button class="btn btn-sm" onclick="window.open('${u}','_blank')" title="Abrir en el portal"><i class="ti ti-external-link"></i></button></div>`; }).join('')}</div>` : '<div style="font-size:12px;color:var(--text2)">Cuando publiques un informe, va a aparecer acá su link directo.</div>'}`
+        ${(() => {
+          // los links de este mes (o año): el informe elegido arriba y, si es un mes, su proyección
+          const propios = (pubsAll || []).filter(x => (x.tipo === APP.infTipo && x.periodo === APP.infPeriodo) || (APP.infTipo === 'mes' && x.tipo === 'proy' && x.periodo === APP.infPeriodo))
+            .sort((a, b) => (a.tipo === 'proy') - (b.tipo === 'proy'));
+          const fila = x => { const u = `${urlPortal}?i=${encodeURIComponent(x.token)}`, nom = x.tipo === 'mes' ? mesLabel(x.periodo) : x.tipo === 'proy' ? 'Proyección ' + mesLabel(x.periodo).toLowerCase() : 'Año ' + x.periodo;
+            return `<div class="inf-link"><span class="chip ${x.tipo === 'proy' ? 'chip-fijos' : 'chip-arena'}">${x.tipo === 'proy' ? 'Proyección' : x.tipo === 'anio' ? 'Anual' : 'Mes'}</span><b>${nom}</b><input value="${u}" readonly onclick="this.select()">
+              <button class="btn btn-sm" onclick="copiarTexto('${u}','Link de ${nom} copiado')" title="Copiar el link directo"><i class="ti ti-copy"></i></button><button class="btn btn-sm" onclick="window.open('${u}','_blank')" title="Abrir en el portal"><i class="ti ti-external-link"></i></button></div>`; };
+          const titulo = APP.infTipo === 'mes' ? mesLabel(APP.infPeriodo) : 'Año ' + APP.infPeriodo;
+          return propios.length
+            ? `<div style="font-size:12px;font-weight:600;margin:4px 0 6px">${titulo} en el portal</div><div class="inf-links">${propios.map(fila).join('')}</div>`
+            : `<div style="font-size:12px;color:var(--text2)">${titulo} todavía no está publicado. Cuando lo publiques, acá va a aparecer su link directo.</div>`;
+        })()}`
       : `<div style="font-size:12px;color:var(--text2)">Para activarlo, falta un paso en Supabase (te pasé el SQL). Después vas a ver acá el link fijo para mandarles a los socios.</div>`}
     </div>
     <details class="card mes-pleg" style="padding:0;overflow:hidden;margin-bottom:14px" ${window._infPreview ? 'open' : ''} ontoggle="window._infPreview = this.open">
@@ -6974,8 +6998,9 @@ async function pgInformes(el, ac) {
       <iframe id="inf-frame" src="informe.html?preview=1&embed=1&t=${Date.now()}" allow="fullscreen" style="width:100%;height:78vh;min-height:560px;border:0;display:block;background:#f4f5f4" title="Informe a socios"></iframe>
     </details>
     <div>
-      <div class="card">
-        <div style="font-size:13px;font-weight:600;margin-bottom:10px">Informes publicados</div>
+      <details class="card mes-pleg" style="padding:0;overflow:hidden" ${window._infPubs ? 'open' : ''} ontoggle="window._infPubs = this.open">
+        <summary><span><i class="ti ti-chevron-right fm-ch" style="margin-right:6px;transition:transform .15s"></i>Todos los publicados <span style="color:var(--text2);font-size:12px;font-weight:500">· ${(pubsAll || []).length} informe${(pubsAll || []).length !== 1 ? 's' : ''} y proyecciones</span></span></summary>
+        <div class="mp-in">
         ${ePub ? `<div class="alert alert-warn" style="margin:0"><i class="ti ti-database-off"></i> Falta crear la tabla <strong>informes</strong> en Supabase para publicar.</div>`
           : !(pubsAll || []).length ? '<div style="font-size:12.5px;color:var(--text2)">Todavía no publicaste ninguno.</div>'
           : [...(pubsAll || [])].sort((a, b) => (a.tipo === 'proy') - (b.tipo === 'proy') || String(b.periodo).localeCompare(String(a.periodo))).map(x => `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
@@ -6987,7 +7012,7 @@ async function pgInformes(el, ac) {
                 <button class="btn btn-sm" title="Abrir el publicado" onclick="window.open(informeUrl('${x.token}'),'_blank')"><i class="ti ti-external-link"></i></button>
                 <button class="btn btn-sm btn-danger" title="Borrar: deja de verse en el portal" onclick="borrarInforme('${x.id}', '${x.tipo === 'mes' ? mesLabel(x.periodo) : x.tipo === 'proy' ? 'la proyección de ' + mesLabel(x.periodo).toLowerCase() : 'el informe anual ' + x.periodo}')"><i class="ti ti-trash"></i></button>
               </div></div>`).join('')}
-      </div>
+        </div></details>
     </div>`;
 }
 
