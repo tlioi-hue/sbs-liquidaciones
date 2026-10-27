@@ -5065,7 +5065,11 @@ window.handlePlanillaFija = function(file, mesId, lugarId) {
 // FACTURACIÓN ARENA — procesa el pedido del Arena y arma la planilla de facturación
 // ══════════════════════════════════════════════
 const FACT_ZONAS_ORDEN = ['Anillo PB', 'Bowl', 'Platea Baja', 'Platea Alta', 'Molinetes', 'Calle'];
-const FACT_ETIQUETAS_ROT = new Set(['OLLINA', 'OPMAC', 'AJAB.P', 'ATLA.P', 'LOM', 'ELLAC', 'MUIMERP']);
+// Rótulos verticales de zona del pedido del Arena: según cómo se exporte el PDF vienen al revés (OLLINA) o al derecho (ANILLO)
+const FACT_ROT_BASE = ['ANILLO', 'CAMPO', 'P.BAJA', 'P.ALTA', 'MOL', 'CALLE', 'PREMIUM'];
+const normRot = t => String(t || '').toUpperCase().replace(/[\s.]/g, '');
+const FACT_ETIQUETAS_ROT = new Set(FACT_ROT_BASE.flatMap(r => [normRot(r), normRot([...r].reverse().join(''))]));
+const esRotulo = t => String(t || '').trim() === String(t || '').trim().toUpperCase() && FACT_ETIQUETAS_ROT.has(normRot(t));   // solo en MAYÚSCULAS (MOL, CAMPO): "Premium Points" u "Orientadores Calle" no son rótulos
 const FACT_IVA = 1.21;
 const factNum = s => parseInt(String(s).replace(/[^\d]/g, '')) || 0;
 
@@ -5095,8 +5099,7 @@ function parseFacturaArena(pdfRows) {
       if (/^\d+$/.test(toks[i]) && i + 1 < toks.length && toks[i + 1].includes('$')) { idx = i; break; }
     }
     if (idx < 0) continue;
-    let pal = toks.slice(0, idx);
-    while (pal.length && FACT_ETIQUETAS_ROT.has(pal[0])) pal = pal.slice(1);
+    let pal = toks.slice(0, idx).filter(t => !esRotulo(t));   // el rótulo de zona puede caer en cualquier posición de la fila
     const recurso = pal.join(' ').trim().replace('/ ', '/');
     if (!recurso) continue;
     (fase === 'reg' ? reg : prem).push({ recurso, cant: factNum(toks[idx]), valor: factNum(toks[idx + 1]) });
