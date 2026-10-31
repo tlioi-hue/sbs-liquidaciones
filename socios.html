@@ -500,6 +500,9 @@ h2 b { font-size: 1em !important; }
 html { background: var(--crema) !important; } body { background: transparent !important; }   /* el fondo va en html, así la marca de agua y el grano quedan visibles */
 
 .tip-pop, .tip-pop .tip-r span, .tip-pop .tip-r b { color: var(--crema); } .tip-pop .tip-r b { color: var(--crema) !important; }
+
+.sec-h { flex-direction: column; align-items: flex-start; gap: 4px; }   /* el dato de apoyo va debajo del título, no a la derecha */
+.sec-h > .mono { font-size: 13px; }
 </style>
 </head>
 <body>
@@ -548,7 +551,7 @@ function tarjeta(x, i) {
   const t = totales(x), m = t.ing ? t.neto / t.ing : 0, cls = x.tipo === 'proy' ? 'proy' : x.tipo === 'anio' ? 'anio' : '';
   const tit = x.tipo === 'anio' ? { mes: 'Año', anio: x.periodo } : nomMes(x.periodo);
   return `<article class="tj ${cls} rv" style="--d:${(i % 6) * .08}s" onmousemove="brilloTj(event,this)" onclick="abrir('${esc(x.token)}')" tabindex="0" onkeydown="if(event.key==='Enter')abrir('${esc(x.token)}')">
-    <div class="tj-top"><span class="tag ${x.tipo === 'proy' ? 'p' : t.neto < 0 ? 'neg' : ''}"><i></i>${x.tipo === 'proy' ? 'Proyección' : 'Margen ' + pct(t.neto, t.ing)}</span><span class="tj-n">${String(i + 1).padStart(2, '0')}</span></div>
+    <div class="tj-top">${x.tipo === 'proy' ? '<span class="tag p"><i></i>Proyección</span>' : t.neto < 0 ? '<span class="tag neg"><i></i>Resultado negativo</span>' : '<span></span>'}<span class="tj-n">${String(i + 1).padStart(2, '0')}</span></div>
     <h3>${esc(tit.mes)}</h3><div class="anio-l">${esc(tit.anio)} · ${t.shows} show${t.shows !== 1 ? 's' : ''}${x.tipo === 'proy' ? ' confirmados' : ''}</div>
     <div class="tj-box">
       <div class="r"><span class="mono">${x.tipo === 'proy' ? 'Ingresos estimados' : 'Ingresos'}</span><b>${corto(t.ing)}</b></div>

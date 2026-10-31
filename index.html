@@ -4605,7 +4605,7 @@ async function pgCBU(el, ac) {
 
   el.innerHTML = `
     <div class="alert alert-info" style="padding:8px 12px;font-size:12px"><i class="ti ti-info-circle" style="flex-shrink:0"></i>
-      Subí el Excel con columnas <strong>Apellido · Nombre · CUIL · CBU</strong>. La app busca cada persona por nombre y actualiza los campos que estén vacíos.
+      Subí el Excel con columnas <strong>Apellido · Nombre · CUIL · CBU</strong>. La app busca cada persona por CUIL (o por apellido y nombre), completa los datos vacíos y te muestra aparte los CBU que cambian, para que confirmes cuáles reemplazar.
     </div>
     <div class="card" style="margin-bottom:16px">
       <div class="drop-zone" id="dz-cbu" onclick="document.getElementById('fi-cbu').click()">
@@ -4715,9 +4715,10 @@ function parseCBU(rows) {
     const nombreExcel   = String(row[cNombre]||'').trim().toLowerCase();
 
     // Buscar persona: primero por CUIL, luego por apellido+nombre
-    let persona = null;
+    let persona = null, porCuil = false;
     if (cuil && cuil.length >= 10) {
       persona = APP.personal.find(p => p.cuil && p.cuil.replace(/\D/g,'') === cuil);
+      porCuil = !!persona;
     }
     if (!persona && apellidoExcel) {
       persona = APP.personal.find(p =>
@@ -4731,9 +4732,14 @@ function parseCBU(rows) {
       continue;
     }
 
-    // Determinar qué actualizar (solo campos vacíos)
+    // Determinar qué actualizar: completa vacíos y detecta CBU distintos (se reemplazan solo si se confirma)
     const updCuil = (!persona.cuil && cuil && cuil.length >= 10) ? cuil : null;
-    const updCbu  = !persona.cbu ? cbu : null;
+    const cbuActual = String(persona.cbu || '').replace(/\D/g, '');
+    const updCbu  = !cbuActual ? cbu : null;
+    if (cbuActual && cbuActual !== cbu) {
+      resultados.push({ cuil: persona.cuil || cuil, cbu, cbuActual, updCuil, estado: cbu.length === 22 ? 'cambia' : 'cbu_invalido', porCuil, nombre: `${persona.apellido}, ${persona.nombre}`, id: persona.id });
+      continue;
+    }
 
     if (!updCuil && !updCbu) {
       resultados.push({ cuil: persona.cuil||cuil, cbu, estado:'ya_tiene', nombre:`${persona.apellido}, ${persona.nombre}`, id:persona.id });
@@ -4743,6 +4749,9 @@ function parseCBU(rows) {
   }
 
   const aActualizar  = resultados.filter(r => r.estado === 'actualizar');
+  const cambian      = resultados.filter(r => r.estado === 'cambia');
+  const invalidos    = resultados.filter(r => r.estado === 'cbu_invalido');
+  window._cbuCambios = cambian;
   const yaTiene      = resultados.filter(r => r.estado === 'ya_tiene');
   const noEncontrado = resultados.filter(r => r.estado === 'no_encontrado');
 
@@ -4756,7 +4765,24 @@ function parseCBU(rows) {
         <span style="color:var(--green)"><strong>${aActualizar.length}</strong> a actualizar</span>
         <span style="color:var(--text2)"><strong>${yaTiene.length}</strong> ya tienen todos los datos</span>
         ${noEncontrado.length ? `<span style="color:var(--orange)"><strong>${noEncontrado.length}</strong> no encontrado</span>` : ''}
+        ${cambian.length ? `<span style="color:var(--blue)"><strong>${cambian.length}</strong> con CBU distinto</span>` : ''}
+        ${invalidos.length ? `<span style="color:var(--red)"><strong>${invalidos.length}</strong> con CBU inválido</span>` : ''}
       </div>
+      ${cambian.length ? `
+        <div style="font-size:13px;font-weight:600;margin:4px 0 4px">CBU que cambian <span style="font-weight:400;color:var(--text2);font-size:12px">· revisá antes de reemplazar: el viejo se pierde</span></div>
+        <div style="font-size:11.5px;color:var(--text2);margin-bottom:8px">Marcados solos: los que coinciden por CUIL. Los encontrados solo por apellido y nombre quedan sin marcar: confirmá que sea la misma persona.</div>
+        <div style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px">
+          <table><thead><tr><th style="width:30px"><input type="checkbox" class="chk" onchange="document.querySelectorAll('.cbu-cb').forEach(c => c.checked = this.checked)"></th><th>Persona</th><th>Coincide por</th><th>CBU actual</th><th>CBU nuevo</th></tr></thead>
+          <tbody>${cambian.map((r, i) => `<tr>
+            <td><input type="checkbox" class="chk cbu-cb" data-i="${i}" ${r.porCuil ? 'checked' : ''}></td>
+            <td><strong>${r.nombre}</strong><div style="font-size:11px;color:var(--text2);font-family:monospace">${r.cuil || ''}</div></td>
+            <td style="font-size:11.5px">${r.porCuil ? 'CUIL' : '<span style="color:var(--orange)">Apellido y nombre</span>'}</td>
+            <td style="font-family:monospace;font-size:11px;color:var(--text2);text-decoration:line-through">${r.cbuActual}</td>
+            <td style="font-family:monospace;font-size:11px;color:var(--green);font-weight:600">${r.cbu}</td>
+          </tr>`).join('')}</tbody></table>
+        </div>
+        <button class="btn btn-primary" style="margin-bottom:14px" onclick="reemplazarCBU()"><i class="ti ti-replace"></i> Reemplazar los CBU marcados</button>` : ''}
+      ${invalidos.length ? `<div class="alert alert-warn" style="margin-bottom:12px">CBU del Excel que no tienen 22 dígitos (no se cambian): ${invalidos.map(r => `${r.nombre} (${r.cbu})`).join(', ')}</div>` : ''}
       ${aActualizar.length ? `
         <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px">
           <table><thead><tr><th>Persona</th><th>CUIL</th><th>CBU</th><th>Actualiza</th></tr></thead>
@@ -4777,18 +4803,32 @@ function parseCBU(rows) {
 }
 
 window.aplicarCBU = async function(rows) {
-  loading(true);
+  loading(true); const fallas = [];
   for (const r of rows) {
     const upd = {};
     if (r.updCbu)  upd.cbu  = r.cbu;
     if (r.updCuil) upd.cuil = r.updCuil;
-    if (Object.keys(upd).length) await sb.from('personal').update(upd).eq('id', r.id);
+    if (Object.keys(upd).length) { const { error } = await sb.from('personal').update(upd).eq('id', r.id); if (error) fallas.push(r.nombre); }
   }
   loading(false);
-  toast(`${rows.length} persona${rows.length!==1?'s':''} actualizada${rows.length!==1?'s':''}`, 'ok');
+  const ok = rows.length - fallas.length;
+  toast(`${ok} persona${ok!==1?'s':''} actualizada${ok!==1?'s':''}${fallas.length ? ` · ${fallas.length} con error` : ''}`, fallas.length ? 'err' : 'ok');
   document.getElementById('cbu-preview').innerHTML = `
-    <div class="alert alert-ok"><i class="ti ti-check-circle"></i> ${rows.length} personas actualizadas correctamente.</div>`;
+    <div class="alert ${fallas.length ? 'alert-warn' : 'alert-ok'}"><i class="ti ti-check-circle"></i> ${ok} personas actualizadas.${fallas.length ? ` No se pudieron guardar: ${fallas.join(', ')}.` : ''}</div>`;
   await fetchAll();
+};
+// Reemplaza los CBU distintos que se marcaron (el viejo se pierde: se confirma antes)
+window.reemplazarCBU = async function() {
+  const sel = [...document.querySelectorAll('.cbu-cb:checked')].map(c => (window._cbuCambios || [])[+c.dataset.i]).filter(Boolean);
+  if (!sel.length) { toast('No marcaste ningún CBU para reemplazar', 'err'); return; }
+  const porNombre = sel.filter(r => !r.porCuil).length;
+  if (!confirm(`¿Reemplazar el CBU de ${sel.length} persona${sel.length !== 1 ? 's' : ''}?${porNombre ? `\n\n${porNombre} se encontraron solo por apellido y nombre: verificá que sean las personas correctas.` : ''}\n\nLos CBU anteriores se reemplazan por los del Excel.`)) return;
+  loading(true); const fallas = [];
+  for (const r of sel) { const upd = { cbu: r.cbu }; if (r.updCuil) upd.cuil = r.updCuil; const { error } = await sb.from('personal').update(upd).eq('id', r.id); if (error) fallas.push(r.nombre); }
+  loading(false); await fetchAll();
+  const ok = sel.length - fallas.length;
+  toast(`${ok} CBU reemplazado${ok !== 1 ? 's' : ''}${fallas.length ? ` · ${fallas.length} con error` : ''}`, fallas.length ? 'err' : 'ok');
+  document.getElementById('cbu-preview').insertAdjacentHTML('afterbegin', `<div class="alert ${fallas.length ? 'alert-warn' : 'alert-ok'}" style="margin-bottom:10px"><i class="ti ti-check-circle"></i> ${ok} CBU reemplazado${ok !== 1 ? 's' : ''}.${fallas.length ? ` No se pudieron guardar: ${fallas.join(', ')}.` : ''} Volvé a subir el Excel para verificar.</div>`);
 };
 // ══════════════════════════════════════════════
 // SERVICIOS FIJOS — Teatro Colón, Campo de Polo, Ecoparque
