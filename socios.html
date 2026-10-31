@@ -407,7 +407,7 @@ h2 b { font-family: var(--script); font-weight: 400 !important; color: var(--cel
 .ficha { background: var(--crema) !important; border: 1px solid rgba(9,32,60,.25) !important; border-radius: 4px !important; }
 .f-sub { color: var(--mut) !important; } .f-proy { background: var(--bloque) !important; color: var(--navy) !important; border-radius: 3px !important; }
 .tip-pop { background: var(--navy) !important; color: var(--crema) !important; border: 0 !important; border-radius: 3px !important; }
-.tip-pop .tip-t { color: var(--crema) !important; } .tip-pop .tip-r { border-color: rgba(244,241,234,.12) !important; } .tip-pop .tip-r.tot { border-top-color: var(--crema) !important; } .tip-pop .tip-r.tot b { color: var(--crema) !important; } .tip-pop .tip-n, .tip-pop .tip-r.menos span, .tip-pop .tip-r.menos b { color: #4e5560 !important; }
+.tip-pop .tip-t { color: var(--crema) !important; } .tip-pop .tip-r { border-color: rgba(244,241,234,.12) !important; } .tip-pop .tip-r.tot { border-top-color: var(--crema) !important; } .tip-pop .tip-r.tot b { color: var(--crema) !important; } .tip-pop .tip-n, .tip-pop .tip-r.menos span, .tip-pop .tip-r.menos b { color: rgba(244,241,234,.78) !important; }   /* globo azul marino: lo que resta en crema suave, legible */
 
 /* inicio de sesión e intro */
 .login-c { background: var(--bloque) !important; border: 1px solid var(--line) !important; border-radius: 4px !important; }
@@ -498,6 +498,8 @@ h2 b { font-size: 1em !important; }
 @media (max-width: 700px) { .marca-agua { background-size: 260% auto; } }
 
 html { background: var(--crema) !important; } body { background: transparent !important; }   /* el fondo va en html, así la marca de agua y el grano quedan visibles */
+
+.tip-pop, .tip-pop .tip-r span, .tip-pop .tip-r b { color: var(--crema); } .tip-pop .tip-r b { color: var(--crema) !important; }
 </style>
 </head>
 <body>
