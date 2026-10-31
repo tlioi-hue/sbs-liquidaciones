@@ -455,11 +455,11 @@ h2 { font-size: clamp(34px, 4.3vw, 54px) !important; line-height: 1.1 !important
 
 /* tarjeta de inicio de sesión, en la línea del Centro de Control */
 .login { flex-direction: column; gap: 18px; }
-.login-c.lc2 { width: 100%; max-width: 400px; padding: 34px 32px 30px !important; background: var(--bloque) !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; animation: subir .6s cubic-bezier(.2,.8,.2,1) both; }
-.lc2-h { display: flex; flex-direction: column; align-items: center; text-align: center; margin-bottom: 26px; }
-.lc2-logo { width: 72px; height: 72px; display: block; margin-bottom: 14px; }
-.lc2 .login-t { font-size: 34px !important; line-height: 1 !important; color: var(--crema) !important; }
-.lc2 .login-sb { font-family: var(--script) !important; font-size: 24px !important; color: var(--crema) !important; margin-top: 4px !important; }
+.login-c.lc2 { width: 100%; max-width: 400px; padding: 30px 32px 28px !important; background: var(--bloque) !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; animation: subir .6s cubic-bezier(.2,.8,.2,1) both; }
+.lc2-h { display: flex; flex-direction: column; align-items: center; text-align: center; margin: 0; animation: subir .6s cubic-bezier(.2,.8,.2,1) both; }
+.lc2-logo { width: 76px; height: 76px; display: block; margin-bottom: 14px; }
+.lc2-h .login-t { font-size: 36px !important; line-height: 1 !important; color: var(--crema) !important; }
+.lc2-h .login-sb { font-family: var(--script) !important; font-size: 24px !important; color: var(--crema) !important; margin-top: 4px !important; }
 .lc2-f { display: block; margin-bottom: 16px; }
 .lc2-f span { display: block; font-size: 13px; font-weight: 600; color: rgba(243,240,233,.85); margin-bottom: 7px; }
 .lc2-f input { width: 100%; box-sizing: border-box; font: inherit; font-size: 15px; font-weight: 500; color: var(--crema); background: rgba(8,31,59,.75); border: 2px solid rgba(243,240,233,.85); border-radius: 0; padding: 12px 14px; outline: none; transition: border-color .15s, background .15s; }
@@ -467,6 +467,7 @@ h2 { font-size: clamp(34px, 4.3vw, 54px) !important; line-height: 1.1 !important
 .lc2-f input:-webkit-autofill { -webkit-text-fill-color: var(--crema); -webkit-box-shadow: 0 0 0 40px #0b2444 inset; caret-color: var(--crema); }
 .lc2 .login-e { min-height: 18px; margin: 0 0 10px; color: #ff8a80; }
 .lc2-b { width: 100%; padding: 15px; font: inherit; font-size: 15.5px; font-weight: 600; color: var(--navy); background: var(--crema); border: 0; border-radius: 0; cursor: pointer; transition: background .15s, color .15s; }
+.lc2 { animation-delay: .08s !important; }
 .lc2-b:hover { background: var(--cel); color: #fff; } .lc2-b:disabled { opacity: .7; cursor: default; }
 .lc2-pie { font-size: 12px; color: rgba(243,240,233,.55); letter-spacing: .02em; }
 </style>
@@ -925,12 +926,12 @@ const SB = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { pers
 function pantallaLogin(msg) {
   document.querySelectorAll('.intro').forEach(x => x.remove());
   $('app').innerHTML = `<div class="login">
+    <div class="lc2-h">
+      <span class="lc2-logo">${LOGO_SVG(76)}</span>
+      <h1 class="login-t">SBSocios</h1>
+      <div class="login-sb">Portal General</div>
+    </div>
     <form class="login-c lc2" onsubmit="entrar(event)">
-      <div class="lc2-h">
-        <span class="lc2-logo">${LOGO_SVG(72)}</span>
-        <h1 class="login-t">SBSocios</h1>
-        <div class="login-sb">Portal General</div>
-      </div>
       <label class="lc2-f"><span>Usuario</span><input id="lg-u" autocomplete="username" autocapitalize="off" spellcheck="false" required></label>
       <label class="lc2-f"><span>Contraseña</span><input id="lg-p" type="password" autocomplete="current-password" required></label>
       <div class="login-e" id="lg-e">${msg ? esc(msg) : ''}</div>
