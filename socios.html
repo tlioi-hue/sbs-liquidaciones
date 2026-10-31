@@ -308,12 +308,16 @@ h2 { text-shadow: 0 2px 0 rgba(26,58,110,.12); }
 .f-proy { font-size: 13px; color: #3d4744; background: #e8f0fa; border-radius: 12px; padding: 8px 12px; margin: -6px 0 6px; }
 
 .tabla-x.desv th:first-child, .tabla-x.desv td:first-child { width: 42%; }
+
+/* logo original de SBS en las barras: círculo gris con letras transparentes → fondo claro dentro del círculo y aro fino */
+.logo-c.logo-orig { width: 42px; height: 42px; border-radius: 0; overflow: visible; box-shadow: none; background: radial-gradient(circle at 50% 50%, #e6e6e6 0 18.6px, rgba(255,255,255,.95) 19px 20px, transparent 20.5px); }
+.logo-c.logo-orig img { width: 100%; height: 100%; }
 </style>
 </head>
 <body>
 <div class="fondo" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 <div id="app"><div class="estado"><b>Cargando…</b></div></div>
-<div class="visor" id="visor" role="dialog" aria-modal="true"><div class="fondo" aria-hidden="true"><i></i><i></i><i></i><i></i></div><header style="position:relative;z-index:2"><a class="marca" href="#" onclick="cerrarVisor();return false" title="Volver al inicio"><span class="logo-c"><img id="visor-logo" alt="SBS"></span><span>Show Business Solutions</span></a>
+<div class="visor" id="visor" role="dialog" aria-modal="true"><div class="fondo" aria-hidden="true"><i></i><i></i><i></i><i></i></div><header style="position:relative;z-index:2"><a class="marca" href="#" onclick="cerrarVisor();return false" title="Volver al inicio"><span class="logo-c logo-orig"><img id="visor-logo" src="/logo-sbs.jpg" onerror="this.onerror=null;this.src=LOGO_APP;this.parentNode.classList.remove('logo-orig')" alt="SBS"></span><span>Show Business Solutions</span></a>
   <nav class="pills"><span class="pill pill-info" id="visor-t"></span><button class="pill" onclick="cerrarVisor()">← Volver</button></nav></header><div class="lec" id="lec"></div></div>
 <script>
 const SUPABASE_URL = 'https://tvggknkvrjsuhnfahtzl.supabase.co';
@@ -336,7 +340,6 @@ const sesion = {
   borrar: () => { document.cookie = `${SES_KEY}=; path=/; max-age=0; SameSite=Strict${location.protocol === 'https:' ? '; Secure' : ''}`; },
 };
 try { localStorage.removeItem(SES_KEY); } catch {}   // la sesión que antes quedaba guardada de forma permanente
-document.getElementById('visor-logo').src = LOGO_APP;
 const urlPortal = i => `${location.pathname}${i ? `?i=${encodeURIComponent(i)}` : ''}`;
 let LISTA = [];
 function estado(t, s) { $('app').innerHTML = `<div class="estado"><b>${esc(t)}</b><span>${esc(s || '')}</span></div>`; }
@@ -375,7 +378,7 @@ function dibujar() {
   const ult = res[0], tu = ult ? totales(ult) : null, act = LISTA.reduce((a, x) => x.updated_at > a ? x.updated_at : a, '');
   const prox = proyVigente(proy), tp = prox ? totales(prox) : null;
   $('app').innerHTML = `
-  <header><a class="marca" href="#top"><span class="logo-c"><img src="${LOGO_APP}" alt="SBS"></span><span>Show Business Solutions</span></a>
+  <header><a class="marca" href="#top"><span class="logo-c logo-orig"><img src="/logo-sbs.jpg" onerror="this.onerror=null;this.src=LOGO_APP;this.parentNode.classList.remove('logo-orig')" alt="SBS"></span><span>Show Business Solutions</span></a>
     <nav class="pills">${res.length || anios.length ? '<a class="pill" href="#resultados">Resultados</a>' : ''}${proy.length ? '<a class="pill" href="#proyecciones">Proyecciones</a>' : ''}<button class="pill pill-salir" onclick="salir()" title="Cerrar sesión en este dispositivo">Salir</button></nav></header>
   <div class="hero" id="top">
     <h1>${palabras('¿Cómo', 0)} <b>${palabras('nos va', .12)}</b><br>${palabras('en el', .35)} <em>${palabras('Movistar Arena?', .55)}</em></h1>
