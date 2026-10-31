@@ -8,7 +8,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="SBSocios">
-<meta name="theme-color" content="#f3f0e9">
+<meta name="theme-color" content="#f4f1ea">
 <title>SBSocios · Portal General</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Yellowtail&display=swap" rel="stylesheet">
@@ -317,27 +317,25 @@ h2 { text-shadow: 0 2px 0 rgba(26,58,110,.12); }
    TEMA "PLANO TÉCNICO" (boceto Centro de Control): azul marino con grano de papel,
    bloques planos y rectos, sin sombras ni brillos; Poppins pesada + manuscrita; celeste Movistar para las métricas.
    ═══════════════════════════════════════════════════════════════ */
-:root { --navy: #081f3b; --bloque: #fbfaf6; --bloque2: #f6f2e7; --crema: #f3f0e9; --cel: #009cf3; --cel-t: #0067ab; --gris: #4d545f; --mostaza: #b78f09; --mostaza-t: #7d6000; --rojo: #a01c20;
-  --bg: var(--crema); --txt: var(--navy); --mut: rgba(8,31,59,.62); --line: rgba(8,31,59,.14); --ok: #1c7a43; --neg: #b3261e; --script: 'Yellowtail', 'Brush Script MT', cursive; }
+:root { --navy: #09203c; --bloque: #fbfaf6; --bloque2: #f6f2e7; --crema: #f4f1ea; --cel: #019df4; --cel-t: #0067ab; --gris: #4e5560; --mostaza: #b8900a; --mostaza-t: #7d6000; --rojo: #a11d21;
+  --bg: var(--crema); --txt: var(--navy); --mut: rgba(9,32,60,.62); --line: rgba(9,32,60,.14); --ok: #1c7a43; --neg: #b3261e; --script: 'Yellowtail', 'Brush Script MT', cursive; }
 html, body { background: var(--crema) !important; color: var(--navy); }
 body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background-image:
-    linear-gradient(rgba(8,31,59,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(8,31,59,.035) 1px, transparent 1px),
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .03  0 0 0 0 .12  0 0 0 0 .23  0 0 0 .1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-  background-size: 40px 40px, 40px 40px, 220px 220px; }
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .03  0 0 0 0 .12  0 0 0 0 .23  0 0 0 .1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  background-size: 220px 220px; }
 .fondo { display: none !important; }
 * { text-shadow: none !important; }
 h1 em .w, h1 em { filter: none !important; }
 .mono { color: var(--mut); }
 
 /* barra */
-header { background: rgba(243,240,233,.92) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; box-shadow: none !important; border-bottom: 1px solid var(--line) !important; }
+header { background: rgba(244,241,234,.92) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; box-shadow: none !important; border-bottom: 1px solid var(--line) !important; }
 .marca span { color: var(--navy) !important; }
-.pill { background: transparent !important; color: var(--navy) !important; border: 1px solid rgba(8,31,59,.35) !important; border-radius: 3px !important; box-shadow: none !important; font-weight: 600; letter-spacing: .01em; }
+.pill { background: transparent !important; color: var(--navy) !important; border: 1px solid rgba(9,32,60,.35) !important; border-radius: 3px !important; box-shadow: none !important; font-weight: 600; letter-spacing: .01em; }
 .pill:hover { background: var(--cel) !important; border-color: var(--cel) !important; color: #fff !important; transform: none !important; }
 .pill-info, .pill-info:hover { background: var(--bloque) !important; border-color: var(--line) !important; color: var(--navy) !important; }
 .pill-info::before { background: var(--cel); }
-.pill-salir { border-color: rgba(8,31,59,.2) !important; color: var(--mut) !important; }
+.pill-salir { border-color: rgba(9,32,60,.2) !important; color: var(--mut) !important; }
 
 /* logo SBS en SVG (nítido a cualquier zoom) */
 .logo-svg { display: block; width: 100%; height: 100%; }
@@ -349,7 +347,7 @@ h1 { color: var(--navy); font-weight: 800 !important; letter-spacing: -.02em !im
 h1 b, h1 b .w { font-family: var(--script) !important; font-weight: 400 !important; letter-spacing: 0; color: var(--navy); font-size: 1.12em; }
 h1 em .w { background: none !important; -webkit-text-fill-color: var(--cel) !important; color: var(--cel) !important; animation: palabra .9s cubic-bezier(.2,.8,.2,1) var(--d, 0s) forwards !important; }
 h1 .w { font-weight: 800; }
-.sub, .lec-sub { color: rgba(8,31,59,.8) !important; } .lec-sub b, .sub b { color: var(--navy) !important; }
+.sub, .lec-sub { color: rgba(9,32,60,.8) !important; } .lec-sub b, .sub b { color: var(--navy) !important; }
 h2 { color: var(--navy); font-weight: 700 !important; letter-spacing: -.01em; }
 h2 b { font-family: var(--script); font-weight: 400 !important; color: var(--cel); font-size: 1.18em; letter-spacing: 0; margin-right: .12em; }
 .cap-n { color: var(--mut) !important; font-size: 12px !important; font-weight: 600 !important; letter-spacing: .06em; text-transform: uppercase; gap: 10px; }
@@ -361,10 +359,10 @@ h2 b { font-family: var(--script); font-weight: 400 !important; color: var(--cel
 .hpanel, .vidrio, .tj, .tj.anio { background: var(--bloque) !important; border: 1px solid var(--line) !important; border-radius: 4px !important; }
 .hpanel.proy, .tj.proy { background: var(--bloque2) !important; border: 1px dashed rgba(0,156,243,.6) !important; }
 .tj::after { display: none !important; }
-.tj:hover { transform: translateY(-3px) !important; box-shadow: none !important; border-color: rgba(8,31,59,.4) !important; }
+.tj:hover { transform: translateY(-3px) !important; box-shadow: none !important; border-color: rgba(9,32,60,.4) !important; }
 .tj h3 { color: var(--navy); font-weight: 800 !important; }
 .tj .anio-l, .tj-n { color: var(--mut) !important; }
-.tj-box { background: rgba(243,240,233,.55) !important; border: 1px solid var(--line) !important; border-radius: 3px !important; }
+.tj-box { background: rgba(244,241,234,.55) !important; border: 1px solid var(--line) !important; border-radius: 3px !important; }
 .tj-box .r b { color: var(--navy); } .tj-box .r b.pos { color: var(--ok); }
 .tag { background: var(--crema) !important; border: 1px solid var(--line) !important; color: var(--navy); border-radius: 3px !important; }
 .chip-p { background: transparent !important; border: 1px solid var(--cel-t) !important; color: var(--cel-t) !important; border-radius: 3px !important; }
@@ -374,21 +372,21 @@ h2 b { font-family: var(--script); font-weight: 400 !important; color: var(--cel
 /* botones: rectángulos planos */
 .tj-go, .btn-n, .hp-go, .login-b { background: var(--navy) !important; color: var(--crema) !important; border-radius: 3px !important; box-shadow: none !important; font-weight: 700; }
 .tj-go:hover, .btn-n:hover, .hp-go:hover, .login-b:hover, .tj:hover .tj-go { background: var(--cel) !important; color: #fff !important; transform: none !important; }
-.btn-b { background: transparent !important; color: var(--navy) !important; border: 1px solid rgba(8,31,59,.35) !important; border-radius: 3px !important; }
+.btn-b { background: transparent !important; color: var(--navy) !important; border: 1px solid rgba(9,32,60,.35) !important; border-radius: 3px !important; }
 .aviso-toca { background: var(--cel) !important; border-radius: 3px !important; box-shadow: none !important; }
 .x { border-radius: 3px !important; background: var(--navy) !important; color: var(--crema) !important; }
 .sello { background: var(--navy) !important; color: var(--crema) !important; border-radius: 3px !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
 
 /* gráficos */
-.pila { background: rgba(8,31,59,.08) !important; border-radius: 3px !important; }
+.pila { background: rgba(9,32,60,.08) !important; border-radius: 3px !important; }
 .pila > div { font-weight: 700 !important; }
-.hb-b { background: rgba(8,31,59,.1) !important; border-radius: 2px !important; } .hb-f { border-radius: 2px !important; background: var(--cel) !important; }
+.hb-b { background: rgba(9,32,60,.1) !important; border-radius: 2px !important; } .hb-f { border-radius: 2px !important; background: var(--cel) !important; }
 .hb-f.osc { background: var(--navy) !important; } .hb-f.suave { background: rgba(0,156,243,.5) !important; } .hb-f.neg { background: var(--rojo) !important; }
 .hb-l, .ley span, .ley b { color: var(--navy); } .hb-l small, .hb-v small, .ley em, .ley.ley-t span small { color: var(--mut) !important; }
 .hb-v { color: var(--navy); } .hb-v.pos, .dpos { color: var(--ok) !important; } .hb-v.neg, .dneg { color: var(--neg) !important; }
-.hb-r.clic:hover { background: rgba(8,31,59,.06) !important; } .hb-r.clic:hover .hb-l { color: var(--cel-t) !important; }
+.hb-r.clic:hover { background: rgba(9,32,60,.06) !important; } .hb-r.clic:hover .hb-l { color: var(--cel-t) !important; }
 .ley em.tasa { background: transparent !important; border: 1px solid var(--cel-t); color: var(--cel-t) !important; border-radius: 3px !important; }
-.ley .subr { text-decoration-color: rgba(8,31,59,.45) !important; }
+.ley .subr { text-decoration-color: rgba(9,32,60,.45) !important; }
 .tagp.real { background: var(--navy) !important; color: var(--crema) !important; border-radius: 2px !important; } .tagp.proy { background: transparent !important; color: var(--cel-t) !important; border: 1px dashed var(--cel-t) !important; border-radius: 2px !important; }
 .ley-rp i { background: var(--cel) !important; } .ley-rp i.osc { background: var(--navy) !important; }
 
@@ -399,28 +397,28 @@ h2 b { font-family: var(--script); font-weight: 400 !important; color: var(--cel
 .cuenta-x div.tot { background: var(--cel) !important; border-radius: 3px !important; } .cuenta-x div.tot small { color: rgba(255,255,255,.85) !important; }
 .cuenta-t, .ficha h4 { color: var(--cel-t) !important; }
 .tabla-x th { color: var(--mut) !important; background: transparent !important; } .tabla-x td { color: var(--navy); } .tabla-x td.r { color: var(--cel-t) !important; } .tabla-x tfoot td { border-top-color: var(--navy) !important; }
-.mini4 > div, .calc3 > div, .dests > div, .supg > div { background: rgba(243,240,233,.55) !important; border: 1px solid var(--line) !important; border-radius: 3px !important; }
+.mini4 > div, .calc3 > div, .dests > div, .supg > div { background: rgba(244,241,234,.55) !important; border: 1px solid var(--line) !important; border-radius: 3px !important; }
 .mini4 > div.tot { background: var(--cel) !important; border-color: var(--cel) !important; }
 .nota, .toca { color: var(--mut) !important; }
 
 /* ventanas */
 .visor { background: var(--crema) !important; }
-.ficha-ov { background: rgba(8,31,59,.35) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
-.ficha { background: var(--crema) !important; border: 1px solid rgba(8,31,59,.25) !important; border-radius: 4px !important; }
+.ficha-ov { background: rgba(9,32,60,.35) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+.ficha { background: var(--crema) !important; border: 1px solid rgba(9,32,60,.25) !important; border-radius: 4px !important; }
 .f-sub { color: var(--mut) !important; } .f-proy { background: var(--bloque) !important; color: var(--navy) !important; border-radius: 3px !important; }
 .tip-pop { background: var(--navy) !important; color: var(--crema) !important; border: 0 !important; border-radius: 3px !important; }
-.tip-pop .tip-t { color: var(--crema) !important; } .tip-pop .tip-r { border-color: rgba(243,240,233,.12) !important; } .tip-pop .tip-r.tot { border-top-color: var(--crema) !important; } .tip-pop .tip-r.tot b { color: var(--crema) !important; } .tip-pop .tip-n, .tip-pop .tip-r.menos span, .tip-pop .tip-r.menos b { color: #4d545f !important; }
+.tip-pop .tip-t { color: var(--crema) !important; } .tip-pop .tip-r { border-color: rgba(244,241,234,.12) !important; } .tip-pop .tip-r.tot { border-top-color: var(--crema) !important; } .tip-pop .tip-r.tot b { color: var(--crema) !important; } .tip-pop .tip-n, .tip-pop .tip-r.menos span, .tip-pop .tip-r.menos b { color: #4e5560 !important; }
 
 /* inicio de sesión e intro */
 .login-c { background: var(--bloque) !important; border: 1px solid var(--line) !important; border-radius: 4px !important; }
 .login-t { color: var(--navy) !important; font-weight: 800 !important; } .login-sb { font-family: var(--script); font-size: 22px !important; color: var(--cel) !important; font-weight: 400 !important; }
-.login-f input { background: var(--crema) !important; border: 1px solid rgba(8,31,59,.25) !important; color: var(--navy) !important; border-radius: 3px !important; }
-.login-f input::placeholder { color: rgba(8,31,59,.45) !important; } .login-f input:focus { border-color: var(--cel) !important; box-shadow: none !important; }
-.login-i { color: rgba(8,31,59,.5) !important; } .login-f:focus-within .login-i { color: var(--cel) !important; }
+.login-f input { background: var(--crema) !important; border: 1px solid rgba(9,32,60,.25) !important; color: var(--navy) !important; border-radius: 3px !important; }
+.login-f input::placeholder { color: rgba(9,32,60,.45) !important; } .login-f input:focus { border-color: var(--cel) !important; box-shadow: none !important; }
+.login-i { color: rgba(9,32,60,.5) !important; } .login-f:focus-within .login-i { color: var(--cel) !important; }
 .intro { background: var(--crema) !important; color: var(--navy) !important; }
-.intro .barras span { background: rgba(8,31,59,.15) !important; border-radius: 0 !important; } .intro .barras span i { background: var(--navy) !important; }
+.intro .barras span { background: rgba(9,32,60,.15) !important; border-radius: 0 !important; } .intro .barras span i { background: var(--navy) !important; }
 .tx-step { background: var(--crema) !important; }
-*::-webkit-scrollbar-thumb { background: rgba(8,31,59,.25) !important; }
+*::-webkit-scrollbar-thumb { background: rgba(9,32,60,.25) !important; }
 
 /* ── Ajustes: títulos en manuscrita con color con sentido, contraste y cuentas legibles ──
    Crema = lo real · Mostaza = lo proyectado (estimado) · Celeste = Movistar Arena y las métricas clave · Rojo = negativo */
@@ -442,11 +440,11 @@ h2 { font-size: clamp(34px, 4.3vw, 54px) !important; line-height: 1.1 !important
 .tagp.proy { color: var(--mostaza-t) !important; border-color: var(--mostaza-t) !important; }
 .hb-f.suave { background: var(--mostaza) !important; } .ley-rp i:not(.osc) { background: var(--mostaza) !important; }
 /* contraste: texto oscuro sobre celeste y mostaza; cuentas sin gris oscuro */
-.aviso-toca { color: var(--navy) !important; } .aviso-toca i { background: rgba(8,31,59,.12) !important; color: var(--navy) !important; }
+.aviso-toca { color: var(--navy) !important; } .aviso-toca i { background: rgba(9,32,60,.12) !important; color: var(--navy) !important; }
 .mini4 > div.tot b, .mini4 > div.tot span, .mini4 > div.tot small, .cuenta-x div.tot, .cuenta-x div.tot b, .cuenta-x div.tot span, .cuenta-x div.tot small { color: var(--navy) !important; }
-.cuenta-x div.mas span, .cuenta-x div.mas b, .cuenta-x div.menos span, .cuenta-x div.menos b { color: rgba(8,31,59,.82) !important; }
+.cuenta-x div.mas span, .cuenta-x div.mas b, .cuenta-x div.menos span, .cuenta-x div.menos b { color: rgba(9,32,60,.82) !important; }
 .calc3 > div.fin { background: var(--cel) !important; border-color: var(--cel) !important; } .calc3 > div.fin span, .calc3 > div.fin small, .calc3 > div.fin b { color: var(--navy) !important; }
-.mini4 > div span, .mini4 > div small, .calc3 > div span, .calc3 > div small, .supg span, .supg small, .dests span, .dests small, .tj-box .r span, .kpi span, .hb-l small { color: rgba(8,31,59,.68) !important; }
+.mini4 > div span, .mini4 > div small, .calc3 > div span, .calc3 > div small, .supg span, .supg small, .dests span, .dests small, .tj-box .r span, .kpi span, .hb-l small { color: rgba(9,32,60,.68) !important; }
 .mini4 > div b, .calc3 > div b, .supg b, .dests b { color: var(--navy); }
 .grande b.rojo, .grande b.neg { color: var(--neg) !important; }
 .login-s { color: var(--mut) !important; }
@@ -461,17 +459,17 @@ h2 { font-size: clamp(34px, 4.3vw, 54px) !important; line-height: 1.1 !important
 .lc2-h .login-t { font-size: 36px !important; line-height: 1 !important; color: var(--navy) !important; }
 .lc2-h .login-sb { font-family: var(--script) !important; font-size: 24px !important; color: var(--navy) !important; margin-top: 4px !important; }
 .lc2-f { display: block; margin-bottom: 16px; }
-.lc2-f span { display: block; font-size: 13px; font-weight: 600; color: rgba(8,31,59,.85); margin-bottom: 7px; }
-.lc2-f input { width: 100%; box-sizing: border-box; font: inherit; font-size: 15px; font-weight: 500; color: var(--navy); background: rgba(243,240,233,.75); border: 2px solid rgba(8,31,59,.85); border-radius: 0; padding: 12px 14px; outline: none; transition: border-color .15s, background .15s; }
+.lc2-f span { display: block; font-size: 13px; font-weight: 600; color: rgba(9,32,60,.85); margin-bottom: 7px; }
+.lc2-f input { width: 100%; box-sizing: border-box; font: inherit; font-size: 15px; font-weight: 500; color: var(--navy); background: rgba(244,241,234,.75); border: 2px solid rgba(9,32,60,.85); border-radius: 0; padding: 12px 14px; outline: none; transition: border-color .15s, background .15s; }
 .lc2-f input:focus { border-color: var(--cel-t); background: #fff; }
 .lc2-f input:-webkit-autofill { -webkit-text-fill-color: var(--navy); -webkit-box-shadow: 0 0 0 40px #fbfaf6 inset; caret-color: var(--navy); }
 .lc2 .login-e { min-height: 18px; margin: 0 0 10px; color: #ff8a80; }
 .lc2-b { width: 100%; padding: 15px; font: inherit; font-size: 15.5px; font-weight: 600; color: var(--crema); background: var(--navy); border: 0; border-radius: 0; cursor: pointer; transition: background .15s, color .15s; }
 .lc2 { animation-delay: .08s !important; }
 .lc2-b:hover { background: var(--cel); color: #fff; } .lc2-b:disabled { opacity: .7; cursor: default; }
-.lc2-pie { font-size: 12px; color: rgba(8,31,59,.55); letter-spacing: .02em; }
+.lc2-pie { font-size: 12px; color: rgba(9,32,60,.55); letter-spacing: .02em; }
 
-.logo-img { filter: brightness(0) saturate(100%) invert(43%) sepia(71%) saturate(1755%) hue-rotate(174deg) brightness(97%) contrast(101%); }   /* logo calado en celeste Movistar #009cf3 (filtro calculado) */
+.logo-img { filter: brightness(0) saturate(100%) invert(8%) sepia(44%) saturate(2515%) hue-rotate(194deg) brightness(97%) contrast(96%); }   /* logo calado en el azul marino del Centro de Control #09203c (filtro calculado) */
 .pill-info::before { background: var(--cel) !important; }
 
 /* Manuscrita solo en el título principal ("¿Cómo nos va en el Movistar Arena?") y en "Portal General" del login; el resto, Poppins */
@@ -488,7 +486,7 @@ h2 b { font-size: 1em !important; }
 
 /* login: título y subtítulo con los colores de la página, no negros */
 .lc2-h .login-t { color: #0067ab !important; }
-.lc2-h .login-sb { color: #009cf3 !important; }
+.lc2-h .login-sb { color: #019df4 !important; }
 
 /* marca de agua: el wallpaper de SBS (el mismo del Centro de Control), invertido y muy tenue sobre el crema.
    Primero el archivo del propio proyecto; si no está, el del Centro de Control */
@@ -628,7 +626,7 @@ function contar(ya) {
 // ══════════════════════════════════════════════
 // LECTURA DEL INFORME EN EL PORTAL: capítulos, números protagonistas y barras con una sola paleta
 // ══════════════════════════════════════════════
-const PAL = { navy: '#081f3b', cel: '#009cf3', cel2: '#b78f09', cel3: '#7fc8f8', gris: '#8a919b', gris2: '#c3c7cc' };   // portal claro: azul marino, celeste Movistar, mostaza, grises   // tema plano técnico: crema, celeste Movistar, mostaza, grises
+const PAL = { navy: '#09203c', cel: '#019df4', cel2: '#b8900a', cel3: '#7fc8f8', gris: '#8a919b', gris2: '#c3c7cc' };   // portal claro: azul marino, celeste Movistar, mostaza, grises   // tema plano técnico: crema, celeste Movistar, mostaza, grises
 const FLECHA = up => `<svg class="fl" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${up ? '<path d="M7 17 17 7"/><path d="M8 7h9v9"/>' : '<path d="M7 7l10 10"/><path d="M17 8v9H8"/>'}</svg>`;
 const fmtM = v => corto(v);
 const money0 = v => '$ ' + Math.round(v || 0).toLocaleString('es-AR');
@@ -657,7 +655,7 @@ let TIPS = [];
 
 const txtSobre = c => { const h = String(c || '').replace('#', ''); if (h.length !== 6) return '#fff';
   const L = [0, 2, 4].map(i => { let v = parseInt(h.slice(i, i + 2), 16) / 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }), lum = .2126 * L[0] + .7152 * L[1] + .0722 * L[2];
-  const cBlanco = 1.05 / (lum + .05), cAzul = (lum + .05) / (0.0137 + .05); return cAzul >= cBlanco ? '#081f3b' : '#fff'; };   // el que más contraste tenga
+  const cBlanco = 1.05 / (lum + .05), cAzul = (lum + .05) / (0.0137 + .05); return cAzul >= cBlanco ? '#09203c' : '#fff'; };   // el que más contraste tenga
 function pila(partes, base, op = {}) {   // partes: [{l, v, c, lc?, tasa?}]
   partes = partes.filter(p => p.v > 0);   // lo que es $0 no se muestra
   return `<div class="pila" data-base="${base}">${partes.map((p, k) => { const w = base ? Math.max(0, p.v / base * 100) : 0; const et = p.lc || p.l, ti = p.tip ? TIPS.push(p.tip) - 1 : -1; return `<div data-v="${p.v}" style="--w:${w}%;--d:${(k * .15).toFixed(2)}s;background:${p.c};color:${txtSobre(p.c)}" ${ti >= 0 ? `data-tip="${ti}" class="con-tip"` : `title="${esc(p.l)}: ${money0(p.v)}"`}>${w >= Math.max(8, et.length * 0.85) ? esc(et) : ''}</div>`; }).join('')}</div>
