@@ -108,6 +108,7 @@ tr:hover td { background: var(--bg3); }
 .chip-colon { background: #efe6fb; color: #4a2178; border: 1px solid #c9aef0; }
 .chip-eco   { background: #e8f5e8; color: #1a5a2e; border: 1px solid #a0d0a8; }
 .chip-sanmartin { background: #e0f5f2; color: #0f5a52; border: 1px solid #9ad4cb; }
+.chip-mafalda { background: #fbe9e5; color: #7a2a1c; border: 1px solid #e8b0a4; }
 
 /* ── Inputs ── */
 input, select, textarea { width: 100%; padding: 7px 10px; border: 1px solid var(--border2); border-radius: var(--radius); font-size: 12.5px; font-family: inherit; background: var(--bg2); color: var(--text); outline: none; transition: border-color .12s; }
@@ -990,6 +991,7 @@ function chipClaseArea(area) {
   if (area === 'Campo de Polo') return 'chip-polo';
   if (area === 'Teatro Colón') return 'chip-colon';
   if (area === 'Teatro San Martín') return 'chip-sanmartin';
+  if (area === 'Mafalda Inmersiva') return 'chip-mafalda';
   if (area === 'Ecoparque') return 'chip-eco';
   return 'chip-fijos';
 }
@@ -1169,7 +1171,7 @@ function gColumnas(meses) {   // meses: [{label, fact, costo, dif}]
     <div class="g-ley"><span><i style="background:${G_COL.fact}"></i>Facturado</span><span><i style="background:${G_COL.costo}"></i>Costo real</span><span style="margin-left:auto">% = margen</span></div>`;
 }
 // Mismos colores que las etiquetas de cada área (chips), en un tono medio para que se lean en los gráficos
-const COL_AREAS = { 'Movistar Arena': '#2f5b9e', 'Externos': '#c9842a', 'Ecoparque': '#2f8a4c', 'Teatro Colón': '#7a4fc0', 'Campo de Polo': '#b83a7a', 'Teatro San Martín': '#1f8a7e', 'Servicios Fijos': '#6b6b6b' };
+const COL_AREAS = { 'Movistar Arena': '#2f5b9e', 'Externos': '#c9842a', 'Ecoparque': '#2f8a4c', 'Teatro Colón': '#7a4fc0', 'Campo de Polo': '#b83a7a', 'Teatro San Martín': '#1f8a7e', 'Mafalda Inmersiva': '#b04a3a', 'Servicios Fijos': '#6b6b6b' };
 function graficosDB(mes) {
   const per = mes || null, A = fvlPorArea(per), D = datosDB(mes);
   const pag = [{ nombre: 'Movistar Arena', v: A.tot.neto, color: COL_AREAS['Movistar Arena'] }, { nombre: 'Externos', v: D.tE.neto, color: COL_AREAS.Externos },
@@ -1242,7 +1244,7 @@ async function pgPersonal(el, ac) {
 
 const S_PERS = { area: '', falta: '', q: '' };
 const areaPersona = p => p.area === 'Servicios Fijos' ? (LUGARES_FIJOS.find(l => l.id === p.lugar_fijo)?.nombre || 'Servicios Fijos') : (p.area || 'Sin área');
-const ORDEN_AREAS = ['Movistar Arena', 'Externos', 'Ecoparque', 'Teatro Colón', 'Teatro San Martín', 'Campo de Polo', 'Servicios Fijos', 'General'];
+const ORDEN_AREAS = ['Movistar Arena', 'Externos', 'Ecoparque', 'Teatro Colón', 'Teatro San Martín', 'Campo de Polo', 'Mafalda Inmersiva', 'Servicios Fijos', 'General'];
 const ordenArea = a => { const i = ORDEN_AREAS.indexOf(a); return i < 0 ? 99 : i; };
 function renderPersonalUI(el) {
   const todas = APP.personal || [];
@@ -1691,6 +1693,7 @@ window.modalTarifa = function(id) {
         <option value="Teatro Colón"  ${t?.area==='Teatro Colón'?'selected':''}>Teatro Colón</option>
         <option value="Campo de Polo" ${t?.area==='Campo de Polo'?'selected':''}>Campo de Polo</option>
         <option value="Teatro San Martín" ${t?.area==='Teatro San Martín'?'selected':''}>Teatro San Martín</option>
+        <option value="Mafalda Inmersiva" ${t?.area==='Mafalda Inmersiva'?'selected':''}>Mafalda Inmersiva</option>
         <option value="General"       ${t?.area==='General'?'selected':''}>General (ambas áreas)</option>
       </select>
     </div>
@@ -4831,17 +4834,18 @@ window.reemplazarCBU = async function() {
   document.getElementById('cbu-preview').insertAdjacentHTML('afterbegin', `<div class="alert ${fallas.length ? 'alert-warn' : 'alert-ok'}" style="margin-bottom:10px"><i class="ti ti-check-circle"></i> ${ok} CBU reemplazado${ok !== 1 ? 's' : ''}.${fallas.length ? ` No se pudieron guardar: ${fallas.join(', ')}.` : ''} Volvé a subir el Excel para verificar.</div>`);
 };
 // ══════════════════════════════════════════════
-// SERVICIOS FIJOS — Teatro Colón, Campo de Polo, Ecoparque
+// SERVICIOS FIJOS — Teatro Colón, Campo de Polo, Ecoparque, Mafalda Inmersiva
 // ══════════════════════════════════════════════
 const LUGARES_FIJOS = [
   { id: 'ecoparque',     nombre: 'Ecoparque',       posiciones: ['Orientador', 'Supervisor'] },
   { id: 'teatro-colon',  nombre: 'Teatro Colón',    posiciones: ['Boletero', 'Supervisor'] },
   { id: 'campo-de-polo', nombre: 'Campo de Polo',   posiciones: ['Franquero'] },
   { id: 'teatro-san-martin', nombre: 'Teatro San Martín', posiciones: ['Boletero'], hasta: '2026-09' },   // servicio terminado: vigente hasta septiembre de 2026
+  { id: 'mafalda-inmersiva', nombre: 'Mafalda Inmersiva', posiciones: ['Boletero'], desde: '2026-10' },   // servicio nuevo: vigente desde octubre de 2026, una sola jornada
 ];
-// Lugares vigentes en un período (año-mes). Un lugar dado de baja se sigue mostrando en los meses anteriores a su baja
-// y, por las dudas, en cualquier mes que tenga gente cargada en él.
-const lugarVigente = (l, per) => !l.hasta || !per || per <= l.hasta;
+// Lugares vigentes en un período (año-mes). Un lugar dado de baja se sigue mostrando en los meses anteriores a su baja,
+// uno nuevo recién desde su mes de alta (desde), y, por las dudas, en cualquier mes que tenga gente cargada en él.
+const lugarVigente = (l, per) => !per || ((!l.hasta || per <= l.hasta) && (!l.desde || per >= l.desde));
 const lugaresFijosMes = mes => LUGARES_FIJOS.filter(l => lugarVigente(l, mesYM(mes)) || (mes?.presentes?.[l.id] || []).length);
 
 // Lugares fijos que usan tarifa diferencial por duración de jornada (6hs vs 8hs).
@@ -8962,50 +8966,90 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
   </div>`);
 };
 
-window.exportDetalleLugarFijo = function(mesId, lugarId) {
+// Valor por jornada de cada columna de un lugar fijo: [col1, col2] (col2 = null si el lugar usa una sola columna).
+// Si la persona ya está liquidada se usan los valores guardados en su liquidación (los que dieron el total);
+// si no, los del tarifario actual, con la misma lógica que calcSubtotalFijo.
+function valoresJornadaFijo(lugarId, posicion, liq) {
+  const area = LUGARES_FIJOS.find(l => l.id === lugarId)?.nombre;
+  const dos = !!colLabels(lugarId), dp = dosPuestos(lugarId);
+  const uni = APP.tarifario.filter(t => t.area === areaParaTarifa(area) || t.area === 'General');
+  const monto = pos => uni.find(t => t.posicion === pos)?.monto || 0;
+  let t1, t2 = null;
+  if (dp) { t1 = monto(dp[0]); t2 = monto(dp[1]); }
+  else if (usaJornada8(lugarId)) {
+    const { tSemana, tFinde } = getTarifaSemanaFinde(posicion, area);
+    if (tSemana || tFinde) { t1 = tSemana?.monto || 0; t2 = tFinde?.monto || 0; }
+    else { t1 = t2 = monto(posicion); }
+  } else t1 = monto(posicion);
+  const v1 = liq?.valor_jornada || t1;
+  const v2 = dos ? (liq?.valor_jornada_finde ?? t2) : null;
+  return [v1, v2];
+}
+// ── Excel de Servicios Fijos (como la planilla modelo) ──
+// CUIL | Apellido y nombre | CBU | Lugar | Período | Posición | una columna por tipo de jornada con su valor en el
+// encabezado ("Jornadas 6hs ($41.950)") | Total ($), con el total al pie resaltado. Una hoja por lugar; si dentro de un
+// lugar hay valores por jornada distintos (ej: Boletero y Supervisor), cada grupo va en su propia hoja.
+const fmtValorXL = v => '$' + Math.round(v || 0).toLocaleString('es-AR');
+const rotuloJornadaXL = c => /^Jornadas/i.test(c) ? c : `Jornadas ${c}`;
+function hojasFijosXL(wb, lugarId, lugarNombre, filas, usados) {
+  const cl = colLabels(lugarId);
+  const grupos = {};
+  filas.forEach(f => { const k = `${f.v1 || 0}|${f.v2 ?? ''}`; (grupos[k] = grupos[k] || []).push(f); });
+  const claves = Object.keys(grupos);
+  claves.forEach(k => {
+    const fs = grupos[k], { v1, v2 } = fs[0];
+    let nom = normExport(lugarNombre);
+    if (claves.length > 1) nom += ' - ' + [...new Set(fs.map(f => normExport(f.posicion || '')))].filter(Boolean).join(', ');
+    nom = nom.replace(/[\\\/?*\[\]:]/g, ' ').slice(0, 31).trim() || 'Hoja';
+    let unico = nom, n = 2; while (usados.has(unico)) unico = `${nom.slice(0, 27)} (${n++})`; usados.add(unico);
+    const ws = wb.addWorksheet(unico);
+    const cabJ = cl ? [cl[0], cl[1]].map((c, i) => { const v = i ? v2 : v1; return rotuloJornadaXL(c) + (v ? ` (${fmtValorXL(v)})` : ''); })
+                    : ['Jornadas' + (v1 ? ` (${fmtValorXL(v1)})` : '')];
+    const header = ['CUIL', 'Apellido y nombre', 'CBU', 'Lugar', 'Período', 'Posición', ...cabJ, 'Total ($)'];
+    const colTot = header.length;
+    [16, 26, 26, 18, 16, 14, ...cabJ.map(() => 24), 16].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+    const fila = (vals, { bold = false } = {}) => {
+      const r = ws.addRow(vals);
+      for (let c = 1; c <= colTot; c++) {
+        const cell = r.getCell(c);
+        cell.font = { ...XL_FUENTE_GRAL, bold };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      }
+      return r;
+    };
+    fila(header, { bold: true });
+    fs.forEach(f => {
+      const r = fila([f.cuil || '', f.nombre, f.cbu || '', normExport(lugarNombre), normExport(f.periodo || ''), normExport(f.posicion || ''),
+        ...(cl ? [f.j1 || 0, f.j2 || 0] : [(f.j1 || 0) + (f.j2 || 0)]), f.total || 0]);
+      r.getCell(colTot).numFmt = '"$"#,##0.00';
+    });
+    const tot = fs.reduce((s, f) => s + (f.total || 0), 0), letra = ws.getColumn(colTot).letter;
+    const rT = fila(Array(colTot).fill(''));
+    const cT = rT.getCell(colTot);
+    cT.value = { formula: `SUM(${letra}2:${letra}${fs.length + 1})`, result: tot };
+    cT.numFmt = '"$"#,##0.00';
+    cT.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } };
+  });
+}
+
+window.exportDetalleLugarFijo = async function(mesId, lugarId) {
+  if (typeof ExcelJS === 'undefined') { toast('No se pudo cargar el generador de Excel. Reintentá.', 'err'); return; }
   const mes = getMesesFijos().find(m => m.id === mesId);
   const lugar = LUGARES_FIJOS.find(l => l.id === lugarId);
   const pres = mes?.presentes?.[lugarId] || [];
   const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId && l.lugar_fijo === lugarId);
   if (!pres.length) { alert('Sin personas cargadas para exportar'); return; }
-  const esColon = lugarId === 'teatro-colon';
-  const cl = colLabels(lugarId);
-  const rows = pres.map(p => {
+  const filas = pres.map(p => {
     const liq = liqs.find(l => l.persona_id === p.personaId);
-    const per = APP.personal.find(x => x.id === p.personaId)
-      || APP.personal.find(x => x.id === liq?.persona_id);
-    const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0, lugar.nombre);
-    const cuil = p.cuil || ''; // siempre del localStorage, igual que el ojo
-    const row = {
-      'CUIL': cuil,
-      'Apellido y nombre': normExport(`${p.apellido} ${p.nombre}`),
-      'CBU':  per?.cbu || '',
-    };
-    if (esColon) row['Alias'] = per?.alias || '';
-    row['Lugar']   = normExport(lugar.nombre);
-    row['Período'] = normExport(mes.nombre);
-    row['Posición'] = normExport(p.posicion||'');
-    if (cl) {
-      row[cl[0]] = p.jornadas||0;
-      row[cl[1]] = p.jornadasFinde||0;
-    } else {
-      row['Jornadas'] = (p.jornadas||0) + (p.jornadasFinde||0);
-    }
-    row['Total ($)'] = sub;
-    return row;
+    const per = APP.personal.find(x => x.id === p.personaId) || APP.personal.find(x => x.id === liq?.persona_id);
+    const [v1, v2] = valoresJornadaFijo(lugarId, p.posicion, liq);
+    return { cuil: p.cuil || '', nombre: normExport(`${p.apellido} ${p.nombre}`), cbu: per?.cbu || '', periodo: mes.nombre,
+      posicion: p.posicion || '', j1: p.jornadas || 0, j2: p.jornadasFinde || 0, v1, v2,
+      total: liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0, lugar.nombre) };
   });
-  // Header explícito (varía según lugar) + aoa_to_sheet para garantizar el orden
-  const header = ['CUIL','Apellido y nombre','CBU'];
-  if (esColon) header.push('Alias');
-  header.push('Lugar','Período','Posición');
-  if (cl) header.push(cl[0], cl[1]); else header.push('Jornadas');
-  header.push('Total ($)');
-  const aoa = [header, ...rows.map(r => header.map(h => r[h] ?? ''))];
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = header.map(h => ({ wch: h === 'CBU' ? 26 : h === 'Apellido y nombre' ? 22 : h === 'CUIL' ? 16 : 14 }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Presentes');
-  XLSX.writeFile(wb, `presentes_${normExport(lugar.nombre).replace(/\s+/g,'_')}_${normExport(mes.nombre).replace(/\s+/g,'_')}.xlsx`);
+  const wb = new ExcelJS.Workbook();
+  hojasFijosXL(wb, lugarId, lugar.nombre, filas, new Set());
+  await xlDescargar(wb, `presentes_${normExport(lugar.nombre).replace(/\s+/g,'_')}_${normExport(mes.nombre).replace(/\s+/g,'_')}.xlsx`);
   toast('Excel exportado', 'ok');
 };
 
@@ -9272,40 +9316,27 @@ window.reabrirMesFijo = function(mesId) {
   go('fijos');
 };
 
-window.exportMesFijo = function(mesId) {
+window.exportMesFijo = async function(mesId) {
+  if (typeof ExcelJS === 'undefined') { toast('No se pudo cargar el generador de Excel. Reintentá.', 'err'); return; }
   const mes = getMesesFijos().find(m => m.id === mesId);
   const liqs = APP.liquidaciones.filter(l => l.mes_id === mesId);
   if (!liqs.length) { alert('Sin liquidaciones para exportar'); return; }
-  const rows = liqs.map(l => {
-    const p = APP.personal.find(x => x.id === l.persona_id);
-    const nombre = p ? nombreExport(p.apellido, p.nombre) : normExport(l.persona_nombre||'');
-    return {
-      'CUIL':  p?.cuil  || '',
-      'Apellido y nombre': nombre,
-      'CBU':   p?.cbu   || '',
-      'Alias': p?.alias || '',
-      'Área':  'Servicios Fijos',
-      'Lugar': normExport(l.lugar_nombre||''),
-      'Período': normExport(l.periodo||mes.nombre),
-      'Posición': normExport(l.posicion||''),
-      'Jornadas': l.jornadas || 0,
-      'Jornadas semana': l.jornadas_semana ?? '',
-      'Jornadas finde': l.jornadas_finde ?? '',
-      'Valor jornada ($)': l.valor_jornada || '',
-      'Valor jornada finde ($)': l.valor_jornada_finde || '',
-      'Total ($)': l.total,
-      'Fecha creación': l.created_at ? new Date(l.created_at).toLocaleDateString('es-AR') : '',
-    };
+  const wb = new ExcelJS.Workbook(), usados = new Set();
+  const ids = [...LUGARES_FIJOS.map(l => l.id), ...new Set(liqs.map(l => l.lugar_fijo).filter(id => !LUGARES_FIJOS.some(x => x.id === id)))];
+  ids.forEach(lugarId => {
+    const L = liqs.filter(l => (l.lugar_fijo || null) === (lugarId || null));
+    if (!L.length) return;
+    const dos = !!colLabels(lugarId);
+    const filas = L.map(l => {
+      const p = APP.personal.find(x => x.id === l.persona_id);
+      const [v1, v2] = valoresJornadaFijo(l.lugar_fijo, l.posicion, l);
+      return { cuil: p?.cuil || '', nombre: p ? nombreExport(p.apellido, p.nombre) : normExport(l.persona_nombre||''), cbu: p?.cbu || '',
+        periodo: l.periodo || mes.nombre, posicion: l.posicion || '',
+        j1: dos ? (l.jornadas_semana ?? (l.jornadas || 0)) : (l.jornadas || 0), j2: dos ? (l.jornadas_finde ?? 0) : 0, v1, v2, total: l.total || 0 };
+    });
+    hojasFijosXL(wb, lugarId, LUGARES_FIJOS.find(x => x.id === lugarId)?.nombre || L[0].lugar_nombre || 'Servicios Fijos', filas, usados);
   });
-  // aoa_to_sheet garantiza el orden de columnas (json_to_sheet no lo respeta)
-  const header = ['CUIL','Apellido y nombre','CBU','Alias','Área','Lugar','Período','Posición',
-                  'Jornadas','Jornadas semana','Jornadas finde','Valor jornada ($)','Valor jornada finde ($)','Total ($)','Fecha creación'];
-  const aoa = [header, ...rows.map(r => header.map(h => r[h] ?? ''))];
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [16,22,26,14,14,14,14,14,10,10,10,16,16,12,14].map(w => ({ wch:w }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Liquidaciones');
-  XLSX.writeFile(wb, `liquidaciones_fijos_${normExport(mes.nombre).replace(/\s+/g,'_')}.xlsx`);
+  await xlDescargar(wb, `liquidaciones_fijos_${normExport(mes.nombre).replace(/\s+/g,'_')}.xlsx`);
   toast('Excel exportado', 'ok');
 };
 

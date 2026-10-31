@@ -503,6 +503,25 @@ html { background: var(--crema) !important; } body { background: transparent !im
 
 .sec-h { flex-direction: column; align-items: flex-start; gap: 4px; }   /* el dato de apoyo va debajo del título, no a la derecha */
 .sec-h > .mono { font-size: 13px; }
+
+/* tarjetas: mini gráfico de resultado por show */
+.tj-sp { display: flex; flex-direction: column; gap: 10px; }
+.tj-sp-h { display: flex; justify-content: space-between; align-items: center; }
+.tj-sp-h .mono { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--mut); }
+.tj-bars { position: relative; height: 86px; display: flex; gap: 3px; padding: 0 1px; border-bottom: 1px solid var(--line); }
+.tj-b { position: relative; flex: 1 1 0; min-width: 2px; height: 100%; }
+.tj-b i { position: absolute; left: 0; right: 0; background: #17365F; border-radius: 1px; transition: opacity .15s; }
+.tj-b i.pr { background: var(--mostaza); } .tj-b i.neg { background: var(--rojo); }
+.tj-bars:hover .tj-b i { opacity: .45; } .tj-bars .tj-b:hover i { opacity: 1; }
+.tj-0 { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed rgba(9,32,60,.35); }
+.tj-ley { display: flex; gap: 14px; font-size: 11.5px; color: var(--mut); margin-top: -4px; }
+.tj-ley span { display: inline-flex; align-items: center; gap: 6px; } .tj-ley i { width: 9px; height: 9px; background: #17365F; border-radius: 1px; } .tj-ley i.pr { background: var(--mostaza); }
+.tj-mejor { display: grid; grid-template-columns: 1fr auto; column-gap: 10px; align-items: baseline; padding-top: 2px; }
+.tj-mejor .mono { grid-column: 1 / -1; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--mut); }
+.tj-mejor b { font-size: 15px; font-weight: 700; color: var(--navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tj-mejor em { font-style: normal; font-size: 14px; font-weight: 700; color: var(--ok); white-space: nowrap; } .tj-mejor em.neg { color: var(--neg); }
+.tj.proy .tj-mejor em { color: var(--mostaza-t); }
+.tj h3 { margin-top: auto !important; padding-top: 18px; }
 </style>
 </head>
 <body>
@@ -547,11 +566,44 @@ function totales(x) {
   if (x.tipo === 'proy') return { ing: d.T?.ingresos || 0, neto: d.T?.neto || 0, shows: (d.shows || []).length, egr: d.T?.egresos || 0 };
   const t = d.totales || {}; return { ing: t.ventas || 0, neto: t.neto || 0, shows: (d.shows || []).length, egr: (t.ventas || 0) - (t.neto || 0) };
 }
+// Mini gráfico de la tarjeta: resultado show por show (o mes por mes en el anual), en orden de fecha.
+// Azul = real, mostaza = proyectado, rojo = negativo. Debajo, el mejor show (o mes).
+function serieTj(x, i) {
+  const d = x.data || {}, esProy = x.tipo === 'proy';
+  const sh = (d.shows || []).filter(s => s && isFinite(+s.neto)).sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || '')));
+  let pts, unidad;
+  if (x.tipo === 'anio' || sh.length > 31) {
+    const porMes = {};
+    sh.forEach(s => { const k = String(s.fecha || '').slice(0, 7); if (k) (porMes[k] = porMes[k] || { v: 0, n: 0 }), porMes[k].v += +s.neto, porMes[k].n++; });
+    pts = Object.keys(porMes).sort().map(k => ({ nom: nomMes(k).mes, det: `${porMes[k].n} show${porMes[k].n !== 1 ? 's' : ''}`, v: porMes[k].v, proy: false }));
+    unidad = 'mes';
+  } else {
+    pts = sh.map(s => ({ nom: s.nombre || 'Show', det: fechaC(s.fecha), v: +s.neto, proy: esProy && s.estado !== 'real' }));
+    unidad = 'show';
+  }
+  const n = `<span class="tj-n">${String(i + 1).padStart(2, '0')}</span>`;
+  if (!pts.length) return `<div class="tj-sp-h"><span class="mono">Resultado por ${unidad}</span>${n}</div>`;
+  const pos = Math.max(0, ...pts.map(p => p.v)), neg = Math.max(0, ...pts.map(p => -p.v)), rango = (pos + neg) || 1;
+  const cero = pos / rango * 100;   // posición de la línea de cero, desde arriba (%)
+  const barras = pts.map(p => {
+    const h = Math.abs(p.v) / rango * 100, top = p.v >= 0 ? cero - h : cero;
+    const cls = p.v < 0 ? 'neg' : p.proy ? 'pr' : '';
+    return `<span class="tj-b" title="${esc(p.nom)}${p.det ? ' · ' + esc(p.det) : ''} · ${esc(corto(p.v))}"><i class="${cls}" style="top:${top.toFixed(2)}%;height:max(2px,${h.toFixed(2)}%)"></i></span>`;
+  }).join('');
+  const mejor = pts.reduce((a, b) => b.v > a.v ? b : a, pts[0]);
+  const mixto = esProy && pts.some(p => p.proy) && pts.some(p => !p.proy);
+  return `<div class="tj-sp">
+      <div class="tj-sp-h"><span class="mono">Resultado por ${unidad}</span>${n}</div>
+      <div class="tj-bars">${neg ? `<span class="tj-0" style="top:${cero.toFixed(2)}%"></span>` : ''}${barras}</div>
+      ${mixto ? '<div class="tj-ley"><span><i></i>Ya hecho</span><span><i class="pr"></i>Proyectado</span></div>' : ''}
+      <div class="tj-mejor"><span class="mono">Mejor ${unidad}</span><b>${esc(mejor.nom)}</b><em class="${mejor.v < 0 ? 'neg' : ''}">${esc(corto(mejor.v))}</em></div>
+    </div>`;
+}
 function tarjeta(x, i) {
   const t = totales(x), m = t.ing ? t.neto / t.ing : 0, cls = x.tipo === 'proy' ? 'proy' : x.tipo === 'anio' ? 'anio' : '';
   const tit = x.tipo === 'anio' ? { mes: 'Año', anio: x.periodo } : nomMes(x.periodo);
   return `<article class="tj ${cls} rv" style="--d:${(i % 6) * .08}s" onmousemove="brilloTj(event,this)" onclick="abrir('${esc(x.token)}')" tabindex="0" onkeydown="if(event.key==='Enter')abrir('${esc(x.token)}')">
-    <div class="tj-top">${x.tipo === 'proy' ? '<span class="tag p"><i></i>Proyección</span>' : t.neto < 0 ? '<span class="tag neg"><i></i>Resultado negativo</span>' : '<span></span>'}<span class="tj-n">${String(i + 1).padStart(2, '0')}</span></div>
+    ${serieTj(x, i)}
     <h3>${esc(tit.mes)}</h3><div class="anio-l">${esc(tit.anio)} · ${t.shows} show${t.shows !== 1 ? 's' : ''}${x.tipo === 'proy' ? ' confirmados' : ''}</div>
     <div class="tj-box">
       <div class="r"><span class="mono">${x.tipo === 'proy' ? 'Ingresos estimados' : 'Ingresos'}</span><b>${corto(t.ing)}</b></div>
