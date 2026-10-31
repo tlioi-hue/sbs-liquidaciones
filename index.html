@@ -589,6 +589,11 @@ tr.p-grupo .pg-ch { display: inline-block; margin-right: 6px; transition: transf
 /* barras de desplazamiento finas */
 * { scrollbar-width: thin; scrollbar-color: rgba(17,24,39,.22) transparent; }
 *::-webkit-scrollbar { width: 9px; height: 9px; } *::-webkit-scrollbar-thumb { background: rgba(17,24,39,.22); border-radius: 9px; border: 2px solid transparent; background-clip: padding-box; } *::-webkit-scrollbar-track { background: transparent; }
+
+/* Servicios Fijos: subtotal editable a mano */
+input.sub-fijo { width: 118px; text-align: right; font-weight: 600; }
+input.sub-fijo.manual { border-color: #c9842a !important; background: #fdf6ea !important; }
+.btn-reset-sub { padding: 3px 6px !important; min-width: 0 !important; }
 </style>
 </head>
 <body>
@@ -1032,6 +1037,13 @@ function calcSubtotalFijo(posBaseOTar, jornadasSemana, jornadasFinde, area) {
   const universo = area ? APP.tarifario.filter(t => t.area === areaParaTarifa(area) || t.area === 'General') : APP.tarifario;
   const tar = universo.find(t => t.posicion === posBase);
   return (tar?.monto||0) * (jornadasSemana + jornadasFinde);
+}
+// Subtotal de un presente de Servicios Fijos: el total cargado a mano (totalManual) si lo tiene;
+// si no, jornadas × tarifario. `posicion` permite pasar la posición efectiva cuando el presente no la trae.
+const tieneTotalManualFijo = p => p && p.totalManual !== undefined && p.totalManual !== null && p.totalManual !== '';
+function subPresenteFijo(p, area, posicion) {
+  if (tieneTotalManualFijo(p)) return +p.totalManual || 0;
+  return calcSubtotalFijo(posicion ?? p.posicion, p.jornadas || 0, p.jornadasFinde || 0, area);
 }
 function liqsF(evId, fechaId) { return APP.liquidaciones.filter(l => l.evento_id === evId && l.fecha_id === fechaId); }
 
@@ -8399,7 +8411,8 @@ function renderTablaVerificacionFija() {
       </tr></thead>
       <tbody>${personas.map(p => {
         const posicionEfectiva = p.posicion || (dosPuestos(lugarId)?.[0]) || posicionesBase[0] || '';
-        const subtotal = calcSubtotalFijo(posicionEfectiva, p.jornadas, p.jornadasFinde||0, areaLugarVer);
+        const subtotal = subPresenteFijo(p, areaLugarVer, posicionEfectiva);
+        const manual = tieneTotalManualFijo(p);
         const allPosOpts = posicionesBase.map(pb => `<option value="${pb}" ${pb===posicionEfectiva?'selected':''}>${pb}</option>`).join('');
         const vacia = !(p.jornadas||0) && !(p.jornadasFinde||0);
         const dp = dosPuestos(lugarId);
@@ -8418,7 +8431,7 @@ function renderTablaVerificacionFija() {
           <td><strong>${p.apellido}, ${p.nombre}</strong></td>
           <td style="font-family:monospace;font-size:11.5px">${p.cuil||'—'}</td>
           ${celdasPos}
-          <td style="text-align:right;font-weight:500" id="pfsub-${p._id}">${fmt(subtotal)}</td>
+          <td style="text-align:right;white-space:nowrap"><input type="number" id="pfsub-${p._id}" class="sub-fijo${manual ? ' manual' : ''}" value="${Math.round(subtotal)}" min="0" step="1" title="Podés escribir otro valor" oninput="totalManualFijaVer('${p._id}','${lugarId}',this.value)"><button class="btn btn-sm btn-reset-sub" id="pfreset-${p._id}" style="${manual ? '' : 'visibility:hidden'}" title="Volver al valor del tarifario" onclick="totalManualFijaVer('${p._id}','${lugarId}',null)"><i class="ti ti-arrow-back-up"></i></button></td>
           <td>${p.esNuevo ? '<span class="badge bn" style="font-size:10px">nuevo</span>' : '<span class="badge bs" style="font-size:10px">registrado</span>'}</td>
           <td><button class="btn btn-sm btn-danger" onclick="quitarPersonaFija('${p._id}')" title="Quitar de esta liquidación"><i class="ti ti-trash"></i></button></td>
         </tr>`;
@@ -8426,7 +8439,7 @@ function renderTablaVerificacionFija() {
       <tfoot><tr>
         <td colspan="${usaJornada8(lugarId)?5:4}" style="font-weight:600;padding:10px;border-top:2px solid var(--border)">Total estimado · ${personas.length} ${personas.length===1?'persona':'personas'}</td>
         <td style="text-align:right;font-size:16px;font-weight:700;padding:10px;border-top:2px solid var(--border)" id="pf-total">
-          ${fmt(personas.reduce((s,p) => s + calcSubtotalFijo(p.posicion || posicionesBase[0] || '', p.jornadas, p.jornadasFinde||0, areaLugarVer), 0))}
+          ${fmt(personas.reduce((s,p) => s + subPresenteFijo(p, areaLugarVer, p.posicion || posicionesBase[0] || ''), 0))}
         </td>
         <td colspan="2" style="border-top:2px solid var(--border)"></td>
       </tr></tfoot>
@@ -8661,21 +8674,38 @@ window.calcFilaFijaVer = function(id, lugarId) {
   // En lugares con dos columnas (Ecoparque) no hay dropdown: la posición viene de la planilla (draft).
   let posicion = document.getElementById('pfpos-'+id)?.value ?? p?.posicion ?? '';
   if (dp) posicion = (jornadas && jornadasFinde) ? dp.join(' / ') : (jornadasFinde ? dp[1] : dp[0]);
-  if (p) { p.jornadas = jornadas; p.jornadasFinde = jornadasFinde; p.posicion = posicion; }
+  if (p) { p.jornadas = jornadas; p.jornadasFinde = jornadasFinde; p.posicion = posicion; delete p.totalManual; }   // cambiaron las jornadas: el total vuelve al del tarifario
   const sub = calcSubtotalFijo(posicion, jornadas, jornadasFinde, LUGARES_FIJOS.find(l => l.id === lugarId)?.nombre);
-  const subEl = document.getElementById('pfsub-'+id); if (subEl) subEl.textContent = fmt(sub);
+  const subEl = document.getElementById('pfsub-'+id); if (subEl) { subEl.value = Math.round(sub); subEl.classList.remove('manual'); }
+  const rsEl = document.getElementById('pfreset-'+id); if (rsEl) rsEl.style.visibility = 'hidden';
   // La fila se atenúa solo mientras no tenga jornadas: al cargarle una, vuelve a normal
   const rowEl = document.getElementById('pfrow-'+id);
   if (rowEl) rowEl.style.opacity = (jornadas || jornadasFinde) ? '' : '.55';
   // Recalcular el aviso de "sin jornadas" con los valores actuales
   const avisoEl = document.getElementById('pf-aviso-sin');
   if (avisoEl && window._fijoDraft) avisoEl.innerHTML = renderAvisoSinJornadas(window._fijoDraft.personas);
-  // Recalcular total
+  totalPlanillaFijaVer();
+};
+// Total de la planilla en verificación: suma los subtotales tal como están en pantalla (a mano o de tarifario)
+function totalPlanillaFijaVer() {
   let total = 0;
-  document.querySelectorAll('[id^="pfsub-"]').forEach(el => {
-    const n = parseFloat(el.textContent.replace(/[^0-9]/g,'')) || 0; total += n;
-  });
+  document.querySelectorAll('input[id^="pfsub-"]').forEach(el => { total += parseFloat(el.value) || 0; });
   const totEl = document.getElementById('pf-total'); if (totEl) totEl.textContent = fmt(total);
+}
+// Total a mano en la planilla en verificación. valor = null vuelve al cálculo con el tarifario.
+window.totalManualFijaVer = function(id, lugarId, valor) {
+  const p = window._fijoDraft?.personas.find(x => x._id === id); if (!p) return;
+  const el = document.getElementById('pfsub-'+id), rs = document.getElementById('pfreset-'+id);
+  if (valor === null || valor === '') {
+    delete p.totalManual;
+    const sub = calcSubtotalFijo(p.posicion || _defaultPosFija(lugarId), p.jornadas || 0, p.jornadasFinde || 0, LUGARES_FIJOS.find(l => l.id === lugarId)?.nombre);
+    if (el && valor === null) el.value = Math.round(sub);
+    el?.classList.remove('manual'); if (rs) rs.style.visibility = 'hidden';
+  } else {
+    p.totalManual = Math.max(0, Math.round(parseFloat(valor) || 0));
+    el?.classList.add('manual'); if (rs) rs.style.visibility = '';
+  }
+  totalPlanillaFijaVer();
 };
 
 window.confirmarPlanillaFija = async function(mesId, lugarId) {
@@ -8704,7 +8734,9 @@ window.confirmarPlanillaFija = async function(mesId, lugarId) {
       p.existeId = np?.id;
     }
 
-    presentesLugar.push({ personaId: p.existeId, apellido: p.apellido, nombre: p.nombre, cuil: p.cuil, posicion, jornadas, jornadasFinde });
+    const pres = { personaId: p.existeId, apellido: p.apellido, nombre: p.nombre, cuil: p.cuil, posicion, jornadas, jornadasFinde };
+    if (tieneTotalManualFijo(p)) pres.totalManual = +p.totalManual;
+    presentesLugar.push(pres);
   }
 
   mes.presentes[lugarId] = presentesLugar;
@@ -8728,13 +8760,14 @@ window.liquidarLugarFijo = async function(mesId, lugarId) {
   const univLiq = APP.tarifario.filter(t => t.area === areaParaTarifa(lugar.nombre) || t.area === 'General');
   for (const p of presentes) {
     const jf = p.jornadasFinde || 0;
-    if (!p.jornadas && !jf) continue;
-    const total = calcSubtotalFijo(p.posicion, p.jornadas||0, jf, lugar.nombre);
+    const manual = tieneTotalManualFijo(p);
+    if (!p.jornadas && !jf && !manual) continue;
+    const total = subPresenteFijo(p, lugar.nombre);
     if (dpLiq) {
       // Dos posiciones en columnas: col1 = jornadas (posición 1), col2 = jornadasFinde (posición 2)
       const m1 = univLiq.find(t => t.posicion === dpLiq[0])?.monto;
       const m2 = univLiq.find(t => t.posicion === dpLiq[1])?.monto;
-      if (((p.jornadas||0) > 0 && m1 == null) || (jf > 0 && m2 == null)) {
+      if (!manual && (((p.jornadas||0) > 0 && m1 == null) || (jf > 0 && m2 == null))) {
         sinTarifa.push(`${p.apellido} (${((p.jornadas||0)>0 && m1==null) ? dpLiq[0] : dpLiq[1]})`); continue;
       }
       rows.push({
@@ -8749,7 +8782,7 @@ window.liquidarLugarFijo = async function(mesId, lugarId) {
     }
     const { tSemana, tFinde } = getTarifaSemanaFinde(p.posicion, lugar.nombre);
     const tarUnico = APP.tarifario.find(t => t.posicion === p.posicion && (t.area === areaParaTarifa(lugar.nombre) || t.area === 'General'));
-    if (!tSemana && !tFinde && !tarUnico) { sinTarifa.push(`${p.apellido} (${p.posicion})`); continue; }
+    if (!manual && !tSemana && !tFinde && !tarUnico) { sinTarifa.push(`${p.apellido} (${p.posicion})`); continue; }
     rows.push({
       persona_id: p.personaId, persona_nombre: `${p.apellido}, ${p.nombre}`,
       area: 'Servicios Fijos', lugar_fijo: lugarId, lugar_nombre: lugar.nombre,
@@ -8924,7 +8957,8 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
         const per = APP.personal.find(x => x.id === p.personaId)
           || APP.personal.find(x => x.id === liq?.persona_id);
         const cuil = p.cuil || per?.cuil || '—';
-        const sub = liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0, lugar.nombre);
+        const sub = liq ? liq.total : subPresenteFijo(p, lugar.nombre);
+        const manual = tieneTotalManualFijo(p);
         // Dos modos de edición: si ya se liquidó se edita la liquidación; si todavía no,
         // se editan los presentes cargados. En ambos casos solo si el lugar no está cerrado.
         const editaLiq  = !!liq && !lugarCerrado;
@@ -8946,14 +8980,14 @@ window.verDetalleLugarFijo = function(mesId, lugarId) {
             editaPres ? `<input type="number" value="${jorFVal}" min="0" max="31" style="width:55px;text-align:center" onchange="editarPresenteFijo('${mesId}','${lugarId}',${idx},'jornadasFinde',this.value)">` :
             jorFVal}</td>`:''}
           <td style="padding:6px 10px;text-align:right;font-weight:600">${
-            editaLiq ? `<input type="number" id="liq-total-${liq.id}" value="${sub}" min="0" style="width:110px;font-weight:600;text-align:right" onchange="editarLiquidacion('${liq.id}','total',this.value)">` :
+            (editaLiq || editaPres) ? `<span style="display:inline-flex;align-items:center;gap:4px"><input type="number" id="${liq ? `liq-total-${liq.id}` : `pres-total-${idx}`}" class="sub-fijo${manual ? ' manual' : ''}" value="${Math.round(sub||0)}" min="0" step="1" title="Podés escribir otro valor" onchange="editarTotalFijo('${mesId}','${lugarId}',${idx},this.value)"><button class="btn btn-sm btn-reset-sub" style="${manual ? '' : 'visibility:hidden'}" title="Volver al valor del tarifario" onclick="editarTotalFijo('${mesId}','${lugarId}',${idx},'')"><i class="ti ti-arrow-back-up"></i></button></span>` :
             fmt(sub)}</td>
           ${!lugarCerrado ? `<td style="padding:6px 4px;text-align:center"><button class="btn btn-sm btn-danger" title="Quitar de este mes" onclick="quitarPersonaFijo('${mesId}','${lugarId}',${idx})"><i class="ti ti-trash"></i></button></td>` : ''}
         </tr>`;
       }).join('')}
       </tbody><tfoot><tr style="border-top:2px solid var(--border);font-weight:700">
         <td colspan="${cl?5:4}" style="padding:8px 10px">Total</td>
-        <td style="padding:8px 10px;text-align:right">${fmt(liqs.length ? liqs.reduce((s,l)=>s+(l.total||0),0) : pres.reduce((s,p)=>s+calcSubtotalFijo(p.posicion,p.jornadas||0,p.jornadasFinde||0,lugar.nombre),0))}</td>
+        <td style="padding:8px 10px;text-align:right">${fmt(liqs.length ? liqs.reduce((s,l)=>s+(l.total||0),0) : pres.reduce((s,p)=>s+subPresenteFijo(p,lugar.nombre),0))}</td>
       ${!lugarCerrado ? '<td></td>' : ''}</tr></tfoot>
       </table>
     </div>
@@ -9045,7 +9079,7 @@ window.exportDetalleLugarFijo = async function(mesId, lugarId) {
     const [v1, v2] = valoresJornadaFijo(lugarId, p.posicion, liq);
     return { cuil: p.cuil || '', nombre: normExport(`${p.apellido} ${p.nombre}`), cbu: per?.cbu || '', periodo: mes.nombre,
       posicion: p.posicion || '', j1: p.jornadas || 0, j2: p.jornadasFinde || 0, v1, v2,
-      total: liq ? liq.total : calcSubtotalFijo(p.posicion, p.jornadas||0, p.jornadasFinde||0, lugar.nombre) };
+      total: liq ? liq.total : subPresenteFijo(p, lugar.nombre) };
   });
   const wb = new ExcelJS.Workbook();
   hojasFijosXL(wb, lugarId, lugar.nombre, filas, new Set());
@@ -9128,9 +9162,35 @@ window.editarJornadasFijo = async function(liqId, mesId, lugarId, campo, valor) 
   const meses = getMesesFijos();
   const mes = meses.find(m => m.id === mesId);
   const p = mes?.presentes?.[lugarId]?.find(x => x.personaId === liq.persona_id);
-  if (p) { p.jornadas = semana; p.jornadasFinde = finde; saveMesesFijos(meses); }
+  if (p) { p.jornadas = semana; p.jornadasFinde = finde; delete p.totalManual; saveMesesFijos(meses); }
 
   toast('Guardado', 'ok');
+  verDetalleLugarFijo(mesId, lugarId);
+};
+
+// Total a mano en el ojo de un lugar fijo. Si la persona ya está liquidada se cambia el total de su liquidación;
+// si no, queda guardado en el presente y se usa al liquidar. valor vacío = volver al valor del tarifario.
+window.editarTotalFijo = async function(mesId, lugarId, idx, valor) {
+  const meses = getMesesFijos(), mes = meses.find(m => m.id === mesId);
+  const p = mes?.presentes?.[lugarId]?.[idx]; if (!p) return;
+  const area = LUGARES_FIJOS.find(l => l.id === lugarId)?.nombre;
+  const liq = APP.liquidaciones.find(l => l.mes_id === mesId && l.lugar_fijo === lugarId && l.persona_id === p.personaId);
+  const volver = valor === '' || valor === null;
+  let total;
+  if (volver) {
+    delete p.totalManual;
+    total = liq ? calcSubtotalFijo(liq.posicion, liq.jornadas_semana ?? liq.jornadas ?? 0, liq.jornadas_finde ?? 0, area) : null;
+  } else {
+    total = Math.max(0, Math.round(parseFloat(String(valor).replace(',', '.')) || 0));
+    p.totalManual = total;
+  }
+  if (liq) {
+    const { error } = await sb.from('liquidaciones').update({ total }).eq('id', liq.id);
+    if (error) { toast('No se pudo guardar: ' + error.message, 'err'); return; }
+    liq.total = total;
+  }
+  saveMesesFijos(meses);
+  toast(volver ? 'Total recalculado con el tarifario' : 'Total guardado', 'ok');
   verDetalleLugarFijo(mesId, lugarId);
 };
 
@@ -9141,7 +9201,10 @@ window.recalcularLiqsFijo = async function(mesId, lugarId) {
   if (!liqs.length) return;
   const areaFija = LUGARES_FIJOS.find(l => l.id === lugarId)?.nombre;
   const cambios = [];
+  // Los totales cargados a mano no se tocan
+  const presRec = getMesesFijos().find(m => m.id === mesId)?.presentes?.[lugarId] || [];
   liqs.forEach(l => {
+    if (tieneTotalManualFijo(presRec.find(x => x.personaId === l.persona_id))) return;
     const semana = l.jornadas_semana ?? l.jornadas ?? 0;
     const finde  = l.jornadas_finde ?? 0;
     const nuevo  = calcSubtotalFijo(l.posicion, semana, finde, areaFija);
@@ -9205,6 +9268,7 @@ window.editarPresenteFijo = async function(mesId, lugarId, idx, campo, valor) {
     }
   } else {
     p[campo] = parseInt(valor) || 0;
+    if (tieneTotalManualFijo(p)) { delete p.totalManual; toast('Total recalculado con el tarifario', 'ok'); }   // cambiaron las jornadas
   }
 
   saveMesesFijos(meses);
