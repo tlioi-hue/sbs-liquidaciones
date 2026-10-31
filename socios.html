@@ -471,7 +471,7 @@ h2 { font-size: clamp(34px, 4.3vw, 54px) !important; line-height: 1.1 !important
 .lc2-b:hover { background: var(--cel); color: #fff; } .lc2-b:disabled { opacity: .7; cursor: default; }
 .lc2-pie { font-size: 12px; color: rgba(8,31,59,.55); letter-spacing: .02em; }
 
-.logo-img { filter: brightness(0) invert(9%) sepia(46%) saturate(2350%) hue-rotate(196deg) brightness(92%) contrast(101%); }
+.logo-img { filter: brightness(0) saturate(100%) invert(43%) sepia(71%) saturate(1755%) hue-rotate(174deg) brightness(97%) contrast(101%); }   /* logo calado en celeste Movistar #009cf3 (filtro calculado) */
 .pill-info::before { background: var(--cel) !important; }
 
 /* Manuscrita solo en el título principal ("¿Cómo nos va en el Movistar Arena?") y en "Portal General" del login; el resto, Poppins */
@@ -485,12 +485,28 @@ h2 b { font-size: 1em !important; }
 .hero h1, .hero h1 .w, .hero h1 b, .hero h1 b .w, .hero h1 em .w { font-family: var(--script) !important; font-weight: 400 !important; letter-spacing: 0 !important; }
 .hero h1 { font-size: clamp(56px, 8.4vw, 120px) !important; line-height: 1 !important; }
 .lc2-h .login-sb { font-family: var(--script) !important; }
+
+/* login: título y subtítulo con los colores de la página, no negros */
+.lc2-h .login-t { color: #0067ab !important; }
+.lc2-h .login-sb { color: #009cf3 !important; }
+
+/* marca de agua: el wallpaper de SBS (el mismo del Centro de Control), invertido y muy tenue sobre el crema.
+   Primero el archivo del propio proyecto; si no está, el del Centro de Control */
+.marca-agua { position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image: url(/fondo-sbs.jpg), url(https://convocatorias.show-bs.com/fondo-sbs.jpg); background-size: cover; background-position: center;
+  filter: grayscale(1) invert(1) brightness(1.25) contrast(1.35); mix-blend-mode: multiply; opacity: .07; }   /* fondo del wallpaper → blanco (neutro); solo se marcan las letras */
+.marca-agua.en-visor { z-index: 0; }
+.visor > header, .visor > .lec { position: relative; z-index: 1; }
+@media (max-width: 700px) { .marca-agua { background-size: 260% auto; } }
+
+html { background: var(--crema) !important; } body { background: transparent !important; }   /* el fondo va en html, así la marca de agua y el grano quedan visibles */
 </style>
 </head>
 <body>
+<div class="marca-agua" aria-hidden="true"></div>
 <div class="fondo" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
 <div id="app"><div class="estado"><b>Cargando…</b></div></div>
-<div class="visor" id="visor" role="dialog" aria-modal="true"><div class="fondo" aria-hidden="true"><i></i><i></i><i></i><i></i></div><header style="position:relative;z-index:2"><a class="marca" href="#" onclick="cerrarVisor();return false" title="Volver al inicio"><span class="logo-c logo-v" id="visor-logo-c"></span><span>Show Business Solutions <span class="x-mov">× Movistar Arena</span></span></a>
+<div class="visor" id="visor" role="dialog" aria-modal="true"><div class="fondo" aria-hidden="true"><i></i><i></i><i></i><i></i></div><div class="marca-agua en-visor" aria-hidden="true"></div><header style="position:relative;z-index:2"><a class="marca" href="#" onclick="cerrarVisor();return false" title="Volver al inicio"><span class="logo-c logo-v" id="visor-logo-c"></span><span>Show Business Solutions <span class="x-mov">× Movistar Arena</span></span></a>
   <nav class="pills"><span class="pill pill-info" id="visor-t"></span><button class="pill" onclick="cerrarVisor()">← Volver</button></nav></header><div class="lec" id="lec"></div></div>
 <script>
 const SUPABASE_URL = 'https://tvggknkvrjsuhnfahtzl.supabase.co';
