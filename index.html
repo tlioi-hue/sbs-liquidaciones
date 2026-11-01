@@ -1263,11 +1263,11 @@ function renderPersonalUI(el) {
   const areas = [...new Set(todas.map(areaPersona))].sort((a, b) => ordenArea(a) - ordenArea(b) || a.localeCompare(b));
   const cuenta = a => todas.filter(p => areaPersona(p) === a).length;
   const sinCbu = todas.filter(p => !p.cbu).length, sinCuil = todas.filter(p => !p.cuil).length, inact = todas.filter(p => p.activo === false).length;
-  const dups = gruposDuplicadosCuil();
+  const dups = gruposDuplicados(), dupsCuil = dups.filter(g => g.tipo === 'cuil').length, dupsNom = dups.length - dupsCuil;
   el.innerHTML = `
     ${dups.length ? `<div class="alert alert-warn" style="display:flex;align-items:center;gap:10px">
       <i class="ti ti-alert-triangle"></i>
-      <span style="flex:1">Hay <strong>${dups.length}</strong> CUIL con registros duplicados. Los duplicados pueden hacer fallar las liquidaciones.</span>
+      <span style="flex:1">Hay <strong>${dups.length}</strong> persona${dups.length !== 1 ? 's' : ''} con registros duplicados${dupsCuil && dupsNom ? ` (${dupsCuil} por CUIL repetido, ${dupsNom} por nombre repetido con CUIL distinto)` : dupsNom ? ' por nombre repetido con CUIL distinto' : ' por CUIL repetido'}. Los duplicados pueden hacer fallar las liquidaciones.</span>
       <button class="btn btn-sm btn-primary" onclick="modalDuplicados()"><i class="ti ti-git-merge"></i> Combinar duplicados</button>
     </div>` : ''}
     <div class="pf-bar">
@@ -1514,8 +1514,26 @@ function gruposDuplicadosCuil() {
   });
   return Object.entries(map)
     .filter(([, arr]) => arr.length > 1)
-    .map(([cuil, personas]) => ({ cuil, personas }));
+    .map(([cuil, personas]) => ({ cuil, personas, clave: cuil, tipo: 'cuil' }));
 }
+// Posibles duplicados por NOMBRE: mismas palabras en apellido + nombre (en cualquier orden) pero con CUIL distinto o vacío.
+// Es el caso de una persona cargada dos veces, una con el CUIL mal tipeado: por CUIL nunca se detectaría.
+function gruposDuplicadosNombre() {
+  const yaPorCuil = new Set(gruposDuplicadosCuil().flatMap(g => g.personas.map(p => p.id)));
+  const map = {};
+  APP.personal.forEach(p => {
+    if (yaPorCuil.has(p.id)) return;
+    const palabras = [...new Set(normTxt(`${p.apellido || ''} ${p.nombre || ''}`).replace(/[^a-z0-9ñ ]/g, ' ').split(/\s+/).filter(w => w.length > 1))].sort();
+    if (palabras.length < 2) return;
+    const k = palabras.join(' ');
+    (map[k] = map[k] || []).push(p);
+  });
+  return Object.entries(map)
+    .filter(([, arr]) => arr.length > 1)
+    .map(([k, personas], i) => ({ cuil: null, personas, clave: 'nombre-' + i, tipo: 'nombre', nombre: k }));
+}
+// Todos los grupos de duplicados: primero los de CUIL repetido, después los de nombre repetido.
+function gruposDuplicados() { return [...gruposDuplicadosCuil(), ...gruposDuplicadosNombre()]; }
 
 window.delP = async function(id) {
   const per = APP.personal.find(p => p.id === id);
@@ -1547,8 +1565,8 @@ window.delP = async function(id) {
 
 // ── Combinar duplicados por CUIL ──
 window.modalDuplicados = function() {
-  const grupos = gruposDuplicadosCuil();
-  if (!grupos.length) { toast('No hay registros duplicados por CUIL', 'ok'); return; }
+  const grupos = gruposDuplicados();
+  if (!grupos.length) { toast('No hay registros duplicados', 'ok'); return; }
   const bloques = grupos.map(g => {
     // Sugerir conservar el registro con más referencias; a igualdad, el de datos más completos.
     const conRefs = g.personas.map(p => {
@@ -1559,21 +1577,21 @@ window.modalDuplicados = function() {
     const keepDefault = conRefs[0].p.id;
     const filas = conRefs.map(({ p, r }) => `
       <label style="display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;cursor:pointer">
-        <input type="radio" name="keep-${g.cuil}" value="${p.id}" ${p.id === keepDefault ? 'checked' : ''}>
+        <input type="radio" name="keep-${g.clave}" value="${p.id}" ${p.id === keepDefault ? 'checked' : ''}>
         <span style="flex:1">
           <strong>${p.apellido}, ${p.nombre}</strong>
           <span style="color:var(--text2);font-size:11.5px"> · ${p.area || '—'}${p.posicion ? ' · ' + p.posicion : ''}</span><br>
-          <span style="color:var(--text2);font-size:11px">CBU: ${p.cbu || '—'} · ${r.liq} liq. · ${r.pres} pres.</span>
+          <span style="color:var(--text2);font-size:11px">${g.tipo === 'nombre' ? `CUIL: <strong style="font-family:monospace">${p.cuil || '—'}</strong> · ` : ''}CBU: ${p.cbu || '—'} · ${r.liq} liq. · ${r.pres} pres.</span>
         </span>
       </label>`).join('');
     return `<div style="margin-bottom:14px">
-      <div style="font-size:12px;color:var(--text2);margin-bottom:6px">CUIL <strong style="font-family:monospace">${g.cuil}</strong> — elegí cuál conservar:</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px">${g.tipo === 'cuil' ? `CUIL <strong style="font-family:monospace">${g.cuil}</strong> repetido` : `Mismo nombre con CUIL distinto`} — elegí cuál conservar${g.tipo === 'nombre' ? ' (el que tenga el CUIL correcto)' : ''}:</div>
       <div style="display:flex;flex-direction:column;gap:6px">${filas}</div>
     </div>`;
   }).join('');
   showModal(`<div class="modal" style="max-width:560px">
     <div class="modal-t"><i class="ti ti-git-merge"></i> Combinar duplicados</div>
-    <div class="modal-s">${grupos.length} CUIL con más de un registro. Al combinar, el presentismo y las liquidaciones de los sobrantes pasan al registro elegido, y los sobrantes se eliminan.</div>
+    <div class="modal-s">${grupos.length} persona${grupos.length !== 1 ? 's' : ''} con más de un registro. Al combinar, el presentismo y las liquidaciones de los sobrantes pasan al registro elegido (que conserva su CUIL y CBU), y los sobrantes se eliminan.</div>
     <div style="max-height:52vh;overflow:auto;margin:14px 0">${bloques}</div>
     <div class="modal-f">
       <button class="btn" onclick="closeModal()">Cancelar</button>
@@ -1583,12 +1601,12 @@ window.modalDuplicados = function() {
 };
 
 window.combinarDuplicados = async function() {
-  const grupos = gruposDuplicadosCuil();
+  const grupos = gruposDuplicados();
   if (!grupos.length) { closeModal(); return; }
   loading(true);
   let fusionadas = 0; const errores = [];
   for (const g of grupos) {
-    const keepId = document.querySelector(`input[name="keep-${g.cuil}"]:checked`)?.value;
+    const keepId = document.querySelector(`input[name="keep-${g.clave}"]:checked`)?.value;
     if (!keepId) continue;
     const keeper = g.personas.find(p => p.id === keepId);
     const keeperNombre = `${keeper.apellido}, ${keeper.nombre}`;
@@ -2818,7 +2836,7 @@ window.importarShowArena = async function(evId) {
     fechaId = ev.fechas[0].id;
   } else {
     // Crear fecha automáticamente con la fecha principal del show
-    const fechaDate = ev.fecha || new Date().toISOString().slice(0, 10);
+    const fechaDate = ev.fecha || hoyISO();
     const { data: nf } = await sb.from('fechas').insert({
       evento_id: evId, fecha: fechaDate, nombre: null
     }).select().single();
@@ -3532,7 +3550,7 @@ window.txAplicar = async function () {
   loading(true);
   try {
     let f = (ev.fechas || []).find(x => x.nombre === 'Turnos');
-    if (!f) { const fecha = (ev.fechas || []).map(x => x.fecha).filter(Boolean).sort().pop() || showFechaISO(ev) || ev.fecha || new Date().toISOString().slice(0, 10);
+    if (!f) { const fecha = (ev.fechas || []).map(x => x.fecha).filter(Boolean).sort().pop() || showFechaISO(ev) || ev.fecha || hoyISO();
       const { data, error } = await sb.from('fechas').insert({ evento_id: evId, fecha, nombre: 'Turnos' }).select().single(); if (error) throw error; f = { ...data, presentismo: [] }; }
     const actuales = new Map((f.presentismo || []).map(p => [p.persona_id, p])), liqs = liqsF(evId, f.id);
     for (const fila of conTurnos) {
@@ -4383,7 +4401,7 @@ window.confirmarImport = async function() {
     if (selShowVal) {
       // Usar la fecha del show seleccionado, no la del draft
       const showEv = APP.eventos.find(e => e.id === selShowVal);
-      const fechaDate = showEv?.fecha || d.fecha || new Date().toISOString().slice(0, 10);
+      const fechaDate = showEv?.fecha || d.fecha || hoyISO();
       loading(true);
 
       // Verificar si el show ya tiene una fecha creada para ese día
@@ -5202,7 +5220,7 @@ async function pgFacturacion(el, ac) {
   const d = window._facturaDraft;
   if (!d) {
     const facs = APP.facturaciones || [];
-    const nowKey = new Date().toISOString().slice(0, 7);
+    const nowKey = mesActual();   // mes en hora local (toISOString da UTC: en Argentina, desde las 21 hs ya marcaba el mes siguiente)
     const acum = facs.reduce((s, f) => s + (f.total_iva || 0), 0);
     const acumNeto = facs.reduce((s, f) => s + (f.total || 0), 0);
     const mesTot = facs.filter(f => f.periodo === nowKey).reduce((s, f) => s + (f.total_iva || 0), 0);
@@ -6423,7 +6441,7 @@ function congelarProyeccion(nuevo, anterior) {
       x.proyOriginal = { ingresos: x.ingresos, egresos: x.egresos, neto: x.neto, puestos: x.puestos, backups: x.backups, coords: x.coords, costoPedido: x.costoPedido, costoBackups: x.costoBackups, costoCoord: x.costoCoord, cargasSoc: x.cargasSoc, impuestos: x.impuestos, iigg: x.iigg, guardadaEl: new Date().toISOString().slice(0, 10) };
     }
   });
-  nuevo.guardadaEl = new Date().toISOString().slice(0, 10);
+  nuevo.guardadaEl = hoyISO();
   return nuevo;
 }
 
