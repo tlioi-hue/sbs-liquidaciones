@@ -1436,6 +1436,7 @@ window.modalPersona = function(id) {
       <div class="fg"><label class="fl">Teléfono</label><input id="ptel" value="${p?.tel||''}"></div>
     </div>
     <div class="modal-f">
+      ${p ? `<button class="btn" style="margin-right:auto" title="Pasar el presentismo y las liquidaciones de otro registro a esta persona y borrarlo" onclick="modalCombinarCon('${p.id}')"><i class="ti ti-git-merge"></i> Combinar con otro registro</button>` : ''}
       <button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="savePersona('${p?.id||''}')">Guardar</button>
     </div>
@@ -1486,6 +1487,44 @@ window.savePersona = async function(id) {
   loading(false); closeModal(); toast('Persona guardada', 'ok'); await go('personal');
 };
 
+// ── Combinar a mano: elegir otro registro para fusionarlo dentro de esta persona ──
+// Para los casos que la detección automática no ve (nombre escrito distinto, CUIL muy distinto).
+window.modalCombinarCon = function(keepId) {
+  const keeper = APP.personal.find(p => p.id === keepId); if (!keeper) return;
+  const r = refsPersona(keepId);
+  showModal(`<div class="modal" style="max-width:540px">
+    <div class="modal-t"><i class="ti ti-git-merge"></i> Combinar con otro registro</div>
+    <div class="modal-s">Se conserva <strong>${keeper.apellido}, ${keeper.nombre}</strong> (CUIL ${keeper.cuil || '—'} · ${r.liq} liq. · ${r.pres} pres.). El presentismo y las liquidaciones del registro que elijas pasan a esta persona, y ese registro se elimina.</div>
+    <input id="comb-search" placeholder="Buscar el otro registro por apellido, nombre o CUIL…" style="width:100%;margin:12px 0 8px" oninput="renderCombinarLista('${keepId}', this.value)">
+    <div id="comb-list" style="max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:8px"></div>
+    <div class="modal-f">
+      <button class="btn" onclick="modalPersona('${keepId}')">Volver</button>
+    </div>
+  </div>`);
+  renderCombinarLista(keepId, '');
+};
+window.renderCombinarLista = function(keepId, q) {
+  const el = document.getElementById('comb-list'); if (!el) return;
+  const t = normTxt(q).trim(), qc = normCuil(q);
+  const lista = APP.personal.filter(p => p.id !== keepId && (!t || normTxt(`${p.apellido} ${p.nombre} ${p.nombre} ${p.apellido}`).includes(t) || (qc.length >= 3 && normCuil(p.cuil).includes(qc)))).slice(0, 30);
+  el.innerHTML = lista.length ? lista.map(p => { const r = refsPersona(p.id); return `
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--border);font-size:12.5px">
+      <span style="flex:1"><strong>${p.apellido}, ${p.nombre}</strong> <span style="color:var(--text2);font-size:11px">· ${areaPersona(p)} · CUIL ${p.cuil || '—'} · ${r.liq} liq. · ${r.pres} pres.</span></span>
+      <button class="btn btn-sm btn-primary" onclick="combinarCon('${keepId}','${p.id}')"><i class="ti ti-git-merge"></i> Combinar</button>
+    </div>`; }).join('') : '<div style="padding:12px;color:var(--text2);font-size:12.5px">Sin resultados.</div>';
+};
+window.combinarCon = async function(keepId, dupId) {
+  const keeper = APP.personal.find(p => p.id === keepId), dup = APP.personal.find(p => p.id === dupId);
+  if (!keeper || !dup) return;
+  const r = refsPersona(dupId);
+  if (!confirm(`¿Pasar ${r.pres} día(s) de presentismo y ${r.liq} liquidación(es) de\n${dup.apellido}, ${dup.nombre} (CUIL ${dup.cuil || '—'})\na ${keeper.apellido}, ${keeper.nombre} (CUIL ${keeper.cuil || '—'})\n\ny eliminar el registro de ${dup.apellido}, ${dup.nombre}?\n\nEsto no se puede deshacer.`)) return;
+  loading(true);
+  const err = await fusionarPersona(keeper, dup);
+  loading(false); closeModal();
+  if (err) alert(`No se pudo combinar: ${err}`); else toast('Registros combinados', 'ok');
+  await go('personal');
+};
+
 // ── Utilidades de CUIL / duplicados ──
 function normCuil(c) { return String(c || '').replace(/\D/g, ''); }
 
@@ -1518,6 +1557,17 @@ function gruposDuplicadosCuil() {
 }
 // Posibles duplicados por NOMBRE: mismas palabras en apellido + nombre (en cualquier orden) pero con CUIL distinto o vacío.
 // Es el caso de una persona cargada dos veces, una con el CUIL mal tipeado: por CUIL nunca se detectaría.
+// Dos CUIL "se parecen" si uno está vacío o incompleto, si tienen el mismo DNI adentro (20-xxxxxxxx-x vs 27-xxxxxxxx-x)
+// o si difieren en hasta 3 dígitos (error de tipeo). Dos personas distintas con el mismo nombre tienen DNI distinto:
+// sus CUIL no se parecen y no se marcan como duplicado.
+function cuilesParecidos(a, b) {
+  a = normCuil(a); b = normCuil(b);
+  if (a.length < 8 || b.length < 8) return true;
+  if (a.length === 11 && b.length === 11 && a.slice(2, 10) === b.slice(2, 10)) return true;
+  if (a.length !== b.length) return false;
+  let dif = 0; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) dif++;
+  return dif <= 3;
+}
 function gruposDuplicadosNombre() {
   const yaPorCuil = new Set(gruposDuplicadosCuil().flatMap(g => g.personas.map(p => p.id)));
   const map = {};
@@ -1530,7 +1580,9 @@ function gruposDuplicadosNombre() {
   });
   return Object.entries(map)
     .filter(([, arr]) => arr.length > 1)
-    .map(([k, personas], i) => ({ cuil: null, personas, clave: 'nombre-' + i, tipo: 'nombre', nombre: k }));
+    .map(([k, arr]) => arr.filter(p => arr.some(o => o.id !== p.id && cuilesParecidos(p.cuil, o.cuil))))   // homónimos con CUIL bien distinto: personas distintas
+    .filter(arr => arr.length > 1)
+    .map((personas, i) => ({ cuil: null, personas, clave: 'nombre-' + i, tipo: 'nombre' }));
 }
 // Todos los grupos de duplicados: primero los de CUIL repetido, después los de nombre repetido.
 function gruposDuplicados() { return [...gruposDuplicadosCuil(), ...gruposDuplicadosNombre()]; }
@@ -1600,6 +1652,33 @@ window.modalDuplicados = function() {
   </div>`);
 };
 
+// Fusiona `dup` dentro de `keeper`: el presentismo y las liquidaciones pasan al keeper y el dup se borra.
+// Devuelve null si salió bien, o el mensaje de error.
+async function fusionarPersona(keeper, dup, keeperFechas) {
+  const keepId = keeper.id, keeperNombre = `${keeper.apellido}, ${keeper.nombre}`, quien = `${dup.apellido}, ${dup.nombre}`;
+  keeperFechas = keeperFechas || new Set(presDePersona(keepId).map(x => x.fecha_id));
+  // 1. Presentismo: repuntar al keeper, salvo días que el keeper ya tiene (redundantes → borrar).
+  for (const pr of presDePersona(dup.id)) {
+    if (keeperFechas.has(pr.fecha_id)) {
+      const { error } = await sb.from('presentismo').delete().eq('id', pr.id);
+      if (error) return `${quien}: presentismo — ${error.message}`;
+    } else {
+      const { error } = await sb.from('presentismo').update({ persona_id: keepId }).eq('id', pr.id);
+      if (error) return `${quien}: presentismo — ${error.message}`;
+      keeperFechas.add(pr.fecha_id);
+    }
+  }
+  // 2. Liquidaciones: repuntar al keeper y actualizar el nombre denormalizado.
+  for (const l of APP.liquidaciones.filter(x => x.persona_id === dup.id)) {
+    const { error } = await sb.from('liquidaciones').update({ persona_id: keepId, persona_nombre: keeperNombre }).eq('id', l.id);
+    if (error) return `${quien}: liquidación — ${error.message}`;
+  }
+  // 3. Borrar el duplicado (verificando que el servidor efectivamente lo borró).
+  const { data, error } = await sb.from('personal').delete().eq('id', dup.id).select();
+  if (error) return `${quien}: borrado — ${error.message}`;
+  if (!data || !data.length) return `${quien}: el servidor no lo borró (¿falta policy DELETE?)`;
+  return null;
+}
 window.combinarDuplicados = async function() {
   const grupos = gruposDuplicados();
   if (!grupos.length) { closeModal(); return; }
@@ -1609,34 +1688,11 @@ window.combinarDuplicados = async function() {
     const keepId = document.querySelector(`input[name="keep-${g.clave}"]:checked`)?.value;
     if (!keepId) continue;
     const keeper = g.personas.find(p => p.id === keepId);
-    const keeperNombre = `${keeper.apellido}, ${keeper.nombre}`;
     const keeperFechas = new Set(presDePersona(keepId).map(x => x.fecha_id));
     for (const dup of g.personas) {
       if (dup.id === keepId) continue;
-      let fallo = false;
-      // 1. Presentismo: repuntar al keeper, salvo días que el keeper ya tiene (redundantes → borrar).
-      for (const pr of presDePersona(dup.id)) {
-        if (keeperFechas.has(pr.fecha_id)) {
-          const { error } = await sb.from('presentismo').delete().eq('id', pr.id);
-          if (error) { errores.push(`${dup.apellido}, ${dup.nombre}: presentismo — ${error.message}`); fallo = true; break; }
-        } else {
-          const { error } = await sb.from('presentismo').update({ persona_id: keepId }).eq('id', pr.id);
-          if (error) { errores.push(`${dup.apellido}, ${dup.nombre}: presentismo — ${error.message}`); fallo = true; break; }
-          keeperFechas.add(pr.fecha_id);
-        }
-      }
-      if (fallo) continue;
-      // 2. Liquidaciones: repuntar al keeper y actualizar el nombre denormalizado.
-      for (const l of APP.liquidaciones.filter(x => x.persona_id === dup.id)) {
-        const { error } = await sb.from('liquidaciones').update({ persona_id: keepId, persona_nombre: keeperNombre }).eq('id', l.id);
-        if (error) { errores.push(`${dup.apellido}, ${dup.nombre}: liquidación — ${error.message}`); fallo = true; break; }
-      }
-      if (fallo) continue;
-      // 3. Borrar el duplicado (verificando que el servidor efectivamente lo borró).
-      const { data, error } = await sb.from('personal').delete().eq('id', dup.id).select();
-      if (error) { errores.push(`${dup.apellido}, ${dup.nombre}: borrado — ${error.message}`); continue; }
-      if (!data || !data.length) { errores.push(`${dup.apellido}, ${dup.nombre}: el servidor no lo borró (¿falta policy DELETE?)`); continue; }
-      fusionadas++;
+      const err = await fusionarPersona(keeper, dup, keeperFechas);
+      if (err) errores.push(err); else fusionadas++;
     }
   }
   loading(false); closeModal();
