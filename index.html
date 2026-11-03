@@ -291,7 +291,9 @@ tr.clic { cursor: pointer; } tr.clic:hover td { background: var(--card2); }
 .grilla.g2 .gn { width: 200px; min-width: 200px; position: sticky; left: 0; background: var(--card); z-index: 1; text-align: left; padding: 7px 26px 7px 12px; }
 .grilla.g2 .gh { font-size: 10.5px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .03em; }
 .grilla.g2 .gsem { font-size: 11px; font-weight: 600; color: var(--text); padding: 6px 0 3px; border-left: 2px solid var(--border); background: var(--card2); }
-.grilla.g2 .gsem span { display: block; font-size: 10px; font-weight: 400; color: var(--text2); }
+.grilla.g2 .gsem span { display: block; font-size: 10px; font-weight: 400; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grilla.g2 .gsem { white-space: nowrap; overflow: hidden; }
+.grilla.g2 .gsem.corta span { font-size: 9px; }
 .grilla.g2 th.gd { width: auto; min-width: 22px; font-size: 9.5px; font-weight: 500; color: var(--text2); padding: 4px 0; line-height: 1.25; }
 .grilla.g2 th.gd b { display: block; font-size: 11px; color: var(--text); font-weight: 600; }
 .grilla.g2 th.gd.fs, .grilla.g2 td.gc.fs { background: #fafafa; }
@@ -6829,7 +6831,8 @@ function htmlCargas() {
   const dias = diasVigentes(periodo);
   const wk = f => sem.find(w => w.dias.includes(f));
   const primero = f => wk(f)?.dias[0] === f;
-  const cabSem = sem.map(w => `<th colspan="${w.dias.length}" class="gsem">${w.label}<span>${w.rango}</span></th>`).join('');
+  const cabSem = sem.map(w => { const corta = w.dias.length <= 2, d1 = w.dias.length === 1;
+    return `<th colspan="${w.dias.length}" class="gsem${corta ? ' corta' : ''}" title="${w.label} · ${w.rango}">${corta ? `S${w.n}` : w.label}<span>${d1 ? w.rango.slice(0, 5) : w.rango}</span></th>`; }).join('');
   const cabDia = dias.map(f => { const sh = showsDelDia(f), dw = dowDe(f);
     return `<th class="gd clk ${dw === 0 || dw === 6 ? 'fs' : ''} ${primero(f) ? 'wk' : ''}" title="${sh.map(e => e.nombre).join(', ') || 'sin show'} · tocá para ver el día" onclick="verDiaCargas('${f}')">${DOW_L[dw]}<b>${+f.slice(8)}</b>${sh.length ? '<i></i>' : ''}</th>`; }).join('');
   const filas = d.personas.map(pid => { const p = persDe(pid), fs = new Set(d.pres[pid] || []);
