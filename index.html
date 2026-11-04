@@ -6150,7 +6150,16 @@ window.subirFacturaArena = function(input) {
 // ══════════════════════════════════════════════
 // PROYECCIONES — shows confirmados del Arena proyectados con historial + tarifario del mes
 // ══════════════════════════════════════════════
-const baseNombre = n => normTxt(n).replace(/\b(show|fecha|funcion|noche)\b/g, ' ').replace(/[#nº°]*\s*\d+\s*$/, '').replace(/[^a-z0-9]+/g, ' ').trim();
+// Nombre "base" de un show, para reconocer a la misma banda en distintas fechas: "LPDA 2", "LPDA - Noche 3", "LPDA 23/11",
+// "LPDA II" y "LPDA 16 bis" son todos "lpda". Se quitan fechas, palabras de función, el número de fecha al final
+// (con o sin #, nº), "bis/ter" y los romanos del II al VIII; "&" cuenta como "y".
+const baseNombre = n => normTxt(n)
+  .replace(/&/g, ' y ')
+  .replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, ' ')
+  .replace(/\b(show|fecha|funcion|noche|dia|parte|presentacion)\b/g, ' ')
+  .replace(/\s*(?:#|\bn[º°o]\.?)?\s*\d+\s*(?:bis|ter)?\s*$/, '')
+  .replace(/\s+(?:ii|iii|iv|vi|vii|viii)\s*$/, '')
+  .replace(/[^a-z0-9]+/g, ' ').trim();
 const ESCENARIOS = { pesimista: { pedido: 0.9, backups: 1.5, lbl: 'Pesimista' }, base: { pedido: 1, backups: 1, lbl: 'Base' }, optimista: { pedido: 1.1, backups: 0.5, lbl: 'Optimista' } };
 const PROY_KEY = 'sbs_proy_ajustes';
 function proyAjustes() { try { return JSON.parse(localStorage.getItem(PROY_KEY)) || {}; } catch { return {}; } }
@@ -7631,7 +7640,7 @@ async function pgInformes(el, ac) {
     <div class="card" style="margin-bottom:14px">
       <div style="font-size:13px;font-weight:600;margin-bottom:4px"><i class="ti ti-door-enter"></i> Portal de socios</div>
       ${urlPortal ? (() => {
-        const codigo = x => { const [y, m] = String(x.periodo || '').split('-'), mes = m ? MESES_NOMBRE[+m - 1] : ''; return x.tipo === 'anio' ? `anual-${y}` : x.tipo === 'proy' ? `proyeccion-${mes}-${y}` : `${mes}-${y}`; };
+        const codigo = x => { const [y, m] = String(x.periodo || '').split('-'), yy = String(y).slice(-2), mes = m ? ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][+m - 1] : ''; return x.tipo === 'anio' ? `anual${yy}` : x.tipo === 'proy' ? `proy-${mes}${yy}` : `${mes}${yy}`; };
         const fila = x => { const u = `${urlPortal}/${codigo(x)}`, nom = x.tipo === 'mes' ? mesLabel(x.periodo) : x.tipo === 'proy' ? 'Proyección ' + mesLabel(x.periodo).toLowerCase() : 'Año ' + x.periodo;
           return `<div class="inf-link"><span class="chip ${x.tipo === 'proy' ? 'chip-fijos' : 'chip-arena'}">${x.tipo === 'proy' ? 'Proyección' : x.tipo === 'anio' ? 'Anual' : 'Mes'}</span><b>${nom}</b><input value="${u}" readonly onclick="this.select()">
             <button class="btn btn-sm" onclick="copiarTexto('${u}','Link de ${nom} copiado')" title="Copiar el link directo"><i class="ti ti-copy"></i></button><button class="btn btn-sm" onclick="window.open('${u}','_blank')" title="Abrir en el portal"><i class="ti ti-external-link"></i></button>
