@@ -1,9 +1,12 @@
 {
   "rewrites": [
     { "source": "/socios", "destination": "/socios.html" },
-    { "source": "/socios/:codigo", "destination": "/socios.html" }
+    { "source": "/socios/:codigo", "destination": "/socios.html" },
+    { "source": "/", "has": [{ "type": "host", "value": "(sbsocios|socios-sbs)\\.vercel\\.app|socios\\.show-bs\\.com" }], "destination": "/socios.html" },
+    { "source": "/:codigo", "has": [{ "type": "host", "value": "(sbsocios|socios-sbs)\\.vercel\\.app|socios\\.show-bs\\.com" }], "destination": "/socios.html" }
   ],
   "headers": [
-    { "source": "/socios(.*)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] }
+    { "source": "/socios(.*)", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
+    { "source": "/(.*)", "has": [{ "type": "host", "value": "(sbsocios|socios-sbs)\\.vercel\\.app|socios\\.show-bs\\.com" }], "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] }
   ]
 }
