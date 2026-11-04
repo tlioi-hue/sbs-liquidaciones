@@ -7631,7 +7631,8 @@ async function pgInformes(el, ac) {
     <div class="card" style="margin-bottom:14px">
       <div style="font-size:13px;font-weight:600;margin-bottom:4px"><i class="ti ti-door-enter"></i> Portal de socios</div>
       ${urlPortal ? (() => {
-        const fila = x => { const u = `${urlPortal}?i=${encodeURIComponent(x.token)}`, nom = x.tipo === 'mes' ? mesLabel(x.periodo) : x.tipo === 'proy' ? 'Proyección ' + mesLabel(x.periodo).toLowerCase() : 'Año ' + x.periodo;
+        const codigo = x => { const [y, m] = String(x.periodo || '').split('-'), mes = m ? MESES_NOMBRE[+m - 1] : ''; return x.tipo === 'anio' ? `anual-${y}` : x.tipo === 'proy' ? `proyeccion-${mes}-${y}` : `${mes}-${y}`; };
+        const fila = x => { const u = `${urlPortal}/${codigo(x)}`, nom = x.tipo === 'mes' ? mesLabel(x.periodo) : x.tipo === 'proy' ? 'Proyección ' + mesLabel(x.periodo).toLowerCase() : 'Año ' + x.periodo;
           return `<div class="inf-link"><span class="chip ${x.tipo === 'proy' ? 'chip-fijos' : 'chip-arena'}">${x.tipo === 'proy' ? 'Proyección' : x.tipo === 'anio' ? 'Anual' : 'Mes'}</span><b>${nom}</b><input value="${u}" readonly onclick="this.select()">
             <button class="btn btn-sm" onclick="copiarTexto('${u}','Link de ${nom} copiado')" title="Copiar el link directo"><i class="ti ti-copy"></i></button><button class="btn btn-sm" onclick="window.open('${u}','_blank')" title="Abrir en el portal"><i class="ti ti-external-link"></i></button>
             <button class="btn btn-sm btn-danger" title="Borrar: deja de verse en el portal" onclick="borrarInforme('${x.id}', '${nom}')"><i class="ti ti-trash"></i></button></div>`; };

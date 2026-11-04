@@ -542,7 +542,12 @@ const sesion = {
   borrar: () => { document.cookie = `${SES_KEY}=; path=/; max-age=0; SameSite=Strict${location.protocol === 'https:' ? '; Secure' : ''}`; },
 };
 try { localStorage.removeItem(SES_KEY); } catch {}   // la sesión que antes quedaba guardada de forma permanente
-const urlPortal = i => `${location.pathname}${i ? `?i=${encodeURIComponent(i)}` : ''}`;
+// Links cortos: /socios/octubre-2026, /socios/proyeccion-noviembre-2026, /socios/anual-2026 (también valen 2026-10, proy-2026-11 o el token con ?i=)
+const codigoInforme = x => { const [y, m] = String(x.periodo || '').split('-'), mes = m ? MESES[+m - 1].toLowerCase() : '';
+  return x.tipo === 'anio' ? `anual-${y}` : x.tipo === 'proy' ? `proyeccion-${mes}-${y}` : `${mes}-${y}`; };
+const informePorCodigo = c => { c = String(c || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); if (!c) return null;
+  return LISTA.find(x => x.token === c || codigoInforme(x) === c || (x.tipo === 'proy' ? 'proy-' + x.periodo : x.periodo) === c) || null; };
+const urlPortal = i => { const x = i && LISTA.find(z => z.token === i); return x ? `/socios/${codigoInforme(x)}` : '/socios'; };
 let LISTA = [];
 function estado(t, s) { $('app').innerHTML = `<div class="estado"><b>${esc(t)}</b><span>${esc(s || '')}</span></div>`; }
 // Totales de cada informe: los mensuales/anuales traen "totales"; las proyecciones, "T"
@@ -995,8 +1000,9 @@ async function cargar(ses) {
     LISTA = (data || []).filter(x => x.token);
     if (!LISTA.length) return estado('Todavía no hay informes publicados', 'Cuando se publique el primero, va a aparecer acá.');
     dibujar(); ajustarNumeros(); animarEntrada();
-    const pedido = new URLSearchParams(location.search).get('i');
-    if (pedido && LISTA.some(x => x.token === pedido)) abrir(pedido);
+    const pedido = new URLSearchParams(location.search).get('i') || decodeURIComponent(location.pathname.replace(/^\/socios\/?/, '').replace(/\/$/, ''));
+    const inf = informePorCodigo(pedido);
+    if (inf) abrir(inf.token);
     else { let visto = false; try { visto = !!localStorage.getItem('sbs_portal_intro'); } catch {} if (!visto) intro(); }
   } catch (e) { estado('No se pudo abrir el portal', 'Probá de nuevo en un rato.'); }
 }
