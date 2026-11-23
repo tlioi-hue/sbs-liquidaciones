@@ -1572,6 +1572,26 @@ window.combinarCon = async function(keepId, dupId) {
 
 // ── Utilidades de CUIL / duplicados ──
 function normCuil(c) { return String(c || '').replace(/\D/g, ''); }
+// DNI contenido en un CUIL (20-XXXXXXXX-X) o el número tal cual si ya es un DNI (7 u 8 dígitos)
+function dniDe(c) { const d = normCuil(c); return d.length === 11 ? d.slice(2, 10) : (d.length >= 7 && d.length <= 8 ? d.padStart(8, '0') : ''); }
+// Busca en Personal a alguien de una planilla aunque el CUIL o el nombre vengan mal cargados:
+// 1) CUIL exacto · 2) mismo DNI (CUIL con el DNI en su lugar) · 3) apellido y nombre exactos ·
+// 4) todas las palabras del registro de Personal están en la fila de la planilla (ej: "Berrueta, Maia" en
+//    "Berrueta Mejias, Maia Anabela"), o lo mismo con apellido y nombre invertidos. Solo si hay un único candidato.
+function buscarPersonaPlanilla(apellido, nombre, cuil) {
+  const c = normCuil(cuil), dni = dniDe(c), L = APP.personal || [];
+  if (c.length === 11) { const p = L.find(x => normCuil(x.cuil) === c); if (p) return p; }
+  if (dni) { const m = L.filter(x => dniDe(x.cuil) === dni); if (m.length === 1) return m[0]; }
+  const nn = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(w => w.length > 1);
+  const ap = nn(apellido), no = nn(nombre);
+  if (!ap.length) return null;
+  const exactos = L.filter(x => nn(x.apellido).join(' ') === ap.join(' ') && nn(x.nombre).join(' ') === no.join(' '));
+  if (exactos.length) return exactos.length === 1 ? exactos[0] : null;   // homónimos sin CUIL que los distinga: no adivinar
+  const fila = new Set([...ap, ...no]);
+  const cand = L.filter(x => { const xa = nn(x.apellido), xn = nn(x.nombre);
+    return xa.length && xn.length && xa.every(w => fila.has(w)) && xn.every(w => fila.has(w)) && (xa.some(w => ap.includes(w)) || xa.some(w => no.includes(w))); });
+  return cand.length === 1 ? cand[0] : null;
+}
 
 // Cuenta las filas que dependen de una persona (para el borrado y para elegir el registro a conservar).
 function refsPersona(id) {
@@ -3006,7 +3026,7 @@ window.verShowArena = function(evId) {
     ${sinTarifaN && !cerrada ? `<div class="alert alert-warn" style="padding:8px 12px"><i class="ti ti-alert-triangle"></i> ${sinTarifaN} persona${sinTarifaN>1?'s':''} sin tarifa.</div>` : ''}
     ${!cerrada ? `<div class="alert alert-info" style="padding:8px 12px"><i class="ti ti-edit" style="font-size:13px"></i> Podés cambiar la posición — el monto se actualiza automáticamente.</div>` : ''}
     <table><thead><tr>
-      <th>Apellido y nombre</th><th>CUIL</th><th>Posición</th><th style="text-align:right">Monto</th>
+      <th>Apellido y nombre</th><th>CUIL</th><th>Posición</th><th style="text-align:right">Monto</th>${!cerrada && APP.rol === 'rrhh' ? '<th></th>' : ''}
     </tr></thead>
     <tbody>${presentes.map(p => `<tr>
       <td><strong>${p.per?.apellido||'?'}, ${p.per?.nombre||'?'}</strong></td>
@@ -3015,17 +3035,81 @@ window.verShowArena = function(evId) {
         ${APP.tarifario.filter(t => t.area === 'Movistar Arena' || t.area === 'General').map(t => `<option value="${t.posicion}" ${t.posicion===p.posicion?'selected':''}>${t.posicion}</option>`).join('')}
       </select>`}</td>
       <td style="text-align:right;font-weight:500" id="monto-cell-${p.fechaId}-${p.per?.id}">${p.sinTarifa?'<span style="color:var(--orange)">sin tarifa</span>':fmt(p.monto)}</td>
+      ${!cerrada && APP.rol === 'rrhh' ? `<td style="width:34px"><button class="btn btn-sm btn-danger" title="Quitar de este show" onclick="quitarPresenteArena('${evId}','${p.fechaId}','${p.per?.id}')"><i class="ti ti-trash"></i></button></td>` : ''}
     </tr>`).join('')}</tbody>
     <tfoot><tr>
       <td colspan="3" style="font-weight:600;padding:10px 10px;border-top:2px solid var(--border)">Total</td>
-      <td style="text-align:right;font-weight:700;font-size:15px;padding:10px 10px;border-top:2px solid var(--border)" id="total-show-footer">${fmt(totalMonto)}</td>
+      <td style="text-align:right;font-weight:700;font-size:15px;padding:10px 10px;border-top:2px solid var(--border)" id="total-show-footer">${fmt(totalMonto)}</td>${!cerrada && APP.rol === 'rrhh' ? '<td style="border-top:2px solid var(--border)"></td>' : ''}
     </tr></tfoot>
     </table>
     <div class="modal-f">
       <button class="btn" onclick="closeModal()">Cerrar</button>
+      ${!cerrada && APP.rol === 'rrhh' ? `<button class="btn" onclick="agregarPresenteArena('${evId}')"><i class="ti ti-user-plus"></i> Agregar persona</button>` : ''}
       ${!cerrada ? `<button class="btn" onclick="exportShowArenaPreview('${evId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>` : ''}
     </div>
   </div>`);
+};
+
+// ── Agregar / quitar presentes desde el ojo de un show del Arena (solo con la quincena abierta) ──
+window.agregarPresenteArena = function(evId) {
+  const ev = getEvento(evId), fechas = (ev?.fechas || []).slice().sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+  if (!fechas.length) { toast('El show no tiene fechas cargadas', 'err'); return; }
+  const posArena = APP.tarifario.filter(t => t.area === 'Movistar Arena' || t.area === 'General');
+  const def = posArena.find(t => /orientador/i.test(t.posicion))?.posicion || posArena[0]?.posicion || '';
+  showModal(`<div class="modal">
+    <div class="modal-t"><i class="ti ti-user-plus"></i> Agregar persona · ${esc2(ev.nombre)}</div>
+    <div class="modal-s">Buscala en el padrón por apellido, nombre o CUIL. Si no está, cargala antes en Personal.</div>
+    <div class="fg"><label class="fl">Persona *</label>
+      <input id="apa-q" placeholder="Apellido, nombre o CUIL…" autocomplete="off" oninput="buscarApa()">
+      <div id="apa-res" style="max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:6px"></div>
+      <input type="hidden" id="apa-id">
+    </div>
+    <div class="fr">
+      ${fechas.length > 1 ? `<div class="fg"><label class="fl">Fecha *</label><select id="apa-fecha">${fechas.map(f => `<option value="${f.id}">${fd(f.fecha)}</option>`).join('')}</select></div>` : `<input type="hidden" id="apa-fecha" value="${fechas[0].id}">`}
+      <div class="fg"><label class="fl">Posición *</label><select id="apa-pos">${posArena.map(t => `<option value="${esc2(t.posicion)}" ${t.posicion === def ? 'selected' : ''}>${esc2(t.posicion)}</option>`).join('')}</select></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="verShowArena('${evId}')">Volver</button>
+      <button class="btn btn-success" onclick="guardarPresenteArena('${evId}')"><i class="ti ti-plus"></i> Agregar</button>
+    </div>
+  </div>`);
+  window._apaEv = evId; buscarApa();
+};
+window.buscarApa = function() {
+  const el = document.getElementById('apa-res'); if (!el) return;
+  const q = normTxt(document.getElementById('apa-q').value).trim(), qc = normCuil(q);
+  const ev = getEvento(window._apaEv), fid = document.getElementById('apa-fecha')?.value;
+  const ya = new Set(((ev?.fechas || []).find(f => f.id === fid)?.presentismo || []).map(p => p.persona_id));
+  const lista = !q ? [] : APP.personal.filter(p => !ya.has(p.id) && (normTxt(`${p.apellido} ${p.nombre} ${p.nombre} ${p.apellido}`).includes(q) || (qc.length >= 4 && normCuil(p.cuil).includes(qc)))).slice(0, 25);
+  const sel = document.getElementById('apa-id').value;
+  el.innerHTML = !q ? '<div style="padding:10px;color:var(--text2);font-size:12.5px">Escribí para buscar.</div>'
+    : lista.length ? lista.map(p => `<div onclick="document.getElementById('apa-id').value='${p.id}';buscarApa()" style="padding:7px 10px;cursor:pointer;border-bottom:1px solid var(--border);font-size:12.5px;${p.id === sel ? 'background:var(--card2);font-weight:600' : ''}">${p.id === sel ? '✓ ' : ''}${esc2(p.apellido)}, ${esc2(p.nombre)} <span style="color:var(--text2);font-size:11px">· ${p.cuil || 'sin CUIL'} · ${p.area || '—'}</span></div>`).join('')
+    : '<div style="padding:10px;color:var(--text2);font-size:12.5px">Sin resultados (o ya está en esa fecha).</div>';
+};
+window.guardarPresenteArena = async function(evId) {
+  const pid = document.getElementById('apa-id').value, fid = document.getElementById('apa-fecha').value, pos = document.getElementById('apa-pos').value;
+  if (!pid) { toast('Elegí una persona de la lista', 'err'); return; }
+  const ev = getEvento(evId), f = (ev?.fechas || []).find(x => x.id === fid);
+  if ((f?.presentismo || []).some(p => p.persona_id === pid)) { toast('Ya está en esa fecha', 'err'); return; }
+  loading(true);
+  const { data, error } = await sb.from('presentismo').insert({ fecha_id: fid, persona_id: pid, posicion: pos }).select().single();
+  loading(false);
+  if (error || !data) { toast('No se pudo agregar: ' + (error?.message || 'sin respuesta (¿sesión vencida?)'), 'err'); return; }
+  if (f) (f.presentismo = f.presentismo || []).push(data);
+  toast('Persona agregada', 'ok');
+  verShowArena(evId);
+};
+window.quitarPresenteArena = async function(evId, fechaId, personaId) {
+  const per = APP.personal.find(x => x.id === personaId);
+  if (!confirm(`¿Quitar a ${per ? `${per.apellido}, ${per.nombre}` : 'esta persona'} de este show?`)) return;
+  loading(true);
+  const { data, error } = await sb.from('presentismo').delete().eq('fecha_id', fechaId).eq('persona_id', personaId).select();
+  loading(false);
+  if (error || !data?.length) { toast('No se pudo quitar: ' + (error?.message || 'sin respuesta (¿sesión vencida?)'), 'err'); return; }
+  const f = (getEvento(evId)?.fechas || []).find(x => x.id === fechaId);
+  if (f) f.presentismo = (f.presentismo || []).filter(p => p.persona_id !== personaId);
+  toast('Persona quitada', 'ok');
+  verShowArena(evId);
 };
 
 window.updatePresentismo = async function(fechaId, personaId, nuevaPosicion, area) {
@@ -4001,8 +4085,7 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
         : posSinSec;
       // Externos: un alias aprendido para esta sección gana sobre el mapeo automático.
       const posicionFinal = esExternos ? posExt(sec) : posicion;
-      const ex = APP.personal.find(p => p.cuil && p.cuil === cuil)
-              || (b0 ? APP.personal.find(p => p.apellido.toLowerCase() === b0.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
+      const ex = buscarPersonaPlanilla(b0, nom, cuil);
       filas.push({ _id:uid(), posicion:posicionFinal, posicionOriginal:sec, apellido:b0, nombre:nom, cuil, tel,
         presente:pres, existeId:ex?.id||null, esNuevo:!ex, sel:false });
       continue;
@@ -4042,8 +4125,7 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
       // Externos: un alias aprendido para esta sección combinada gana sobre el mapeo automático.
       // Externos: sin mapeo automático; queda la sección de la planilla tal cual y el valor se asigna a mano
       const posicionFinal = esExternos ? posExt(posExt(sec) === posExt(subPuesto) ? sec : secCombinada) : posicion;
-      const ex = APP.personal.find(p => p.cuil && p.cuil === cuil)
-              || (b0 ? APP.personal.find(p => p.apellido.toLowerCase() === b0.toLowerCase() && p.nombre.toLowerCase() === nom.toLowerCase()) : null);
+      const ex = buscarPersonaPlanilla(b0, nom, cuil);
       filas.push({ _id:uid(), posicion:posicionFinal, posicionOriginal:secCombinada, apellido:b0, nombre:nom, cuil, tel,
         presente:pres, existeId:ex?.id||null, esNuevo:!ex, sel:false });
     }
@@ -4524,12 +4606,16 @@ window.confirmarImport = async function() {
   }
 
   loading(true);
+  const noCargados = [];   // personas con P que no se pudieron cargar: se informan al final, nunca se descartan en silencio
 
   // 1. Agregar personas nuevas
   for (const f of d.filas) {
     if (f.existeId) {
       // sin cambios de CBU en importación
     } else if (f.esNuevo && f.presente) {
+      // Antes de crear: buscar con tolerancia (mismo DNI, nombre incompleto o invertido)
+      const tol = buscarPersonaPlanilla(f.apellido, f.nombre, f.cuil);
+      if (tol) { f.existeId = tol.id; f.esNuevo = false; continue; }
       // Guard anti-duplicado: si ya existe alguien con ese CUIL (aunque el nombre esté escrito
       // distinto), vincular a ese registro en vez de crear uno nuevo.
       const cuilN = normCuil(f.cuil);
@@ -4540,6 +4626,7 @@ window.confirmarImport = async function() {
         area:d.area, posicion:f.posicion, activo:true
       }).select().single();
       f.existeId = np?.id;
+      if (!np?.id) noCargados.push({ f, motivo: 'no se pudo dar de alta en Personal' + (normCuil(f.cuil).length !== 11 ? ` (CUIL ${f.cuil || 'vacío'} inválido)` : '') });
     }
   }
 
@@ -4565,15 +4652,18 @@ window.confirmarImport = async function() {
           x.nombre.toLowerCase() === fp.nombre.toLowerCase()
         );
       }
+      if (!persona) persona = buscarPersonaPlanilla(fp.apellido, fp.nombre, fp.cuil);
       if (persona) {
-        presRows.push({ fecha_id: fechaId, persona_id: persona.id, posicion: fp.posicion, ...(d.modo === 'ext' && fp.monto !== null && fp.monto !== undefined && fp.monto !== '' ? { monto: Math.round(+fp.monto) } : {}) });
-      }
+        presRows.push({ fecha_id: fechaId, persona_id: persona.id, posicion: fp.posicion, _f: fp, ...(d.modo === 'ext' && fp.monto !== null && fp.monto !== undefined && fp.monto !== '' ? { monto: Math.round(+fp.monto) } : {}) });
+      } else if (!noCargados.some(x => x.f === fp)) noCargados.push({ f: fp, motivo: 'no se encontró en Personal' });
     }
 
-    // Deduplicar por persona_id antes de insertar
-    const presRowsUnicos = presRows.filter((r, i, arr) => 
-      arr.findIndex(x => x.persona_id === r.persona_id) === i
-    );
+    // Deduplicar por persona_id antes de insertar (dos filas que apuntan a la misma persona: se avisa)
+    const presRowsUnicos = presRows.filter((r, i, arr) => {
+      const j = arr.findIndex(x => x.persona_id === r.persona_id);
+      if (j !== i) { const per = APP.personal.find(x => x.id === r.persona_id); noCargados.push({ f: r._f, motivo: `apunta a la misma persona que ${arr[j]._f.apellido}, ${arr[j]._f.nombre}${per ? ` (${per.apellido}, ${per.nombre} · ${per.cuil || 'sin CUIL'})` : ''}` }); }
+      return j === i;
+    }).map(({ _f, ...r }) => r);
 
     if (presRowsUnicos.length) {
       const { error } = await sb.from('presentismo').insert(presRowsUnicos);
@@ -4591,7 +4681,11 @@ window.confirmarImport = async function() {
 
   loading(false); APP.draft = null;
   const dest = d.area === 'Externos' ? 'externos' : 'arena';
-  toast('Planilla importada correctamente', 'ok');
+  if (noCargados.length) {
+    alert(`Se importó la planilla, pero ${noCargados.length} persona${noCargados.length !== 1 ? 's' : ''} con P no quedaron cargadas:\n\n`
+      + noCargados.map(x => `• ${x.f.apellido}, ${x.f.nombre} (CUIL ${x.f.cuil || '—'}): ${x.motivo}`).join('\n')
+      + `\n\nCorregí el CUIL o el nombre en la planilla y volvé a importarla, o agregalas desde el ojo del show.`);
+  } else toast('Planilla importada correctamente', 'ok');
   await go(dest);
 };
 
