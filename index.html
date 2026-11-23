@@ -4122,9 +4122,15 @@ function parseDraft(rows, filename, evId, fechaId, modo) {
             return mappedSec !== sec ? mappedSec : subPuesto;
           })()
         : (matchExacto ? matchExacto.posicion : mapToTarifario(sec, areaParaTarifa));
+      // Quien está en capacitación (ej: "CAPACITACIÓN" dentro de SUPERVISORES) cobra como Orientador, no como la sección
+      const enCapacitacion = !esExternos && /capacit/i.test(subPuesto);
+      const posCapacitacion = enCapacitacion
+        ? (APP.tarifario.find(t => (t.area === areaParaTarifa || t.area === 'General') && /^orientador$/i.test(t.posicion.trim()))
+          || APP.tarifario.find(t => (t.area === areaParaTarifa || t.area === 'General') && /orientador/i.test(t.posicion)))?.posicion
+        : null;
       // Externos: un alias aprendido para esta sección combinada gana sobre el mapeo automático.
       // Externos: sin mapeo automático; queda la sección de la planilla tal cual y el valor se asigna a mano
-      const posicionFinal = esExternos ? posExt(posExt(sec) === posExt(subPuesto) ? sec : secCombinada) : posicion;
+      const posicionFinal = esExternos ? posExt(posExt(sec) === posExt(subPuesto) ? sec : secCombinada) : (posCapacitacion || posicion);
       const ex = buscarPersonaPlanilla(b0, nom, cuil);
       filas.push({ _id:uid(), posicion:posicionFinal, posicionOriginal:secCombinada, apellido:b0, nombre:nom, cuil, tel,
         presente:pres, existeId:ex?.id||null, esNuevo:!ex, sel:false });
