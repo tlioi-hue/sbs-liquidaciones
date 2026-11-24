@@ -2835,12 +2835,16 @@ function renderQCard(q, isRRHH) {
   const shows = APP.eventos.filter(e => e.area === 'Movistar Arena' && e.quincena_id === q.id).sort(porFechaShow);
   const totalJornadas = shows.reduce((s, ev) => (ev.fechas||[]).reduce((ss,f)=>(f.presentismo||[]).length+ss, 0)+s, 0);
   const liqs  = APP.liquidaciones.filter(l => l.quincena_id === q.id);
+  // Anexo: quincena sin shows con liquidaciones cargadas aparte (ej: capacitación). Los colaboradores son las personas liquidadas.
+  const esAnexo = !shows.length && liqs.length > 0;
+  const colab = esAnexo ? new Set(liqs.map(l => l.persona_id)).size : totalJornadas;
+  const rangoQ = q.fecha_fin ? `${fd(q.fecha_inicio)} — ${fd(q.fecha_fin)}` : fd(q.fecha_inicio);
 
   return `<div class="ev-card">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
       <div>
         <div style="font-size:15px;font-weight:600">${q.nombre}</div>
-        <div style="font-size:11.5px;color:var(--text2);margin-top:2px">${fd(q.fecha_inicio)} — ${fd(q.fecha_fin)}</div>
+        <div style="font-size:11.5px;color:var(--text2);margin-top:2px">${rangoQ}${esAnexo ? ' · anexo' : ''}</div>
       </div>
       <div style="display:flex;gap:7px;align-items:center">
         <span class="badge ${q.cerrada?'bs':totalJornadas?'bw':'bg'}">${q.cerrada?'cerrada':totalJornadas?'con jornadas':'sin shows'}</span>
@@ -2849,13 +2853,13 @@ function renderQCard(q, isRRHH) {
       </div>
     </div>
     <div style="display:flex;gap:13px;font-size:11.5px;margin-bottom:12px;flex-wrap:wrap">
-      <span><strong>${shows.length}</strong> shows</span>
-      <span><strong>${totalJornadas}</strong> colaboradores</span>
+      ${esAnexo ? '' : `<span><strong>${shows.length}</strong> shows</span>`}
+      <span><strong>${colab}</strong> colaboradores</span>
       ${liqs.length ? `<span style="color:var(--green)"><strong>${fmt(liqs.reduce((s,l)=>s+(l.total||0),0))}</strong> liquidado</span>` : ''}
     </div>
     <div style="margin-bottom:11px">
       ${!shows.length
-        ? '<div style="text-align:center;padding:11px;color:var(--text2);font-size:12px;border:1px dashed var(--border);border-radius:var(--radius)">Sin shows agregados</div>'
+        ? `<div style="text-align:center;padding:11px;color:var(--text2);font-size:12px;border:1px dashed var(--border);border-radius:var(--radius)">${esAnexo ? `Liquidación aparte, sin shows: ${esc2([...new Set(liqs.flatMap(l => (l.detalle || []).map(d => d.ev_nombre)).filter(Boolean))].join(', ') || 'anexo')}` : 'Sin shows agregados'}</div>`
         : shows.map(ev => {
             const fec = ev.fechas || [];
             const jEv = fec.reduce((s,f) => (f.presentismo||[]).length+s, 0);
@@ -2880,7 +2884,7 @@ function renderQCard(q, isRRHH) {
         <button class="btn btn-sm btn-success" onclick="previaCierre('${q.id}', true)"><i class="ti ti-lock"></i> Cerrar quincena definitivamente</button>
       ` : ''}
       ${q.cerrada ? `<span class="badge bs"><i class="ti ti-lock" style="font-size:11px"></i> Quincena cerrada</span>` : ''}
-      ${isRRHH && q.cerrada ? `<button class="btn btn-sm" onclick="reabrirQuincenaArena('${q.id}')"><i class="ti ti-lock-open"></i> Reabrir</button>` : ''}
+      ${isRRHH && q.cerrada && !esAnexo ? `<button class="btn btn-sm" onclick="reabrirQuincenaArena('${q.id}')"><i class="ti ti-lock-open"></i> Reabrir</button>` : ''}
       ${liqs.length ? `<button class="btn btn-sm" onclick="verLiqsQ('${q.id}')"><i class="ti ti-list"></i> Liquidaciones (${liqs.length})</button>` : ''}
       ${liqs.length ? `<button class="btn btn-sm" onclick="exportLiqsQuincena('${q.id}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>` : ''}
     </div>
