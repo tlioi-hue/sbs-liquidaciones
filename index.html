@@ -2859,7 +2859,17 @@ function renderQCard(q, isRRHH) {
     </div>
     <div style="margin-bottom:11px">
       ${!shows.length
-        ? `<div style="text-align:center;padding:11px;color:var(--text2);font-size:12px;border:1px dashed var(--border);border-radius:var(--radius)">${esAnexo ? `Liquidación aparte, sin shows: ${esc2([...new Set(liqs.flatMap(l => (l.detalle || []).map(d => d.ev_nombre)).filter(Boolean))].join(', ') || 'anexo')}` : 'Sin shows agregados'}</div>`
+        ? (esAnexo ? conceptosAnexo(liqs).map(c => `<div class="fecha-row">
+              <div style="flex:1">
+                <span style="font-weight:500">${esc2(c.concepto)}</span>
+                ${c.fecha ? `<span style="color:var(--text2);font-size:11px"> · ${fd(c.fecha)}</span>` : ''}
+              </div>
+              <span class="pill">${c.personas} colaboradores</span>
+              <div style="display:flex;gap:5px;flex-shrink:0">
+                <button class="btn btn-sm" title="Ver quiénes y cuánto" onclick="verAnexoQ('${q.id}', ${esc2(JSON.stringify(c.concepto)).replace(/'/g, '&#39;')})"><i class="ti ti-eye"></i></button>
+              </div>
+            </div>`).join('')
+          : '<div style="text-align:center;padding:11px;color:var(--text2);font-size:12px;border:1px dashed var(--border);border-radius:var(--radius)">Sin shows agregados</div>')
         : shows.map(ev => {
             const fec = ev.fechas || [];
             const jEv = fec.reduce((s,f) => (f.presentismo||[]).length+s, 0);
@@ -2889,6 +2899,53 @@ function renderQCard(q, isRRHH) {
       ${liqs.length ? `<button class="btn btn-sm" onclick="exportLiqsQuincena('${q.id}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>` : ''}
     </div>
   </div>`;
+}
+
+// ── Anexos: liquidaciones del Arena cargadas aparte, sin show (ej: capacitación) ──
+// Conceptos de un anexo: uno por nombre de línea del detalle, con su fecha, personas y total.
+function conceptosAnexo(liqs) {
+  const m = {};
+  liqs.forEach(l => { let det = l.detalle; if (typeof det === 'string') { try { det = JSON.parse(det); } catch { det = []; } }
+    (det || []).forEach(d => { const k = d.ev_nombre || 'Anexo'; (m[k] = m[k] || { concepto: k, fecha: d.fecha || '', personas: new Set(), total: 0 });
+      m[k].personas.add(l.persona_id); m[k].total += +d.monto || 0; if (d.fecha && (!m[k].fecha || d.fecha < m[k].fecha)) m[k].fecha = d.fecha; }); });
+  return Object.values(m).map(c => ({ ...c, personas: c.personas.size })).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
+}
+window.verAnexoQ = function(qId, concepto) {
+  const q = APP.quincenas.find(x => x.id === qId);
+  const filas = [];
+  APP.liquidaciones.filter(l => l.quincena_id === qId).forEach(l => { let det = l.detalle; if (typeof det === 'string') { try { det = JSON.parse(det); } catch { det = []; } }
+    (det || []).filter(d => !concepto || d.ev_nombre === concepto).forEach(d => filas.push({ per: APP.personal.find(x => x.id === l.persona_id), nombre: l.persona_nombre, posicion: d.posicion, monto: +d.monto || 0, fecha: d.fecha })); });
+  filas.sort((a, b) => String(a.per ? `${a.per.apellido} ${a.per.nombre}` : a.nombre).localeCompare(String(b.per ? `${b.per.apellido} ${b.per.nombre}` : b.nombre)));
+  const total = filas.reduce((a, f) => a + f.monto, 0), fechas = [...new Set(filas.map(f => f.fecha).filter(Boolean))];
+  showModal(`<div class="modal modal-lg">
+    <div class="modal-t">${esc2(concepto || q?.nombre || 'Anexo')}${fechas.length === 1 ? ' · ' + fd(fechas[0]) : ''}</div>
+    <div class="modal-s">${filas.length} persona${filas.length !== 1 ? 's' : ''} · <strong>${fmt(total)}</strong> liquidado · ${esc2(q?.nombre || '')}</div>
+    <table><thead><tr><th>Apellido y nombre</th><th>CUIL</th><th>CBU</th><th>Posición</th><th style="text-align:right">Monto</th></tr></thead>
+    <tbody>${filas.map(f => `<tr>
+      <td><strong>${f.per ? `${esc2(f.per.apellido)}, ${esc2(f.per.nombre)}` : esc2(f.nombre || '?')}</strong></td>
+      <td style="font-family:monospace;font-size:11.5px">${f.per?.cuil || '—'}</td>
+      <td style="font-family:monospace;font-size:11.5px">${f.per?.cbu ? '…' + f.per.cbu.slice(-6) : '<span style="color:var(--orange)">sin CBU</span>'}</td>
+      <td>${esc2(f.posicion || '')}</td>
+      <td style="text-align:right;font-weight:500">${fmt(f.monto)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="4" style="font-weight:600;padding:10px;border-top:2px solid var(--border)">Total</td>
+      <td style="text-align:right;font-weight:700;font-size:15px;padding:10px;border-top:2px solid var(--border)">${fmt(total)}</td></tr></tfoot></table>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn" onclick="exportLiqsQuincena('${qId}')"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>
+    </div>
+  </div>`);
+};
+// Otros costos del Arena sin show (anexos), por mes: liquidaciones de quincenas que no tienen shows del Arena.
+// Devuelve [{ concepto, periodo, personas, personal }] para los meses pedidos (array de 'YYYY-MM').
+function otrosCostosArena(meses) {
+  const set = new Set(meses), m = {};
+  (APP.quincenas || []).forEach(q => {
+    if ((APP.eventos || []).some(e => e.area === 'Movistar Arena' && e.quincena_id === q.id)) return;   // quincena con shows: sus costos ya van por show
+    const liqs = (APP.liquidaciones || []).filter(l => l.quincena_id === q.id && l.area === 'Movistar Arena' && !l.lugar_fijo);
+    conceptosAnexo(liqs).forEach(c => { const per = String(c.fecha || q.fecha_inicio || '').slice(0, 7); if (!set.has(per)) return;
+      const k = per + '|' + c.concepto; (m[k] = m[k] || { concepto: c.concepto, periodo: per, fecha: c.fecha, personas: 0, personal: 0 }); m[k].personas += c.personas; m[k].personal += c.total; });
+  });
+  return Object.values(m).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)));
 }
 
 window.modalNuevaQ = function() {
@@ -6379,6 +6436,11 @@ function proyMes(periodo, esc) {
     const pl = calcPL(sv.venta, sv.sueldo, 0, E), iigg = Math.round(Math.max(0, pl.ebit) * (+E.iigg || 0) / 100);
     filas.push({ ev: { id: 'serv-' + sv.key, nombre: sv.nombre }, fISO: periodo + '-01', servicio: true, origen: sv.origen, ingresos: sv.venta, sueldo: sv.sueldo, neto: pl.ebit - iigg, egresos: sv.venta - (pl.ebit - iigg) });
   });
+  // Otros costos del mes sin show (anexos, ej: capacitación): restan del resultado, con su ahorro de Ganancias
+  otrosCostosArena([periodo]).forEach((o, i) => {
+    const pl = calcPL(0, o.personal, 0, E), ahorro = Math.round(Math.max(0, -pl.ebit) * (+E.iigg || 0) / 100), neto = pl.ebit + ahorro;
+    filas.push({ ev: { id: 'otros-' + i, nombre: o.concepto }, fISO: o.fecha || periodo + '-01', servicio: true, otros: true, personas: o.personas, ingresos: 0, sueldo: o.personal, neto, egresos: -neto });
+  });
   const ok = filas.filter(f => !f.error);
   const T = ok.reduce((a, f) => ({ ingresos: a.ingresos + f.ingresos, egresos: a.egresos + f.egresos, neto: a.neto + f.neto }), { ingresos: 0, egresos: 0, neto: 0 });
   return { periodo, tar, filas, T, reales: ok.filter(f => f.real).length, proyectados: ok.filter(f => f.proyectado).length, errores: filas.filter(f => f.error).length };
@@ -6522,6 +6584,11 @@ async function htmlProyeccion(meses) {
       ${refs.map(r => `<option value="${r.ev.id}" ${aj.ref === r.ev.id ? 'selected' : ''}>${r.ev.nombre} · ${fd(r.fISO)}</option>`).join('')}</select>`; };
   const filas = P.filas.map(f => {
     if (f.error) return `<tr><td>${fd(f.fISO)}</td><td><strong>${f.ev.nombre}</strong></td><td colspan="9" style="color:#b45309">${f.error}</td></tr>`;
+    if (f.otros) return `<tr style="background:var(--card2)"><td style="white-space:nowrap;color:var(--text2)">${fd(f.fISO)}</td>
+      <td><strong>${esc2(f.ev.nombre)}</strong><div style="font-size:11px;color:var(--text2)">otro costo del mes, sin show · ${f.personas} persona${f.personas !== 1 ? 's' : ''}</div></td>
+      <td><span class="badge bi" style="font-size:10px">Real</span></td><td colspan="4" style="font-size:12px;color:var(--text2)">pagado ${fmt(f.sueldo)} + cargas</td>
+      <td style="text-align:right">${fmt(0)}</td><td style="text-align:right">${fmt(f.egresos)}</td>
+      <td style="text-align:right;font-weight:600;color:${col(f.neto)}">${fmt(f.neto)}</td><td style="text-align:center">—</td></tr>`;
     if (f.servicio) return `<tr style="background:var(--card2)"><td style="white-space:nowrap;color:var(--text2)">todo el mes</td>
       <td><strong>${f.ev.nombre}</strong><div style="font-size:11px;color:var(--text2)">servicio mensual · tarifario ${f.origen}</div></td>
       <td><span class="badge bi" style="font-size:10px">Mensual</span></td><td colspan="4" style="font-size:12px;color:var(--text2)">sueldo neto ${fmt(f.sueldo)}</td>
@@ -6580,7 +6647,7 @@ async function htmlProyeccion(meses) {
       <table class="tbl"><thead><tr><th>Fecha</th><th>Show</th><th>Estado</th><th>Basado en</th><th style="text-align:center" title="Puestos de sala que se le facturan al Arena (sin cargas). Vacío = el supuesto del mes">Puestos de sala</th><th style="text-align:center" title="Presentes por encima de lo pedido, no facturables">Back-ups</th><th style="text-align:center" title="Coordinador on site, a cargo de SBS: no se factura">Coordinación</th>
         <th style="text-align:right">Ingresos</th><th style="text-align:right">Egresos</th><th style="text-align:right">Resultado</th><th style="text-align:center">Margen</th></tr></thead>
       <tbody>${filas || `<tr><td colspan="11" style="text-align:center;color:var(--text2);padding:16px">No hay shows para ${mesLabel(S_PROY.mes).toLowerCase()}. Agregalos con el botón "Agregar shows".</td></tr>`}</tbody>
-      ${P.filas.length ? `<tfoot><tr style="background:var(--card2);font-weight:700"><td colspan="7">Total del mes${P.filas.some(f => f.servicio) ? ' (shows + mesa de entrada)' : ''}</td><td style="text-align:right">${fmt(T.ingresos)}</td><td style="text-align:right">${fmt(T.egresos)}</td><td style="text-align:right;color:${col(T.neto)}">${fmt(T.neto)}</td><td style="text-align:center">${String(mg(T.neto, T.ingresos)).replace('.', ',')}%</td></tr></tfoot>` : ''}
+      ${P.filas.length ? `<tfoot><tr style="background:var(--card2);font-weight:700"><td colspan="7">Total del mes${P.filas.some(f => f.servicio) ? ` (shows${P.filas.some(f => f.servicio && !f.otros) ? ' + mesa de entrada' : ''}${P.filas.some(f => f.otros) ? ' + otros costos' : ''})` : ''}</td><td style="text-align:right">${fmt(T.ingresos)}</td><td style="text-align:right">${fmt(T.egresos)}</td><td style="text-align:right;color:${col(T.neto)}">${fmt(T.neto)}</td><td style="text-align:center">${String(mg(T.neto, T.ingresos)).replace('.', ',')}%</td></tr></tfoot>` : ''}
       </table>
     </div>
       </div></details>
@@ -7612,15 +7679,26 @@ function buildInforme(tipo, periodo) {
   let servMes = mesesPer.flatMap(m => serviciosMes(m)).map(sv => { const pl = calcPL(sv.venta, sv.sueldo, 0, E); return { ...sv, ventas: sv.venta, personal: sv.sueldo, cargas: pl.totCargas, impuestos: pl.totImp, ebit: pl.ebit }; });
   const costoShows = base.reduce((s, r) => s + r.costo, 0);
   const servVentas = servMes.reduce((a, x) => a + x.ventas, 0), servPers = servMes.reduce((a, x) => a + x.personal, 0);
-  // Totales del área = shows + servicios mensuales
-  const T = calcPL(ventasTot + servVentas, costoShows + servPers, fijosTot, E);
+  // Otros costos del mes sin show (anexos, ej: capacitación): personal + cargas, sin ventas
+  let otros = otrosCostosArena(mesesPer).map(o => { const pl = calcPL(0, o.personal, 0, E); return { ...o, cargas: pl.totCargas, ebit: pl.ebit }; });
+  const otrosPers = otros.reduce((a, x) => a + x.personal, 0);
+  // Totales del área = shows + servicios mensuales + otros costos
+  const T = calcPL(ventasTot + servVentas, costoShows + servPers + otrosPers, fijosTot, E);
   // Ganancias: sobre el EBIT total del período; se reparte entre shows y servicios con EBIT positivo
   T.iigg = { pct: +E.iigg || 0, monto: Math.round(Math.max(0, T.ebit) * (+E.iigg || 0) / 100) };
   T.neto = T.ebit - T.iigg.monto;
+  // Ganancias de shows y servicios como si no hubiera otros costos: así el resultado de cada show no cambia,
+  // y el ahorro de Ganancias que generan los otros costos queda en su propia línea (Ganancias negativo).
+  const Tb = calcPL(ventasTot + servVentas, costoShows + servPers, fijosTot, E);
+  const iiggBase = Math.round(Math.max(0, Tb.ebit) * (+E.iigg || 0) / 100);
   const ebitPos = shows.reduce((s, x) => s + Math.max(0, x.ebit), 0) + servMes.reduce((s, x) => s + Math.max(0, x.ebit), 0);
-  const repIigg = x => ebitPos ? Math.round(T.iigg.monto * Math.max(0, x.ebit) / ebitPos) : 0;
+  const repIigg = x => ebitPos ? Math.round(iiggBase * Math.max(0, x.ebit) / ebitPos) : 0;
   shows = shows.map(x => { const iigg = repIigg(x); return { ...x, iigg, neto: x.ebit - iigg }; }).sort((a, b) => a.fecha.localeCompare(b.fecha));
   servMes = servMes.map(x => { const iigg = repIigg(x); return { ...x, iigg, neto: x.ebit - iigg }; });
+  // Otros costos: restan del resultado; el ahorro de Ganancias (Ganancias total − la de shows y servicios) se reparte entre ellos
+  const ahorroTot = T.iigg.monto - iiggBase, otrosEbit = otros.reduce((a, x) => a + x.ebit, 0);
+  otros = otros.map(x => { const iigg = otrosEbit ? Math.round(ahorroTot * x.ebit / otrosEbit) : 0; return { ...x, iigg, neto: x.ebit - iigg }; });
+  if (otros.length) { const d = ahorroTot - otros.reduce((a, x) => a + x.iigg, 0); otros[0].iigg += d; otros[0].neto -= d; }
   // Servicios agrupados para mostrar (uno por servicio, sumando los meses)
   const servicios = SERV_MENSUALES.map(sv => {
     const xs = servMes.filter(x => x.key === sv.key); if (!xs.length) return null;
@@ -7640,7 +7718,13 @@ function buildInforme(tipo, periodo) {
     { key: 'cargas', nombre: 'Cargas / stagehands', detalle: 'facturadas en el pedido de cada show', ventas: cf, personal: cc },
     { key: 'mesa', nombre: 'Mesa de entrada', detalle: 'servicio mensual', ventas: servVentas, personal: servPers },
   ].filter(x => x.ventas || x.personal);
-  const porArea = plPorArea(areas, T, fijosTot, E);
+  const porArea = plPorArea(areas, { ...Tb, iigg: { pct: T.iigg.pct, monto: iiggBase } }, fijosTot, E);
+  if (otrosPers) {   // Otros costos: área propia, sin ventas, con su ahorro de Ganancias; el redondeo de cargas se ajusta para que cierre con el total
+    const pl = calcPL(0, otrosPers, 0, E), a0 = { key: 'otros', nombre: 'Otros costos', detalle: [...new Set(otros.map(o => o.concepto))].join(', '), ventas: 0, personal: otrosPers,
+      cargas: pl.cargas, totCargas: pl.totCargas, impuestos: pl.impuestos, totImp: 0, utBruta: pl.utBruta, contrMarginal: pl.contrMarginal, fijos: 0, ebit: pl.ebit };
+    const dc = (T.totCargas || 0) - (Tb.totCargas || 0) - a0.totCargas; a0.totCargas += dc; a0.utBruta -= dc; a0.contrMarginal -= dc; a0.ebit -= dc;
+    a0.iigg = ahorroTot; a0.neto = a0.ebit - a0.iigg; porArea.push(a0);
+  }
   const totShows = { ventas: sumS('ventas'), personal: sumS('personal'), cargas: sumS('cargas'), impuestos: sumS('impuestos'), fijos: sumS('fijos'), iigg: sumS('iigg'), neto: sumS('neto'), staff: T.staff, shows: T.shows };
   let meses = null;
   if (tipo === 'anio') {
@@ -7652,6 +7736,7 @@ function buildInforme(tipo, periodo) {
     };
     shows.forEach(x => add(x.fecha.slice(0, 7), x, true));
     servMes.forEach(x => add(x.periodo, x, false));
+    otros.forEach(x => add(x.periodo, x, false));
     meses = Object.values(g).sort((a, b) => a.periodo.localeCompare(b.periodo));
   }
   const periodoLabel = tipo === 'mes' ? mesLabel(periodo) : `Año ${periodo}`;
@@ -7660,6 +7745,7 @@ function buildInforme(tipo, periodo) {
     desde: RENT_DESDE, generado: new Date().toISOString(), estructura: E,
     shows, pendientes: enPeriodo.filter(r => !r.nFac).map(r => ({ nombre: r.ev.nombre, fecha: r.fISO })),
     totales: T, totShows, servicios, porArea, meses, hayEstimados: shows.some(s => s.estimado),
+    otros: otros.map(o => ({ concepto: o.concepto, periodo: o.periodo, fecha: o.fecha, personas: o.personas, personal: o.personal, cargas: o.cargas, neto: o.neto })),
     sinPresentismo: sinPresentismo.map(r => ({ nombre: r.ev.nombre, fecha: r.fISO, facturado: r.facturado })),
   };
 }
@@ -7807,12 +7893,13 @@ function buildProyInforme(periodo) {
     detalle: f.real && f.inf ? (({ ventas, personal, cargas, impuestos, fijos, iigg, neto, staff, facturables, presentes, cargasAparte, backups, coordinador, zonas, posiciones, estimado }) =>
       ({ ventas, personal, cargas, impuestos, fijos, iigg, neto, staff, facturables, presentes, cargasAparte, backups, coordinador, zonas, posiciones, estimado }))(f.inf) : null,
     ingresos: Math.round(f.ingresos || 0), egresos: Math.round(f.egresos || 0), neto: Math.round(f.neto || 0) }));
-  const servicios = P.filas.filter(f => f.servicio).map(f => ({ nombre: f.ev.nombre, ingresos: Math.round(f.ingresos || 0), egresos: Math.round(f.egresos || 0), neto: Math.round(f.neto || 0) }));
+  const servicios = P.filas.filter(f => f.servicio && !f.otros).map(f => ({ nombre: f.ev.nombre, ingresos: Math.round(f.ingresos || 0), egresos: Math.round(f.egresos || 0), neto: Math.round(f.neto || 0) }));
+  const otros = P.filas.filter(f => f.otros).map(f => ({ concepto: f.ev.nombre, fecha: f.fISO, personas: f.personas, personal: Math.round(f.sueldo || 0), egresos: Math.round(f.egresos || 0), neto: Math.round(f.neto || 0) }));
   return { v: 2, tipo: 'proy', periodo, titulo: `Proyección ${mesLabel(periodo)} · Movistar Arena`, periodoLabel: mesLabel(periodo), generado: new Date().toISOString(), estructura: E,
     sup: { puestos: num(sup.puestos) ? +sup.puestos : H.sala, puestosProm: !num(sup.puestos), cargas: num(sup.cargas) ? +sup.cargas : 2, coord: num(sup.coord) ? +sup.coord : 1,
            backups: num(sup.backups) ? +sup.backups : 2, backupsProm: false, nRefs: H.n },
     tar: P.tar ? { origen: P.tar.origen, desde: P.tar.desde, desdeLabel: mesLabel(P.tar.desde), aumento: P.tar.aumento, nPropios: P.tar.nPropios || 0 } : null,
-    shows, servicios, sinCalcular: P.filas.filter(f => f.error).map(f => f.ev.nombre),
+    shows, servicios, otros, sinCalcular: P.filas.filter(f => f.error).map(f => f.ev.nombre),
     T: { ingresos: Math.round(P.T.ingresos), egresos: Math.round(P.T.egresos), neto: Math.round(P.T.neto) }, reales: P.reales, proyectados: P.proyectados,
     extra: (() => { const X = extraProy(P); return { backups: X.bk, coord: X.co, pctCargas: pctCargasSoc() }; })() };
 }

@@ -773,7 +773,9 @@ function lecturaResultados(x) {
   const gi = partes.length - 1;
   partes[gi].tip = `<div class="tip-t">Impuesto a las Ganancias</div>` + fila('Resultado antes de Ganancias', ebit) + fila(`× ${nf(pGan)}%`, null, 'menos') + fila('= Ganancias', T.iigg?.monto || 0, 'tot')
     + `<div class="tip-n">Resultado antes de Ganancias = facturado − personal − cargas sociales − impuestos sobre ventas.</div>`;
-  h += cap(2, 'Los egresos', 'A dónde fue <b>cada peso</b>', `<div class="vidrio">${pila(partes, egr, { tasas: true })}</div><p class="nota">Pasá el mouse o tocá cada parte para ver la cuenta. Total de egresos: ${money0(egr)}.</p>`);
+  const otrosC = (d.otros || []).filter(o => o.personal);
+  const notaOtros = otrosC.length ? ` Incluye otros costos del mes que no son de ningún show: ${otrosC.map(o => `${esc(o.concepto)}${o.fecha ? ` (${fechaC(o.fecha)})` : ''}, ${o.personas} persona${o.personas !== 1 ? 's' : ''}, ${money0(o.personal)} pagados`).join('; ')}.` : '';
+  h += cap(2, 'Los egresos', 'A dónde fue <b>cada peso</b>', `<div class="vidrio">${pila(partes, egr, { tasas: true })}</div><p class="nota">Pasá el mouse o tocá cada parte para ver la cuenta. Total de egresos: ${money0(egr)}.${notaOtros}</p>`);
   // 03 Por área
   const areas = (d.porArea || []).filter(a => a.ventas);
   let n = 3;
@@ -829,7 +831,8 @@ function lecturaProy(x) {
       <div class="grande"><b class="${T.neto < 0 ? 'neg' : ''}" data-cuenta="${T.neto}" data-fmt="corto">${corto(T.neto)}</b><span>resultado proyectado · ${pct(T.neto, T.ingresos)} de lo facturado</span></div>
       <div class="kpis"><div class="kpi"><b>${corto(T.ingresos)}</b><span class="mono">Ingresos estimados</span></div><div class="kpi"><b>${corto(T.egresos)}</b><span class="mono">Egresos estimados</span></div>
         <div class="kpi"><b>${pct(T.neto, T.ingresos)}</b><span class="mono">Margen</span></div><div class="kpi"><b>${sh.length}</b><span class="mono">Shows confirmados</span></div></div>
-      ${pila([{ l: 'Egresos', v: T.egresos, c: PAL.navy }, { l: 'Resultado', v: Math.max(0, T.neto), c: PAL.cel }], T.ingresos)}</div>`);
+      ${pila([{ l: 'Egresos', v: T.egresos, c: PAL.navy }, { l: 'Resultado', v: Math.max(0, T.neto), c: PAL.cel }], T.ingresos)}</div>
+      ${(d.otros || []).length ? `<p class="nota">Los egresos incluyen otros costos del mes que no son de ningún show: ${d.otros.map(o => `${esc(o.concepto)}${o.fecha ? ` (${fechaC(o.fecha)})` : ''}, ${o.personas} persona${o.personas !== 1 ? 's' : ''}, ${money0(o.personal)} pagados`).join('; ')}.</p>` : ''}`);
   let n = 2;
   h += cap(n++, 'Supuestos', 'Cómo se estima <b>cada show</b>', `<div class="supg">
       <div class="vidrio"><span>Puestos de sala</span><b>${sup.puestos ?? '—'}</b><small>${sup.puestosProm ? `promedio de ${sup.nRefs} shows` : 'fijado para el mes'}</small></div>
