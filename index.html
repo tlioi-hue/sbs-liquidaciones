@@ -7833,6 +7833,7 @@ async function pgInformes(el, ac) {
         const codigo = x => { const [y, m] = String(x.periodo || '').split('-'), yy = String(y).slice(-2), mes = m ? ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][+m - 1] : ''; return x.tipo === 'anio' ? `anual${yy}` : x.tipo === 'proy' ? `proy-${mes}${yy}` : `${mes}${yy}`; };
         const fila = x => { const u = `${urlPortal}/${codigo(x)}`, nom = x.tipo === 'mes' ? mesLabel(x.periodo) : x.tipo === 'proy' ? 'Proyección ' + mesLabel(x.periodo).toLowerCase() : 'Año ' + x.periodo;
           return `<div class="inf-link"><span class="chip ${x.tipo === 'proy' ? 'chip-fijos' : 'chip-arena'}">${x.tipo === 'proy' ? 'Proyección' : x.tipo === 'anio' ? 'Anual' : 'Mes'}</span><b>${nom}</b><input value="${u}" readonly onclick="this.select()">
+            <button class="btn btn-sm" onclick="mailResumenInforme('${x.id}','${u}')" title="Armar el resumen para pegar en el mail"><i class="ti ti-mail"></i> Para el mail</button>
             <button class="btn btn-sm" onclick="copiarTexto('${u}','Link de ${nom} copiado')" title="Copiar el link directo"><i class="ti ti-copy"></i></button><button class="btn btn-sm" onclick="window.open('${u}','_blank')" title="Abrir en el portal"><i class="ti ti-external-link"></i></button>
             <button class="btn btn-sm btn-danger" title="Borrar: deja de verse en el portal" onclick="borrarInforme('${x.id}', '${nom}')"><i class="ti ti-trash"></i></button></div>`; };
         const esAnual = APP.infTipo === 'anio', titulo = esAnual ? 'Año ' + APP.infPeriodo : mesLabel(APP.infPeriodo);
@@ -7994,6 +7995,98 @@ function modalLinkInforme(token, inf) {
     </div>
   </div>`);
 }
+// ══ Resumen del informe para pegar en el cuerpo del mail ══
+// Arma un bloque HTML con estilos en línea (lo que Gmail y Outlook respetan) con los números principales del informe
+// publicado, los shows de mayor y menor resultado y el link al portal. Se ve sin abrir adjuntos ni entrar al portal.
+function htmlMailInforme(inf, url) {
+  const d = inf.data || {}, esProy = inf.tipo === 'proy', esAnio = inf.tipo === 'anio';
+  const C = { navy: '#09203C', bloque: '#17365F', cel: '#019DF4', mos: '#B8900A', rojo: '#A11D21', fondo: '#F4F1EA', gris: '#5c6878', linea: '#e2ddd2' };
+  const F = "font-family:Arial,Helvetica,sans-serif;";
+  const $ = v => '$\u00a0' + Math.round(v || 0).toLocaleString('es-AR');   // espacio duro: el $ no se separa del número
+  const pc = (a, b) => b ? (a / b * 100).toFixed(1).replace('.', ',') + '%' : '—';
+  const fc = iso => { const p = String(iso || '').split('-'); return p.length === 3 ? `${p[2]}/${p[1]}` : ''; };
+  const e = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const titulo = esProy ? `Proyección de ${(d.periodoLabel || mesLabel(inf.periodo)).toLowerCase()}` : esAnio ? `Resultados del año ${inf.periodo}` : `Resultados de ${(d.periodoLabel || mesLabel(inf.periodo)).toLowerCase()}`;
+  let ing, egr, neto, shows, frase;
+  if (esProy) {
+    const T = d.T || {}; ing = T.ingresos || 0; egr = T.egresos || 0; neto = T.neto || 0;
+    shows = (d.shows || []).map(x => ({ nombre: x.nombre, fecha: x.fecha, ing: x.ingresos, neto: x.neto, tag: x.estado === 'real' ? 'Real' : 'Proyectado' }));
+    frase = `Con <b>${shows.length} shows confirmados</b>${(d.servicios || []).length ? ' más mesa de entrada' : ''}, esperamos facturar <b>${$(ing)}</b> sin IVA y que a SBS le queden <b>${$(neto)}</b>.`
+      + (d.reales ? ` De esos shows, ${d.reales} ya se facturaron y figuran con sus números reales.` : '');
+  } else {
+    const T = d.totales || {}; ing = T.ventas || 0; neto = T.neto || 0; egr = ing - neto;
+    shows = (d.shows || []).map(x => ({ nombre: x.nombre, fecha: x.fecha, ing: x.ventas, neto: x.neto }));
+    frase = `El Arena facturó <b>${$(ing)}</b> sin IVA en ${shows.length} shows${(d.servicios || []).length ? ' más mesa de entrada' : ''}. Después de pagar al personal, las cargas sociales y los impuestos, a SBS le quedaron <b>${$(neto)}</b>.`;
+  }
+  const colNeto = neto < 0 ? C.rojo : esProy ? C.mos : C.bloque;
+  const kpi = (lab, val, col, ult) => `<td width="33%" style="${F}padding:10px 8px;${ult ? '' : `border-right:1px solid ${C.linea};`}text-align:center;vertical-align:top"><div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:${C.gris};font-weight:bold">${lab}</div><div style="font-size:15px;font-weight:bold;color:${col || C.navy};margin-top:3px;white-space:nowrap">${val}</div></td>`;
+  const orden = [...shows].sort((a, b) => (b.neto || 0) - (a.neto || 0));
+  const top = orden.slice(0, 3), bajo = orden.length > 6 ? orden.slice(-3).reverse() : [];
+  const filaShow = x => `<tr><td style="${F}padding:7px 10px;border-bottom:1px solid ${C.linea};font-size:13px;color:${C.navy}"><b>${e(x.nombre)}</b> <span style="color:${C.gris};font-size:12px">· ${fc(x.fecha)}</span>${x.tag ? ` <span style="font-size:10px;font-weight:bold;color:${x.tag === 'Real' ? C.bloque : C.mos};border:1px solid ${x.tag === 'Real' ? C.bloque : C.mos};padding:1px 5px">${x.tag}</span>` : ''}</td>
+    <td style="${F}padding:7px 10px;border-bottom:1px solid ${C.linea};font-size:13px;color:${C.gris};text-align:right;white-space:nowrap">${$(x.ing)}</td>
+    <td style="${F}padding:7px 10px;border-bottom:1px solid ${C.linea};font-size:13px;font-weight:bold;text-align:right;white-space:nowrap;color:${(x.neto || 0) < 0 ? C.rojo : C.navy}">${$(x.neto)}</td></tr>`;
+  const tabla = (tit, arr) => arr.length ? `<div style="${F}font-size:12px;letter-spacing:1px;text-transform:uppercase;color:${C.gris};font-weight:bold;margin:18px 0 6px">${tit}</div>
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background:#ffffff;border:1px solid ${C.linea}">
+      <tr><td style="${F}padding:6px 10px;font-size:11px;color:${C.gris};border-bottom:1px solid ${C.linea}">Show</td><td style="${F}padding:6px 10px;font-size:11px;color:${C.gris};text-align:right;border-bottom:1px solid ${C.linea}">Ingresos</td><td style="${F}padding:6px 10px;font-size:11px;color:${C.gris};text-align:right;border-bottom:1px solid ${C.linea}">Resultado</td></tr>
+      ${arr.map(filaShow).join('')}</table>` : '';
+  const otros = (d.otros || []).filter(o => o.personal);
+  const notaOtros = otros.length ? `<div style="${F}font-size:12px;color:${C.gris};margin-top:12px">Incluye otros costos del mes que no son de ningún show: ${otros.map(o => `${e(o.concepto)}${o.fecha ? ` (${fc(o.fecha)})` : ''}, ${$(o.personal)} pagados`).join('; ')}.</div>` : '';
+  const html = `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;max-width:620px;background:${C.fondo};border:1px solid ${C.linea}">
+  <tr><td style="background:${C.navy};padding:16px 20px">
+    <div style="${F}font-size:11px;letter-spacing:2px;text-transform:uppercase;color:#9fb3c8;font-weight:bold">SBSocios · Movistar Arena</div>
+    <div style="${F}font-size:22px;font-weight:bold;color:#ffffff;margin-top:4px">${e(titulo)}</div>
+    ${esProy ? `<div style="${F}font-size:12px;color:${C.mos};margin-top:4px;font-weight:bold">Estimación con los shows confirmados</div>` : ''}
+  </td></tr>
+  <tr><td style="padding:18px 20px">
+    <div style="${F}font-size:14px;line-height:21px;color:${C.navy}">${frase}</div>
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background:#ffffff;border:1px solid ${C.linea};margin-top:14px">
+      <tr><td colspan="3" style="${F}padding:14px 10px 12px;text-align:center;border-bottom:1px solid ${C.linea}"><div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:${C.gris};font-weight:bold">${esProy ? 'Resultado proyectado' : 'Resultado neto'}</div><div style="font-size:28px;font-weight:bold;color:${colNeto};margin-top:4px;white-space:nowrap">${$(neto)}</div></td></tr>
+      <tr>${kpi('Ingresos', $(ing))}${kpi('Egresos', $(egr))}${kpi('Margen', pc(neto, ing), colNeto, true)}</tr>
+    </table>
+    ${tabla(esProy ? 'Los shows que más dejarían' : 'Los shows que más dejaron', top)}
+    ${tabla(esProy ? 'Los de menor resultado' : 'Los de menor resultado', bajo)}
+    ${notaOtros}
+    <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:20px"><tr><td style="background:${C.bloque};padding:11px 20px">
+      <a href="${url}" style="${F}font-size:14px;font-weight:bold;color:#ffffff;text-decoration:none">Ver el detalle completo en el portal →</a></td></tr></table>
+    <div style="${F}font-size:11px;color:${C.gris};margin-top:10px">Montos sin IVA. En el portal está la cuenta de cada show${esProy ? ', los supuestos de la proyección y lo real a medida que se factura' : ' y a dónde fue cada peso'}.</div>
+  </td></tr></table>`;
+  const texto = [titulo, '', frase.replace(/<[^>]+>/g, ''), '', `${esProy ? 'Resultado proyectado' : 'Resultado neto'}: ${$(neto)} · Ingresos: ${$(ing)} · Egresos: ${$(egr)} · Margen: ${pc(neto, ing)}`,
+    top.length ? '\n' + (esProy ? 'Los shows que más dejarían:' : 'Los shows que más dejaron:') + '\n' + top.map(x => `- ${x.nombre} (${fc(x.fecha)}): ${$(x.neto)}`).join('\n') : '',
+    bajo.length ? '\nLos de menor resultado:\n' + bajo.map(x => `- ${x.nombre} (${fc(x.fecha)}): ${$(x.neto)}`).join('\n') : '',
+    '', `Detalle completo en el portal: ${url}`, 'Montos sin IVA.'].filter(x => x !== '').join('\n');
+  return { html, texto, asunto: `Movistar Arena · ${titulo}` };
+}
+window.mailResumenInforme = async function(id, url) {
+  loading(true);
+  const { data, error } = await sb.from('informes').select('tipo,periodo,data').eq('id', id).single();
+  loading(false);
+  if (error || !data) { toast('No se pudo leer el informe: ' + (error?.message || 'sin respuesta'), 'err'); return; }
+  const m = htmlMailInforme(data, url); window._mailRes = m;
+  showModal(`<div class="modal modal-lg">
+    <div class="modal-t"><i class="ti ti-mail"></i> Resumen para el mail</div>
+    <div class="modal-s">Tocá <b>Copiar</b> y pegalo con Ctrl+V en el cuerpo del mail de Gmail: se pega con el diseño, sin adjuntos. Los números son los del informe publicado.</div>
+    <div class="fg"><label class="fl">Asunto sugerido</label><div style="display:flex;gap:6px"><input value="${esc2(m.asunto)}" readonly style="flex:1" onclick="this.select()"><button class="btn btn-sm" onclick="copiarTexto(window._mailRes.asunto,'Asunto copiado')"><i class="ti ti-copy"></i></button></div></div>
+    <div id="mail-prev" style="max-height:52vh;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:12px;background:#fff">${m.html}</div>
+    <div class="modal-f">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+      <button class="btn btn-primary" onclick="copiarMailResumen()"><i class="ti ti-copy"></i> Copiar para pegar en el mail</button>
+    </div>
+  </div>`);
+};
+window.copiarMailResumen = async function() {
+  const m = window._mailRes; if (!m) return;
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([m.html], { type: 'text/html' }), 'text/plain': new Blob([m.texto], { type: 'text/plain' }) })]);
+    toast('Copiado: pegalo en el cuerpo del mail', 'ok');
+  } catch {
+    // Respaldo: seleccionar la vista previa y copiar como lo haría el usuario
+    const el = document.getElementById('mail-prev'), r = document.createRange(); r.selectNodeContents(el);
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    const ok = document.execCommand('copy'); sel.removeAllRanges();
+    toast(ok ? 'Copiado: pegalo en el cuerpo del mail' : 'No se pudo copiar; seleccioná la vista previa y copiá a mano', ok ? 'ok' : 'err');
+  }
+};
+
 window.copiarTexto = async function(txt, msg) {
   try { await navigator.clipboard.writeText(txt); toast(msg, 'ok'); }
   catch { toast('No se pudo copiar; seleccioná y copiá a mano', 'err'); }
